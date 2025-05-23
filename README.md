@@ -72,9 +72,9 @@ Example for Claude desktop `~/.config/Claude/claude_desktop_config.json`
 }
 ```
 
-## Example use within a chat client
+## Example Usage in chat client
 
-** prompt **
+**prompt**
 
 > Explore the data commons at https://gen3.datacommons.io.
 >
@@ -82,7 +82,7 @@ Example for Claude desktop `~/.config/Claude/claude_desktop_config.json`
 >
 > Construct and run a query that returns data about 5 participants.
 
-** response **
+**response**
 
 I'll help you explore the Gen3 data commons and work with its data model. Let me start by examining the schema structure and then build a validated query.
 
@@ -127,8 +127,8 @@ The Gen3 data commons at https://gen3.datacommons.io contains a comprehensive bi
 **Key Hierarchical Structure:**
 ```
 program → project → study → subject
-                     ↓
-         sample → aliquot → read_group → files
+                               ↓
+                            sample → aliquot → read_group → files
 ```
 
 **Central Entity**: The `subject` entity serves as the primary participant record, linking to studies and enabling connections to all associated clinical data, biospecimens, and data files.
@@ -238,6 +238,15 @@ if validation["valid"]:
     result = query_graphql(query)
 ```
 
+### Error Prevention Benefits
+
+The validation system prevents common issues:
+
+1. **Field Name Hallucinations**: Catches non-existent fields before query execution
+2. **Entity Name Errors**: Suggests correct entity names for typos
+3. **Relationship Mistakes**: Validates relationship field usage
+4. **Schema Drift**: Ensures queries stay valid as schemas evolve
+
 ## Available Tools
 
 ### Schema Discovery
@@ -252,7 +261,7 @@ if validation["valid"]:
 - `get_sample_records(entity)` - Example records
 - `explore_entity_data(entity)` - Comprehensive entity overview
 
-### Validation Tools
+### Validation
 - `validate_query_fields(query)` - Validate all fields in query
 - `suggest_similar_fields(field, entity)` - Get field suggestions  
 - `get_query_template(entity)` - Generate safe query templates
@@ -263,62 +272,10 @@ if validation["valid"]:
 - `gen3://endpoints` - Available API endpoints
 - `gen3://validation` - Complete validation workflow guide
 
-## Example Usage
-
-### Basic Query with Validation
-```python
-# 1. Get a safe template
-template_result = get_query_template("subject", include_relationships=True)
-template = template_result["template"]
-
-# 2. Customize the template
-custom_query = """{
-    subject(first: 10) {
-        id
-        submitter_id
-        gender
-        samples {
-            id
-            sample_type
-            anatomic_site
-        }
-    }
-}"""
-
-# 3. Validate before execution
-validation = validate_query_fields(custom_query)
-if validation["valid"]:
-    result = query_graphql(custom_query)
-else:
-    print("Query has errors:", validation["summary"]["errors"])
-```
-
-### Fixing Invalid Fields
-```python
-# If you use an invalid field
-invalid_query = "{ subject { id study_name } }"  # study_name doesn't exist
-
-validation = validate_query_fields(invalid_query)
-if not validation["valid"]:
-    # Get suggestions for the invalid field
-    suggestions = suggest_similar_fields("study_name", "subject")
-    print("Suggested alternatives:", suggestions["suggestions"])
-    # Might suggest: study_description, submitter_id, etc.
-```
-
-## Error Prevention Benefits
-
-The validation system prevents common issues:
-
-1. **Field Name Hallucinations**: Catches non-existent fields before query execution
-2. **Entity Name Errors**: Suggests correct entity names for typos
-3. **Relationship Mistakes**: Validates relationship field usage
-4. **Schema Drift**: Ensures queries stay valid as schemas evolve
-
-## Architecture
+## Structure
 
 ```
-gen3.py                # Main MCP server with existing tools
+gen3.py                # Main MCP server code
 ├── Gen3Client         # HTTP client with token management  
 ├── FastMCP server     # MCP protocol implementation
 └── Validation tools   # Schema validation functions
@@ -334,18 +291,10 @@ gen3_validator.py       # Validation logic
 python test_validation.py
 ```
 
-### Running the Server
+### Demo Validation Functions
 ```bash
-python gen3.py
+python demo_validation.py
 ```
-
-### Adding New Validation Rules
-The validation system is extensible. To add new validation logic:
-
-1. Extend `Gen3SchemaValidator` class
-2. Add pattern matching in `_get_pattern_suggestions()`
-3. Customize similarity scoring in `_similarity()`
-4. Add new validation checks in `validate_query_fields()`
 
 ## Best Practices
 
