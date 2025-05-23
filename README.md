@@ -74,13 +74,16 @@ Example for Claude desktop `~/.config/Claude/claude_desktop_config.json`
 
 ## Example use within a chat client
 
-```
-Explore the data commons at https://gen3.datacommons.io.
-Summarize the data model.
-Construct and run a query that returns data about 5 participants.
-```
+** prompt **
 
-```
+> Explore the data commons at https://gen3.datacommons.io.
+>
+> Summarize the data model.
+>
+> Construct and run a query that returns data about 5 participants.
+
+** response **
+
 I'll help you explore the Gen3 data commons and work with its data model. Let me start by examining the schema structure and then build a validated query.
 
 Now let me get more details about the data model structure and key entities:
@@ -107,9 +110,9 @@ I see the issue. The validation tool is misunderstanding the nested structure. L
 
 Perfect! The query worked successfully. Now let me create a comprehensive summary of my findings.
 
-## Gen3 Data Commons Exploration Summary
+### Gen3 Data Commons Exploration Summary
 
-### Data Model Overview
+#### Data Model Overview
 
 The Gen3 data commons at https://gen3.datacommons.io contains a comprehensive biomedical data model with **38 entity types** organized into 6 main categories:
 
@@ -130,7 +133,7 @@ program → project → study → subject
 
 **Central Entity**: The `subject` entity serves as the primary participant record, linking to studies and enabling connections to all associated clinical data, biospecimens, and data files.
 
-### Subject Entity Analysis
+#### Subject Entity Analysis
 
 The `subject` entity contains 34 properties including:
 
@@ -144,7 +147,7 @@ The `subject` entity contains 34 properties including:
 - `created_datetime`, `updated_datetime`
 - Link to required `studies`
 
-### Validated Query for 5 Participants
+#### Validated Query for 5 Participants
 
 I constructed, validated, and successfully executed this comprehensive GraphQL query:
 
@@ -179,7 +182,7 @@ I constructed, validated, and successfully executed this comprehensive GraphQL q
 }
 ```
 
-### Query Results
+#### Query Results
 
 The query successfully returned data for 5 participants from a PTSD study:
 
@@ -199,7 +202,6 @@ The query successfully returned data for 5 participants from a PTSD study:
 - Records created in February 2020, last updated September 2021
 
 The Gen3 data commons demonstrates a well-structured, relationship-rich data model designed for complex biomedical research with strong emphasis on data provenance, standardized vocabularies, and flexible querying capabilities through GraphQL.
-```
 
 ## Anti-Hallucination Workflow
 
