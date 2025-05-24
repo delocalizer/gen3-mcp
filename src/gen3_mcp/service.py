@@ -96,7 +96,7 @@ class Gen3Service:
         }
 
     async def get_detailed_entities(self) -> dict[str, Any]:
-        """Get detailed entity list with relationships (backward compatibility)"""
+        """Get detailed entity list with relationships"""
         full_schema = await self.get_full_schema()
 
         entities = {}
@@ -243,12 +243,12 @@ class Gen3Service:
         }
 
     async def get_sample_records(
-        self, entity_name: str, limit: int = 5
+        self, entity_name: str, limit: int = 5, max_fields: int = 15
     ) -> dict[str, Any]:
         """Get sample records for entity"""
         # Get schema to select fields intelligently
         schema = await self.get_entity_schema(entity_name)
-        fields = self._select_optimal_fields(schema, 15)
+        fields = self._select_optimal_fields(schema, max_fields)
 
         # Build query
         fields_str = "\n        ".join(fields)

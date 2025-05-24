@@ -1,7 +1,7 @@
 """Gen3 MCP Server Package
 
 A Model Context Protocol (MCP) server for interacting with Gen3 data commons,
-with comprehensive GraphQL query validation to prevent field name hallucinations.
+with GraphQL query validation to reduce field name hallucinations.
 """
 
 __version__ = "1.0"

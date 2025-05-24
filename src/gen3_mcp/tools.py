@@ -38,7 +38,7 @@ class Tools:
         entities = await self.gen3_service.get_entity_names()
         return {"entities": entities}
 
-    async def schema_list_available_entities(self) -> dict[str, Any]:
+    async def schema_detailed_entities(self) -> dict[str, Any]:
         """Get detailed entity list with relationships"""
         return await self.gen3_service.get_detailed_entities()
 
@@ -47,7 +47,7 @@ class Tools:
         """Explore entity using intelligent field selection"""
         record_limit = kwargs.get("limit", 5)
 
-        # Get sample records with optimal fields
+        # Get sample records
         result = await self.gen3_service.get_sample_records(entity_name, record_limit)
         result["entity"] = entity_name
         return result

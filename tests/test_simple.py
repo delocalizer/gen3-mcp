@@ -120,16 +120,6 @@ class TestLoggingSetup:
             logger.setLevel(original_level)
 
 
-class TestConfigBackwardCompatibility:
-    """Test that config functionality maintains backward compatibility"""
-
-    def test_config_still_works(self):
-        """Test that config creation still works as before"""
-        config = Gen3Config()
-        assert config.base_url == "https://gen3.datacommons.io"
-        assert config.log_level == "INFO"
-
-
 if __name__ == "__main__":
     # Run tests directly
     test_config_creation()

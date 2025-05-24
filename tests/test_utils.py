@@ -2,7 +2,7 @@
 
 import pytest
 
-from gen3_mcp.utils import parse_kwargs_string, validate_kwargs_for_operation
+from gen3_mcp.utils import parse_kwargs_string, validate_kwargs
 
 
 class TestParseKwargsString:
@@ -117,8 +117,8 @@ class TestValidateKwargsForOperation:
     def test_no_required_params(self):
         """Test validation with no required parameters"""
         # Should not raise any exception
-        validate_kwargs_for_operation("test_op", {"key": "value"}, [])
-        validate_kwargs_for_operation("test_op", {"key": "value"}, None)
+        validate_kwargs("test_op", {"key": "value"}, [])
+        validate_kwargs("test_op", {"key": "value"}, None)
 
     def test_all_required_present(self):
         """Test validation when all required parameters are present"""
@@ -126,7 +126,7 @@ class TestValidateKwargsForOperation:
         required = ["field_name", "entity_name"]
 
         # Should not raise any exception
-        validate_kwargs_for_operation("suggest_fields", kwargs, required)
+        validate_kwargs("suggest_fields", kwargs, required)
 
     def test_missing_required_params(self):
         """Test validation when required parameters are missing"""
@@ -136,7 +136,7 @@ class TestValidateKwargsForOperation:
         with pytest.raises(
             ValueError, match="Operation 'suggest_fields' requires parameters"
         ):
-            validate_kwargs_for_operation("suggest_fields", kwargs, required)
+            validate_kwargs("suggest_fields", kwargs, required)
 
     def test_multiple_missing_params(self):
         """Test validation with multiple missing parameters"""
@@ -144,12 +144,12 @@ class TestValidateKwargsForOperation:
         required = ["field_name", "entity_name", "query"]
 
         with pytest.raises(ValueError, match="Missing: field_name, entity_name, query"):
-            validate_kwargs_for_operation("test_op", kwargs, required)
+            validate_kwargs("test_op", kwargs, required)
 
     def test_empty_kwargs_with_required(self):
         """Test validation with empty kwargs but required parameters"""
         with pytest.raises(ValueError, match="requires parameters"):
-            validate_kwargs_for_operation("validate_query", {}, ["query"])
+            validate_kwargs("validate_query", {}, ["query"])
 
 
 class TestIntegrationParsingAndValidation:
@@ -161,7 +161,7 @@ class TestIntegrationParsingAndValidation:
         parsed = parse_kwargs_string(kwargs_str)
 
         # Should not raise exception
-        validate_kwargs_for_operation("field_values", parsed, ["field_name"])
+        validate_kwargs("field_values", parsed, ["field_name"])
 
         assert parsed["field_name"] == "gender"
         assert parsed["entity_name"] == "subject"
@@ -174,7 +174,7 @@ class TestIntegrationParsingAndValidation:
         parsed = parse_kwargs_string(kwargs_str)
 
         # Should not raise exception
-        validate_kwargs_for_operation("validate_query", parsed, ["query"])
+        validate_kwargs("validate_query", parsed, ["query"])
 
         assert parsed["query"] == query
 
@@ -184,9 +184,7 @@ class TestIntegrationParsingAndValidation:
         parsed = parse_kwargs_string(kwargs_str)
 
         # Should not raise exception
-        validate_kwargs_for_operation(
-            "suggest_fields", parsed, ["field_name", "entity_name"]
-        )
+        validate_kwargs("suggest_fields", parsed, ["field_name", "entity_name"])
 
         assert parsed["field_name"] == "gander"
         assert parsed["entity_name"] == "subject"
@@ -197,7 +195,7 @@ class TestIntegrationParsingAndValidation:
         parsed = parse_kwargs_string(kwargs_str)
 
         # Should not raise exception
-        validate_kwargs_for_operation("query_template", parsed, ["entity_name"])
+        validate_kwargs("query_template", parsed, ["entity_name"])
 
         assert parsed["entity_name"] == "subject"
         assert parsed["include_relationships"] is True
@@ -209,7 +207,7 @@ class TestIntegrationParsingAndValidation:
         parsed = parse_kwargs_string(kwargs_str)
 
         with pytest.raises(ValueError, match="field_name"):
-            validate_kwargs_for_operation("field_values", parsed, ["field_name"])
+            validate_kwargs("field_values", parsed, ["field_name"])
 
 
 class TestParameterParsingWithMCPTools:
@@ -264,7 +262,7 @@ class TestErrorHandlingInUtils:
         with pytest.raises(
             ValueError, match="Operation 'field_values' requires parameters: field_name"
         ):
-            validate_kwargs_for_operation("field_values", {}, ["field_name"])
+            validate_kwargs("field_values", {}, ["field_name"])
 
     def test_parameter_parsing_error_handling(self):
         """Test that parameter parsing errors are handled properly"""
@@ -276,29 +274,6 @@ class TestErrorHandlingInUtils:
         """Test that empty key errors are handled properly"""
         with pytest.raises(ValueError, match="Empty key"):
             parse_kwargs_string("=value")
-
-
-class TestBackwardCompatibilityInUtils:
-    """Test that utils functions maintain backward compatibility"""
-
-    def test_empty_kwargs_still_handled(self):
-        """Test that empty kwargs are still handled correctly"""
-        result = parse_kwargs_string("")
-        assert result == {}
-
-        result = parse_kwargs_string("   ")
-        assert result == {}
-
-    def test_simple_parameters_still_work(self):
-        """Test that simple parameter formats still work"""
-        result = parse_kwargs_string("limit=5")
-        assert result == {"limit": 5}
-
-    def test_validation_with_no_requirements_still_works(self):
-        """Test that validation with no requirements still works"""
-        # Should not raise any exception
-        validate_kwargs_for_operation("test_op", {"key": "value"}, [])
-        validate_kwargs_for_operation("test_op", {"key": "value"}, None)
 
 
 if __name__ == "__main__":

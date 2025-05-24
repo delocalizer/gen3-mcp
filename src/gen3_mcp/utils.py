@@ -120,7 +120,7 @@ def _split_preserving_escapes(text: str, delimiter: str) -> list[str]:
     return text.split(delimiter)
 
 
-def validate_kwargs_for_operation(
+def validate_kwargs(
     operation: str, parsed_kwargs: dict[str, Any], required_params: list[str] = None
 ) -> None:
     """

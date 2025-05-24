@@ -10,6 +10,22 @@ from gen3_mcp.config import Gen3Config
 pytest_plugins = ("pytest_asyncio",)
 
 
+@pytest.fixture(autouse=True)
+def reset_global_state():
+    """Reset global state before each test"""
+    from gen3_mcp import main
+
+    # Reset global state
+    main._config = None
+    main._client = None
+
+    yield
+
+    # Clean up after test
+    main._config = None
+    main._client = None
+
+
 @pytest.fixture
 def config():
     """Test configuration"""

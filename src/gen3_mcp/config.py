@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 
 class Gen3Config(BaseSettings):
-    """Type-safe configuration with pre-computed endpoints"""
+    """Configuration with pre-computed endpoints"""
 
     model_config = ConfigDict(env_prefix="GEN3_", case_sensitive=False, extra="ignore")
 
@@ -34,7 +34,7 @@ class Gen3Config(BaseSettings):
         default=300, ge=60, le=3600, description="Schema cache TTL in seconds"
     )
 
-    # Pre-computed API endpoint properties
+    # API endpoint properties
     @computed_field
     @property
     def auth_url(self) -> str:

@@ -81,22 +81,11 @@ async def test_validation_operations(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_explore_with_kwargs(mock_client, config):
-    """Test data exploration with various kwargs"""
-    tools = Tools(mock_client, config)
-
-    # Test with field_count and limit
-    result = await tools.data_explore("subject", field_count=10, limit=3)
-    assert "entity" in result
-    assert result["entity"] == "subject"
-
-
-@pytest.mark.asyncio
 async def test_detailed_entities(mock_client, config):
     """Test detailed entity listing"""
     tools = Tools(mock_client, config)
 
-    detailed = await tools.schema_list_available_entities()
+    detailed = await tools.schema_detailed_entities()
 
     assert "total_entities" in detailed
     assert "entities" in detailed
