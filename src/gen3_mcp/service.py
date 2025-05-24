@@ -2,7 +2,8 @@
 
 import logging
 import time
-from typing import Dict, List, Any, Optional
+from typing import Any
+
 from .client import Gen3Client
 from .config import Gen3Config
 from .exceptions import Gen3SchemaError
@@ -20,7 +21,7 @@ class Gen3Service:
         self._cache_timestamps = {}
         self.cache_ttl = config.schema_cache_ttl
 
-    async def get_full_schema(self) -> Dict[str, Any]:
+    async def get_full_schema(self) -> dict[str, Any]:
         """Get full schema using config.schema_url"""
         cache_key = "full_schema"
 
@@ -38,7 +39,7 @@ class Gen3Service:
         self._update_cache(cache_key, schema)
         return schema
 
-    async def get_entity_schema(self, entity_name: str) -> Dict[str, Any]:
+    async def get_entity_schema(self, entity_name: str) -> dict[str, Any]:
         """Get single entity schema using config.entity_schema_url()"""
         cache_key = f"entity_schema:{entity_name}"
 
@@ -56,7 +57,7 @@ class Gen3Service:
         self._update_cache(cache_key, schema)
         return schema
 
-    async def get_entity_names(self) -> List[str]:
+    async def get_entity_names(self) -> list[str]:
         """Get list of all entity names"""
         full_schema = await self.get_full_schema()
         return list(full_schema.keys())
@@ -75,7 +76,7 @@ class Gen3Service:
         except Gen3SchemaError:
             return False
 
-    async def get_schema_summary(self) -> Dict[str, Any]:
+    async def get_schema_summary(self) -> dict[str, Any]:
         """Generate schema summary from cached data"""
         entities = await self.get_entity_names()
         full_schema = await self.get_full_schema()
@@ -108,7 +109,7 @@ class Gen3Service:
             "schema_url": self.config.schema_url,
         }
 
-    async def get_detailed_entities(self) -> Dict[str, Any]:
+    async def get_detailed_entities(self) -> dict[str, Any]:
         """Get detailed entity list with relationships (backward compatibility)"""
         full_schema = await self.get_full_schema()
 
@@ -208,7 +209,7 @@ class Gen3Service:
             },
         }
 
-    async def explore_entity_data(self, entity_name: str) -> Dict[str, Any]:
+    async def explore_entity_data(self, entity_name: str) -> dict[str, Any]:
         """Comprehensive entity exploration"""
         schema = await self.get_entity_schema(entity_name)
 
@@ -255,7 +256,9 @@ class Gen3Service:
             "sample_records": sample_result.get("sample_records", []),
         }
 
-    async def get_sample_records(self, entity_name: str, limit: int = 5) -> Dict[str, Any]:
+    async def get_sample_records(
+        self, entity_name: str, limit: int = 5
+    ) -> dict[str, Any]:
         """Get sample records for entity"""
         # Get schema to select fields intelligently
         schema = await self.get_entity_schema(entity_name)
@@ -293,7 +296,9 @@ class Gen3Service:
             "query_used": query.strip(),
         }
 
-    def _select_optimal_fields(self, schema: Dict[str, Any], max_count: int) -> List[str]:
+    def _select_optimal_fields(
+        self, schema: dict[str, Any], max_count: int
+    ) -> list[str]:
         """Intelligent field selection prioritizing useful fields"""
         properties = schema.get("properties", {})
 

@@ -1,10 +1,12 @@
 """Gen3 client implementation"""
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any
+
 import httpx
-from .config import Gen3Config
+
 from .auth import AuthManager
+from .config import Gen3Config
 from .exceptions import Gen3ClientError
 
 logger = logging.getLogger("gen3-mcp.client")
@@ -17,8 +19,8 @@ class Gen3Client:
 
     def __init__(self, config: Gen3Config):
         self.config = config
-        self._http_client: Optional[httpx.AsyncClient] = None
-        self._auth_manager: Optional[AuthManager] = None
+        self._http_client: httpx.AsyncClient | None = None
+        self._auth_manager: AuthManager | None = None
         self._initialized = False
 
     async def __aenter__(self):
@@ -58,7 +60,7 @@ class Gen3Client:
 
     async def get_json(
         self, url: str, authenticated: bool = True, **kwargs
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get JSON from URL - URL should be complete, from config properties"""
         if not self._initialized:
             raise Gen3ClientError("Client not initialized - use async context manager")
@@ -79,7 +81,7 @@ class Gen3Client:
             logger.error(f"GET {url} failed: {e}")
             return None
 
-    async def post_json(self, url: str, **kwargs) -> Optional[Dict[str, Any]]:
+    async def post_json(self, url: str, **kwargs) -> dict[str, Any] | None:
         """Post JSON to URL - URL should be complete, from config properties"""
         if not self._initialized:
             raise Gen3ClientError("Client not initialized - use async context manager")

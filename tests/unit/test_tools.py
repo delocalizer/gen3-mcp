@@ -1,6 +1,7 @@
 """Tests for Tools"""
 
 import pytest
+
 from gen3_mcp.tools import Tools
 
 
@@ -67,15 +68,15 @@ async def test_validation_operations(mock_client, config):
     # Test query validation
     valid_query = "{ subject { id submitter_id gender } }"
     validation = await tools.validation_validate_query_fields(valid_query)
-    assert validation["valid"] == True
+    assert validation["valid"]
 
     # Test field suggestions
     suggestions = await tools.validation_suggest_similar_fields("gander", "subject")
-    assert suggestions["entity_exists"] == True
+    assert suggestions["entity_exists"]
 
     # Test template generation
     template = await tools.validation_get_query_template("subject")
-    assert template["exists"] == True
+    assert template["exists"]
     assert template["template"] is not None
 
 
@@ -96,12 +97,12 @@ async def test_detailed_entities(mock_client, config):
     tools = Tools(mock_client, config)
 
     detailed = await tools.schema_list_available_entities()
-    
+
     assert "total_entities" in detailed
     assert "entities" in detailed
     assert "entities_by_category" in detailed
     assert "relationship_summary" in detailed
-    
+
     # Check that subject entity is properly detailed
     assert "subject" in detailed["entities"]
     subject_details = detailed["entities"]["subject"]
@@ -116,27 +117,27 @@ async def test_detailed_entities(mock_client, config):
 async def test_tools_initialization(mock_client, config):
     """Test that tools are properly initialized"""
     tools = Tools(mock_client, config)
-    
+
     assert tools.config == config
     assert tools.gen3_service is not None
     assert tools.query_service is not None
-    
+
     # Test that services are connected
     assert tools.query_service.gen3_service == tools.gen3_service
     assert tools.query_service.client == mock_client
     assert tools.query_service.config == config
 
 
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_error_handling(mock_client, config):
     """Test error handling in tools"""
     tools = Tools(mock_client, config)
-    
+
     # Test with invalid entity
     mock_client.get_json.return_value = None
-    
+
     try:
         await tools.schema_entity("nonexistent")
-        assert False, "Should have raised an exception"
+        raise AssertionError("Should have raised an exception")
     except Exception as e:
         assert "not found" in str(e).lower() or "failed" in str(e).lower()

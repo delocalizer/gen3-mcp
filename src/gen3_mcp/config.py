@@ -1,9 +1,8 @@
 """Configuration management and logging setup"""
 
 import logging
-import os
-from typing import Optional
-from pydantic import Field, computed_field, ConfigDict
+
+from pydantic import ConfigDict, Field, computed_field
 from pydantic_settings import BaseSettings
 
 
@@ -86,7 +85,7 @@ def setup_logging(log_level: str = "INFO") -> logging.Logger:
 def gen3_info(config: Gen3Config) -> str:
     """Basic information about the Gen3 data commons instance"""
     return f"""Gen3 Data Commons MCP Server
-        
+
 Endpoint: {config.base_url}
 Log Level: {config.log_level}
 
@@ -149,8 +148,8 @@ validation = validation_operations(operation="validate_query", query=query)
 
 # Fix errors using suggestions
 if not validation["valid"]:
-    suggestions = validation_operations(operation="suggest_fields", 
-                                      field_name="invalid_field", 
+    suggestions = validation_operations(operation="suggest_fields",
+                                      field_name="invalid_field",
                                       entity_name="subject")
 ```
 

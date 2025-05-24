@@ -1,12 +1,13 @@
 """Authentication management with token refresh"""
 
+import asyncio
 import json
 import os
-import asyncio
-from datetime import datetime, timedelta, UTC
 from dataclasses import dataclass
-from typing import Optional
+from datetime import UTC, datetime, timedelta
+
 import httpx
+
 from .config import Gen3Config
 from .exceptions import Gen3ClientError
 
@@ -50,8 +51,8 @@ class AuthManager:
     def __init__(self, config: Gen3Config, http_client: httpx.AsyncClient):
         self.config = config
         self.http_client = http_client
-        self.token_info: Optional[TokenInfo] = None
-        self.credentials: Optional[dict] = None
+        self.token_info: TokenInfo | None = None
+        self.credentials: dict | None = None
         self._credentials_loaded = False
         self._lock = asyncio.Lock()  # Prevent concurrent token refreshes
 
@@ -73,14 +74,14 @@ class AuthManager:
             with open(credentials_path) as f:
                 self.credentials = json.load(f)
             self._credentials_loaded = True
-        except FileNotFoundError:
+        except FileNotFoundError as fnfe:
             raise Gen3ClientError(
                 f"Credentials file not found: {self.config.credentials_file}"
-            )
-        except json.JSONDecodeError:
+            ) from fnfe
+        except json.JSONDecodeError as jde:
             raise Gen3ClientError(
                 f"Invalid JSON in credentials file: {self.config.credentials_file}"
-            )
+            ) from jde
 
     async def _refresh_token(self):
         """Refresh the access token using config.auth_url"""
@@ -104,6 +105,6 @@ class AuthManager:
         except httpx.HTTPStatusError as e:
             raise Gen3ClientError(
                 f"HTTP error during token refresh: {e.response.status_code}"
-            )
+            ) from e
         except Exception as e:
-            raise Gen3ClientError(f"Failed to refresh token: {e}")
+            raise Gen3ClientError(f"Failed to refresh token: {e}") from e

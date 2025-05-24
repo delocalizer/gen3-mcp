@@ -1,10 +1,11 @@
 """Tests for the Gen3Service"""
 
-import pytest
 import time
-from unittest.mock import AsyncMock
-from gen3_mcp.service import Gen3Service
+
+import pytest
+
 from gen3_mcp.exceptions import Gen3SchemaError
+from gen3_mcp.service import Gen3Service
 
 
 @pytest.mark.asyncio
@@ -31,8 +32,8 @@ async def test_entity_exists(mock_client, config):
     service._cache["full_schema"] = {"subject": {}, "sample": {}}
     service._cache_timestamps["full_schema"] = time.time()
 
-    assert await service.entity_exists("subject") == True
-    assert await service.entity_exists("nonexistent") == False
+    assert await service.entity_exists("subject")
+    assert not await service.entity_exists("nonexistent")
 
 
 @pytest.mark.asyncio
@@ -94,7 +95,7 @@ async def test_cache_functionality(mock_client, config):
 
     # Test cache validity
     assert not service._is_cache_valid("nonexistent")
-    
+
     # Test cache update
     service._update_cache("test_key", "test_value")
     assert service._cache["test_key"] == "test_value"
@@ -110,12 +111,12 @@ async def test_cache_functionality(mock_client, config):
 async def test_optimal_field_selection(mock_client, config):
     """Test intelligent field selection"""
     service = Gen3Service(mock_client, config)
-    
+
     # Get the subject schema from our mock data
     from tests.conftest import SUBJECT_SCHEMA
-    
+
     fields = service._select_optimal_fields(SUBJECT_SCHEMA, 10)
-    
+
     assert "id" in fields
     assert "submitter_id" in fields
     assert "type" in fields

@@ -4,19 +4,25 @@ import asyncio
 import logging
 import signal
 import sys
-from typing import Optional
 from contextlib import asynccontextmanager
+
 from mcp.server.fastmcp import FastMCP
 
-from .config import Gen3Config, setup_logging, gen3_info, gen3_endpoints, gen3_validation_guide
 from .client import Gen3Client
+from .config import (
+    Gen3Config,
+    gen3_endpoints,
+    gen3_info,
+    gen3_validation_guide,
+    setup_logging,
+)
 from .tools import Tools
 
 logger = logging.getLogger("gen3-mcp.main")
 
 # Global references for proper cleanup
-_client_instance: Optional[Gen3Client] = None
-_config: Optional[Gen3Config] = None
+_client_instance: Gen3Client | None = None
+_config: Gen3Config | None = None
 
 
 @asynccontextmanager

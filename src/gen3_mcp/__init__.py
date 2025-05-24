@@ -6,17 +6,17 @@ with comprehensive GraphQL query validation to prevent field name hallucinations
 
 __version__ = "0.3.0"
 
-from .config import Gen3Config, setup_logging
 from .client import Gen3Client
-from .service import Gen3Service
-from .query import QueryService
-from .tools import Tools
+from .config import Gen3Config, setup_logging
 from .exceptions import (
-    Gen3MCPError,
     Gen3ClientError,
+    Gen3MCPError,
     Gen3SchemaError,
     QueryValidationError,
 )
+from .query import QueryService
+from .service import Gen3Service
+from .tools import Tools
 
 __all__ = [
     "__version__",

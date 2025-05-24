@@ -1,8 +1,9 @@
 """Tests for QueryService"""
 
 import pytest
-from gen3_mcp.service import Gen3Service
+
 from gen3_mcp.query import QueryService
+from gen3_mcp.service import Gen3Service
 
 
 @pytest.mark.asyncio
@@ -54,7 +55,7 @@ async def test_validate_valid_query(mock_client, config):
 
     result = await query_service.validate_query_fields(valid_query)
 
-    assert result["valid"] == True
+    assert result["valid"]
     assert "subject" in result["extracted_fields"]
     assert "id" in result["extracted_fields"]["subject"]
     assert result["summary"]["total_errors"] == 0
@@ -79,7 +80,7 @@ async def test_validate_invalid_query(mock_client, config):
 
     result = await query_service.validate_query_fields(invalid_query)
 
-    assert result["valid"] == False
+    assert not result["valid"]
     assert result["summary"]["total_errors"] > 0
     assert "invalid_field" in str(result["summary"]["errors"])
 
@@ -93,7 +94,7 @@ async def test_suggest_similar_fields(mock_client, config):
     # Test suggestion for a field similar to "gender"
     suggestions = await query_service.suggest_similar_fields("gander", "subject")
 
-    assert suggestions["entity_exists"] == True
+    assert suggestions["entity_exists"]
     assert len(suggestions["suggestions"]) > 0
 
     # Should suggest "gender" as similar to "gander"
@@ -109,7 +110,7 @@ async def test_generate_query_template(mock_client, config):
 
     template = await query_service.generate_query_template("subject")
 
-    assert template["exists"] == True
+    assert template["exists"]
     assert template["template"] is not None
     assert "id" in template["basic_fields"]
     assert "submitter_id" in template["basic_fields"]
@@ -126,7 +127,7 @@ async def test_nonexistent_entity_suggestions(mock_client, config):
         "test_field", "nonexistent_entity"
     )
 
-    assert suggestions["entity_exists"] == False
+    assert not suggestions["entity_exists"]
     assert "entity_suggestions" in suggestions
 
 
@@ -166,9 +167,9 @@ async def test_similarity(mock_client, config):
 
     # Test exact match
     assert query_service._similarity("gender", "gender") == 1.0
-    
+
     # Test substring match
     assert query_service._similarity("gender", "gen") == pytest.approx(0.667, rel=1e-3)
-    
+
     # Test no match
     assert query_service._similarity("abc", "xyz") < 0.5

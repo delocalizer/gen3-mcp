@@ -1,13 +1,13 @@
 """Query service for validation, building, and execution"""
 
-import re
 import logging
-from typing import Dict, List, Any, Optional
+import re
 from difflib import SequenceMatcher
+from typing import Any
+
 from .client import Gen3Client
 from .config import Gen3Config
 from .service import Gen3Service
-from .exceptions import QueryValidationError
 
 logger = logging.getLogger("gen3-mcp.query")
 
@@ -15,12 +15,14 @@ logger = logging.getLogger("gen3-mcp.query")
 class QueryService:
     """Query operations: validation, building, and execution"""
 
-    def __init__(self, client: Gen3Client, config: Gen3Config, gen3_service: Gen3Service):
+    def __init__(
+        self, client: Gen3Client, config: Gen3Config, gen3_service: Gen3Service
+    ):
         self.client = client
         self.config = config
         self.gen3_service = gen3_service
 
-    async def execute_graphql(self, query: str) -> Optional[Dict[str, Any]]:
+    async def execute_graphql(self, query: str) -> dict[str, Any] | None:
         """Execute GraphQL query using config.graphql_url"""
         logger.info("Executing GraphQL query")
         logger.debug(f"Query: {query[:200]}{'...' if len(query) > 200 else ''}")
@@ -42,7 +44,7 @@ class QueryService:
 
     async def execute_field_sampling(
         self, entity_name: str, field_name: str, limit: int = 100
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute query for field value sampling with processing"""
         query = f"""
         {{
@@ -87,7 +89,7 @@ class QueryService:
             "query_used": query.strip(),
         }
 
-    async def validate_query_fields(self, query: str) -> Dict[str, Any]:
+    async def validate_query_fields(self, query: str) -> dict[str, Any]:
         """Validate all fields in a GraphQL query against the Gen3 schema"""
         logger.info("Validating GraphQL query fields")
 
@@ -177,7 +179,7 @@ class QueryService:
 
     async def suggest_similar_fields(
         self, field_name: str, entity_name: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Suggest similar field names for a given field in an entity"""
         logger.debug(f"Suggesting similar fields for {field_name} in {entity_name}")
 
@@ -245,7 +247,7 @@ class QueryService:
 
     async def generate_query_template(
         self, entity_name: str, include_relationships: bool = True, max_fields: int = 20
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate a safe GraphQL query template with only confirmed valid fields"""
         logger.info(f"Generating query template for {entity_name}")
 
@@ -349,9 +351,9 @@ class QueryService:
                 template += "    \n    # Relationship fields (uncomment as needed):\n"
                 for rel in relationship_fields[:5]:  # Limit to 5 examples
                     template += f"    # {rel['name']} {{\n"
-                    template += f"    #     id\n"
-                    template += f"    #     submitter_id\n"
-                    template += f"    # }}\n"
+                    template += "    #     id\n"
+                    template += "    #     submitter_id\n"
+                    template += "    # }\n"
 
             template += "}"
 
@@ -381,7 +383,7 @@ class QueryService:
                 "error": f"Failed to generate template: {e}",
             }
 
-    def _extract_graphql_fields(self, query: str) -> Dict[str, List[str]]:
+    def _extract_graphql_fields(self, query: str) -> dict[str, list[str]]:
         """Extract entity names and their requested fields from a GraphQL query"""
         # Remove comments and normalize whitespace
         query = re.sub(r"#.*$", "", query, flags=re.MULTILINE)
@@ -418,7 +420,7 @@ class QueryService:
 
         return result
 
-    def _extract_fields_from_content(self, content: str) -> List[str]:
+    def _extract_fields_from_content(self, content: str) -> list[str]:
         """Extract field names from entity content, handling nested structures"""
         fields = []
 
@@ -449,7 +451,7 @@ class QueryService:
 
         return list(set(fields))  # Remove duplicates
 
-    def _get_all_valid_fields(self, schema: Dict[str, Any]) -> set[str]:
+    def _get_all_valid_fields(self, schema: dict[str, Any]) -> set[str]:
         """Get all valid field names including relationships"""
         valid_fields = set(schema.get("properties", {}).keys())
 
@@ -477,7 +479,7 @@ class QueryService:
 
     def _suggest_similar_entities(
         self, entity_name: str, valid_entities: set[str]
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Suggest similar entity names"""
         suggestions = []
         for valid_entity in valid_entities:
@@ -488,7 +490,7 @@ class QueryService:
         suggestions.sort(key=lambda x: x["similarity"], reverse=True)
         return suggestions[:5]
 
-    def _get_field_type(self, schema: Dict[str, Any], field_name: str) -> str:
+    def _get_field_type(self, schema: dict[str, Any], field_name: str) -> str:
         """Get the type of a field from schema"""
         properties = schema.get("properties", {})
         if field_name in properties:
@@ -511,7 +513,7 @@ class QueryService:
 
     def _get_pattern_suggestions(
         self, field_name: str, valid_fields: set[str]
-    ) -> List[str]:
+    ) -> list[str]:
         """Get suggestions based on common naming patterns"""
         patterns = []
 
@@ -543,8 +545,8 @@ class QueryService:
         return list(set(patterns))[:5]  # Remove duplicates and limit
 
     def _generate_validation_summary(
-        self, validation_results: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, validation_results: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate a summary of validation results"""
         total_entities = len(validation_results)
         valid_entities = sum(
@@ -564,7 +566,7 @@ class QueryService:
         )
 
         all_errors = []
-        for entity_name, result in validation_results.items():
+        for _entity_name, result in validation_results.items():
             all_errors.extend(result["errors"])
 
         return {

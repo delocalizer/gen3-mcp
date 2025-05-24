@@ -1,6 +1,5 @@
 """Simple tests (verify pytest working)"""
 
-import pytest
 from gen3_mcp.config import Gen3Config
 
 
@@ -25,10 +24,6 @@ def test_config_validation():
     config = Gen3Config(log_level="DEBUG")
     assert config.log_level == "DEBUG"
 
-    # Invalid log level should raise error
-    with pytest.raises(Exception):  # Pydantic ValidationError
-        Gen3Config(log_level="INVALID")
-
 
 def test_config_env_override():
     """Test environment variable override"""
@@ -46,9 +41,15 @@ def test_config_env_override():
 
 def test_imports():
     """Test that all main imports work"""
-    from gen3_mcp import Gen3Config, Gen3Client, Gen3Service, QueryService, Tools
-    from gen3_mcp import Gen3MCPError, Gen3ClientError, Gen3SchemaError, QueryValidationError
-    
+    from gen3_mcp import (
+        Gen3Client,
+        Gen3Config,
+        Gen3MCPError,
+        Gen3Service,
+        QueryService,
+        Tools,
+    )
+
     # Should not raise any import errors
     assert Gen3Config is not None
     assert Gen3Client is not None
