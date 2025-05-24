@@ -67,15 +67,15 @@ async def test_validation_operations(mock_client, config):
 
     # Test query validation
     valid_query = "{ subject { id submitter_id gender } }"
-    validation = await tools.validation_validate_query_fields(valid_query)
+    validation = await tools.validate_query(valid_query)
     assert validation["valid"]
 
     # Test field suggestions
-    suggestions = await tools.validation_suggest_similar_fields("gander", "subject")
+    suggestions = await tools.suggest_fields("gander", "subject")
     assert suggestions["entity_exists"]
 
     # Test template generation
-    template = await tools.validation_get_query_template("subject")
+    template = await tools.query_template("subject")
     assert template["exists"]
     assert template["template"] is not None
 

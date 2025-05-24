@@ -1,6 +1,6 @@
 [project]
 name = "gen3-mcp"
-version = "0.3.0"
+version = "1.0"
 description = "A Model Context Protocol (MCP) server for interacting with Gen3 data commons."
 readme = "docs/README.md"
 requires-python = ">=3.11"
@@ -11,6 +11,15 @@ dependencies = [
     "pydantic>=2.0.0,<3.0.0",
     "pydantic-settings>=2.0.0,<3.0.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "black",
+    "ruff",
+    "mypy",
+    "coverage"]
 
 [project.scripts]
 gen3-mcp = "gen3_mcp.main:main"

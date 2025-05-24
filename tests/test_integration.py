@@ -38,12 +38,12 @@ async def test_tools_integration(mock_client, config):
     assert "properties" in schema
 
     # 4. Generate query template
-    template = await tools.validation_get_query_template(entity_name)
+    template = await tools.query_template(entity_name)
     assert template["exists"]
 
     # 5. Validate the template
     if template["template"]:
-        validation = await tools.validation_validate_query_fields(template["template"])
+        validation = await tools.validate_query(template["template"])
         assert validation["valid"]
 
     # 6. Execute a simple query

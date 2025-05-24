@@ -28,9 +28,6 @@ class Gen3Config(BaseSettings):
     timeout_seconds: int = Field(
         default=30, gt=0, le=300, description="HTTP request timeout in seconds"
     )
-    max_retries: int = Field(
-        default=3, ge=0, le=10, description="Maximum number of HTTP retries"
-    )
 
     # Cache settings
     schema_cache_ttl: int = Field(

@@ -163,24 +163,20 @@ def create_mcp_server() -> FastMCP:
                         "validate_query", parsed_kwargs, ["query"]
                     )
                     query = parsed_kwargs.get("query")
-                    return await tools.validation_validate_query_fields(query)
+                    return await tools.validate_query(query)
                 case "suggest_fields":
                     validate_kwargs_for_operation(
                         "suggest_fields", parsed_kwargs, ["field_name", "entity_name"]
                     )
                     field_name = parsed_kwargs.get("field_name")
                     entity_name = parsed_kwargs.get("entity_name")
-                    return await tools.validation_suggest_similar_fields(
-                        field_name, entity_name
-                    )
+                    return await tools.suggest_fields(field_name, entity_name)
                 case "query_template":
                     validate_kwargs_for_operation(
                         "query_template", parsed_kwargs, ["entity_name"]
                     )
                     entity_name = parsed_kwargs.get("entity_name")
-                    return await tools.validation_get_query_template(
-                        entity_name, **parsed_kwargs
-                    )
+                    return await tools.query_template(entity_name, **parsed_kwargs)
                 case _:
                     raise ValueError(f"Unknown validation operation: {operation}")
 

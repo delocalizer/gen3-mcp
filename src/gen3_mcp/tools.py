@@ -80,19 +80,15 @@ class Tools:
         return result
 
     # Validation Operations
-    async def validation_validate_query_fields(self, query: str) -> dict[str, Any]:
+    async def validate_query(self, query: str) -> dict[str, Any]:
         """Validate query fields"""
         return await self.query_service.validate_query_fields(query)
 
-    async def validation_suggest_similar_fields(
-        self, field_name: str, entity_name: str
-    ) -> dict[str, Any]:
+    async def suggest_fields(self, field_name: str, entity_name: str) -> dict[str, Any]:
         """Suggest similar fields"""
         return await self.query_service.suggest_similar_fields(field_name, entity_name)
 
-    async def validation_get_query_template(
-        self, entity_name: str, **kwargs
-    ) -> dict[str, Any]:
+    async def query_template(self, entity_name: str, **kwargs) -> dict[str, Any]:
         """Generate query template"""
         include_relationships = kwargs.get("include_relationships", True)
         max_fields = kwargs.get("max_fields", 20)
