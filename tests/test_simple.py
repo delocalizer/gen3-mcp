@@ -1,4 +1,4 @@
-"""Simple test to verify pytest works"""
+"""Simple tests (verify pytest working)"""
 
 import pytest
 from gen3_mcp.config import Gen3Config
@@ -44,10 +44,25 @@ def test_config_env_override():
     del os.environ["GEN3_BASE_URL"]
 
 
+def test_imports():
+    """Test that all main imports work"""
+    from gen3_mcp import Gen3Config, Gen3Client, Gen3Service, QueryService, Tools
+    from gen3_mcp import Gen3MCPError, Gen3ClientError, Gen3SchemaError, QueryValidationError
+    
+    # Should not raise any import errors
+    assert Gen3Config is not None
+    assert Gen3Client is not None
+    assert Gen3Service is not None
+    assert QueryService is not None
+    assert Tools is not None
+    assert Gen3MCPError is not None
+
+
 if __name__ == "__main__":
     # Run tests directly
     test_config_creation()
     test_config_properties()
     test_config_validation()
     test_config_env_override()
+    test_imports()
     print("✅ All simple tests passed!")

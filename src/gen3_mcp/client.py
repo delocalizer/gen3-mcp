@@ -1,30 +1,19 @@
 """Gen3 client implementation"""
 
 import logging
-from typing import Protocol, Optional, Dict, Any
-from contextlib import asynccontextmanager
+from typing import Optional, Dict, Any
 import httpx
-import asyncio
-from ..config.settings import Gen3Config
+from .config import Gen3Config
 from .auth import AuthManager
-from ..exceptions import Gen3ClientError
+from .exceptions import Gen3ClientError
 
 logger = logging.getLogger("gen3-mcp.client")
 
 USER_AGENT: str = "gen3-mcp/1.0"
 
 
-class Gen3ClientProtocol(Protocol):
-    """Protocol defining the client interface for dependency injection"""
-
-    async def get_json(
-        self, url: str, authenticated: bool = True, **kwargs
-    ) -> Optional[Dict[str, Any]]: ...
-    async def post_json(self, url: str, **kwargs) -> Optional[Dict[str, Any]]: ...
-
-
 class Gen3Client:
-    """Gen3 client that uses config endpoints consistently"""
+    """Gen3 API client"""
 
     def __init__(self, config: Gen3Config):
         self.config = config

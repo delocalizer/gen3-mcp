@@ -3,8 +3,7 @@
 import pytest
 import time
 from unittest.mock import AsyncMock
-from gen3_mcp.config.settings import Gen3Config
-from gen3_mcp.client.gen3_client import Gen3ClientProtocol
+from gen3_mcp.config import Gen3Config
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
@@ -84,7 +83,9 @@ def mock_get_json_side_effect(url, **kwargs):
 @pytest.fixture
 def mock_client():
     """Mock Gen3 client for testing"""
-    client = AsyncMock(spec=Gen3ClientProtocol)
+    from gen3_mcp.client import Gen3Client
+    
+    client = AsyncMock(spec=Gen3Client)
 
     # Configure mock to return different responses based on URL
     client.get_json.side_effect = mock_get_json_side_effect

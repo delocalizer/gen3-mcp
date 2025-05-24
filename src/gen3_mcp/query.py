@@ -1,20 +1,91 @@
-"""Validation service consolidating all validation logic"""
+"""Query service for validation, building, and execution"""
 
 import re
 import logging
 from typing import Dict, List, Any, Optional
 from difflib import SequenceMatcher
-from ..schema.service import SchemaService
-from ..exceptions import FieldNotFoundError, QueryValidationError
+from .client import Gen3Client
+from .config import Gen3Config
+from .service import Gen3Service
+from .exceptions import QueryValidationError
 
-logger = logging.getLogger("gen3-mcp.validation")
+logger = logging.getLogger("gen3-mcp.query")
 
 
-class ValidationService:
-    """Consolidated validation logic with intelligent suggestions"""
+class QueryService:
+    """Query operations: validation, building, and execution"""
 
-    def __init__(self, schema_service: SchemaService):
-        self.schema_service = schema_service
+    def __init__(self, client: Gen3Client, config: Gen3Config, gen3_service: Gen3Service):
+        self.client = client
+        self.config = config
+        self.gen3_service = gen3_service
+
+    async def execute_graphql(self, query: str) -> Optional[Dict[str, Any]]:
+        """Execute GraphQL query using config.graphql_url"""
+        logger.info("Executing GraphQL query")
+        logger.debug(f"Query: {query[:200]}{'...' if len(query) > 200 else ''}")
+
+        result = await self.client.post_json(
+            self.config.graphql_url,
+            json={"query": query},
+        )
+
+        if result is None:
+            logger.error("GraphQL query execution failed")
+            return None
+
+        # Check for GraphQL errors
+        if "errors" in result:
+            logger.warning(f"GraphQL query returned errors: {result['errors']}")
+
+        return result
+
+    async def execute_field_sampling(
+        self, entity_name: str, field_name: str, limit: int = 100
+    ) -> Dict[str, Any]:
+        """Execute query for field value sampling with processing"""
+        query = f"""
+        {{
+            {entity_name}(first: {limit}) {{
+                {field_name}
+            }}
+        }}
+        """
+
+        logger.info(f"Sampling field values for {entity_name}.{field_name}")
+        result = await self.execute_graphql(query)
+
+        if not result or "data" not in result:
+            return {
+                "error": f"Failed to fetch field values for {entity_name}.{field_name}",
+                "query": query.strip(),
+            }
+
+        # Process field values
+        entity_data = result["data"].get(entity_name, [])
+        value_counts = {}
+
+        for record in entity_data:
+            value = record.get(field_name)
+            if value is not None:
+                value_str = str(value)
+                value_counts[value_str] = value_counts.get(value_str, 0) + 1
+
+        # Sort by frequency
+        sorted_values = dict(
+            sorted(value_counts.items(), key=lambda x: x[1], reverse=True)
+        )
+
+        logger.debug(f"Found {len(value_counts)} unique values for {field_name}")
+
+        return {
+            "entity": entity_name,
+            "field": field_name,
+            "total_records": len(entity_data),
+            "unique_values": len(value_counts),
+            "values": sorted_values,
+            "query_used": query.strip(),
+        }
 
     async def validate_query_fields(self, query: str) -> Dict[str, Any]:
         """Validate all fields in a GraphQL query against the Gen3 schema"""
@@ -35,7 +106,7 @@ class ValidationService:
 
         # Get list of valid entities
         try:
-            valid_entities = set(await self.schema_service.get_entity_names())
+            valid_entities = set(await self.gen3_service.get_entity_names())
         except Exception as e:
             return {
                 "valid": False,
@@ -65,7 +136,7 @@ class ValidationService:
             else:
                 # Validate fields for this entity
                 try:
-                    schema = await self.schema_service.get_entity_schema(entity_name)
+                    schema = await self.gen3_service.get_entity_schema(entity_name)
                     valid_fields = self._get_all_valid_fields(schema)
 
                     for field in fields:
@@ -112,7 +183,7 @@ class ValidationService:
 
         try:
             # Check if entity exists
-            valid_entities = set(await self.schema_service.get_entity_names())
+            valid_entities = set(await self.gen3_service.get_entity_names())
 
             if entity_name not in valid_entities:
                 # Suggest similar entity names
@@ -130,36 +201,27 @@ class ValidationService:
                 }
 
             # Get schema for the entity
-            schema = await self.schema_service.get_entity_schema(entity_name)
+            schema = await self.gen3_service.get_entity_schema(entity_name)
             valid_fields = self._get_all_valid_fields(schema)
 
-            # Calculate similarities
+            # Calculate similarities using simple approach
             suggestions = []
             for valid_field in valid_fields:
-                similarity = self._similarity(field_name, valid_field)
-                if similarity > 0.4:  # Threshold for suggestions
-                    suggestions.append(
-                        {
-                            "name": valid_field,
-                            "similarity": similarity,
-                            "type": self._get_field_type(schema, valid_field),
-                        }
-                    )
+                if field_name.lower() in valid_field.lower() or valid_field.lower() in field_name.lower():
+                    suggestions.append({
+                        "name": valid_field,
+                        "similarity": self._simple_similarity(field_name, valid_field),
+                        "type": self._get_field_type(schema, valid_field),
+                    })
 
             # Sort by similarity
             suggestions.sort(key=lambda x: x["similarity"], reverse=True)
-
-            # Also check for common patterns
-            pattern_suggestions = self._get_pattern_suggestions(
-                field_name, valid_fields
-            )
 
             return {
                 "field_name": field_name,
                 "entity_name": entity_name,
                 "entity_exists": True,
                 "suggestions": suggestions[:10],  # Top 10 suggestions
-                "pattern_suggestions": pattern_suggestions,
                 "total_valid_fields": len(valid_fields),
                 "message": f"Found {len(suggestions)} similar fields for '{field_name}' in '{entity_name}'",
             }
@@ -180,7 +242,7 @@ class ValidationService:
 
         try:
             # Check if entity exists
-            valid_entities = set(await self.schema_service.get_entity_names())
+            valid_entities = set(await self.gen3_service.get_entity_names())
 
             if entity_name not in valid_entities:
                 suggestions = self._suggest_similar_entities(
@@ -195,7 +257,7 @@ class ValidationService:
                 }
 
             # Get schema
-            schema = await self.schema_service.get_entity_schema(entity_name)
+            schema = await self.gen3_service.get_entity_schema(entity_name)
 
             # Collect basic fields
             basic_fields = ["id", "submitter_id", "type"]
@@ -299,9 +361,6 @@ class ValidationService:
                 "required_fields": schema.get("required", []),
                 "description": schema.get("description", ""),
                 "category": schema.get("category", ""),
-                "usage_notes": self._generate_usage_notes(
-                    entity_name, schema, enum_fields
-                ),
             }
 
         except Exception as e:
@@ -403,9 +462,21 @@ class ValidationService:
 
         return valid_fields
 
-    def _similarity(self, a: str, b: str) -> float:
-        """Calculate similarity between two strings"""
-        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+    def _simple_similarity(self, a: str, b: str) -> float:
+        """Calculate simple similarity between two strings"""
+        a_lower = a.lower()
+        b_lower = b.lower()
+        
+        # Exact match
+        if a_lower == b_lower:
+            return 1.0
+        
+        # Substring match
+        if a_lower in b_lower or b_lower in a_lower:
+            return 0.8
+            
+        # Use difflib for more complex matching
+        return SequenceMatcher(None, a_lower, b_lower).ratio()
 
     def _suggest_similar_entities(
         self, entity_name: str, valid_entities: set[str]
@@ -413,8 +484,8 @@ class ValidationService:
         """Suggest similar entity names"""
         suggestions = []
         for valid_entity in valid_entities:
-            similarity = self._similarity(entity_name, valid_entity)
-            if similarity > 0.6:
+            similarity = self._simple_similarity(entity_name, valid_entity)
+            if similarity > 0.4:  # Lower threshold for entity suggestions
                 suggestions.append({"name": valid_entity, "similarity": similarity})
 
         suggestions.sort(key=lambda x: x["similarity"], reverse=True)
@@ -440,39 +511,6 @@ class ValidationService:
                             return f"relationship -> {sublink.get('target_type', 'unknown')}"
 
         return "unknown"
-
-    def _get_pattern_suggestions(
-        self, field_name: str, valid_fields: set[str]
-    ) -> List[str]:
-        """Get suggestions based on common naming patterns"""
-        patterns = []
-
-        # Common field patterns
-        if "name" in field_name.lower():
-            patterns.extend(
-                [f for f in valid_fields if "name" in f.lower() or f.endswith("_name")]
-            )
-
-        if "type" in field_name.lower():
-            patterns.extend(
-                [f for f in valid_fields if "type" in f.lower() or f.endswith("_type")]
-            )
-
-        if "id" in field_name.lower():
-            patterns.extend(
-                [f for f in valid_fields if "id" in f.lower() or f.endswith("_id")]
-            )
-
-        if "date" in field_name.lower() or "time" in field_name.lower():
-            patterns.extend(
-                [
-                    f
-                    for f in valid_fields
-                    if any(x in f.lower() for x in ["date", "time", "datetime"])
-                ]
-            )
-
-        return list(set(patterns))[:5]  # Remove duplicates and limit
 
     def _generate_validation_summary(
         self, validation_results: Dict[str, Any]
@@ -507,39 +545,3 @@ class ValidationService:
             "total_errors": len(all_errors),
             "errors": all_errors,
         }
-
-    def _generate_usage_notes(
-        self,
-        entity_name: str,
-        schema: Dict[str, Any],
-        enum_fields: List[Dict[str, Any]],
-    ) -> List[str]:
-        """Generate helpful usage notes for the entity"""
-        notes = []
-
-        # Required fields note
-        required = schema.get("required", [])
-        if required:
-            notes.append(f"Required fields: {', '.join(required)}")
-
-        # Enum fields note
-        if enum_fields:
-            enum_names = [ef.get("field") for ef in enum_fields]
-            notes.append(f"Fields with predefined values: {', '.join(enum_names)}")
-
-        # Category note
-        category = schema.get("category", "")
-        if category:
-            notes.append(f"Entity category: {category}")
-
-        # Common patterns
-        properties = schema.get("properties", {})
-        if any("date" in prop or "time" in prop for prop in properties):
-            notes.append("Contains datetime fields - useful for temporal queries")
-
-        if any("file" in prop for prop in properties):
-            notes.append(
-                "Contains file-related fields - check file_size, file_name, etc."
-            )
-
-        return notes

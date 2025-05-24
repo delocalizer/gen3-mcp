@@ -8,10 +8,9 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from mcp.server.fastmcp import FastMCP
 
-from .config import Gen3Config, setup_logging
+from .config import Gen3Config, setup_logging, gen3_info, gen3_endpoints, gen3_validation_guide
 from .client import Gen3Client
-from .tools import UnifiedTools
-from .resources import Gen3Resources
+from .tools import Tools
 
 logger = logging.getLogger("gen3-mcp.main")
 
@@ -50,26 +49,23 @@ def create_mcp_server() -> FastMCP:
     # Create MCP server
     mcp = FastMCP("gen3")
 
-    # Initialize resources
-    resources = Gen3Resources(_config)
-
     # Register resources
     @mcp.resource("gen3://info")
-    def gen3_info() -> str:
-        return resources.gen3_info()
+    def gen3_info_resource() -> str:
+        return gen3_info(_config)
 
     @mcp.resource("gen3://endpoints")
-    def gen3_endpoints() -> dict[str, str]:
-        return resources.gen3_endpoints()
+    def gen3_endpoints_resource() -> dict[str, str]:
+        return gen3_endpoints(_config)
 
     @mcp.resource("gen3://validation")
-    def gen3_validation_guide() -> str:
-        return resources.gen3_validation_guide()
+    def gen3_validation_guide_resource() -> str:
+        return gen3_validation_guide()
 
-    # Register consolidated tools
+    # Register tools
     @mcp.tool()
     async def schema_operations(operation: str, entity_name: str = None) -> dict:
-        """Unified schema operations tool
+        """Schema operations tool
 
         Available operations:
         - summary: Get schema summary
@@ -79,7 +75,7 @@ def create_mcp_server() -> FastMCP:
         - list_available_entities: Get detailed entity list with relationships
         """
         async with client_context() as client:
-            tools = UnifiedTools(client, _config)
+            tools = Tools(client, _config)
 
             match operation:
                 case "summary":
@@ -98,8 +94,8 @@ def create_mcp_server() -> FastMCP:
                     raise ValueError(f"Unknown schema operation: {operation}")
 
     @mcp.tool()
-    async def data_operations(operation: str, entity_name: str, **kwargs) -> dict:
-        """Unified data operations tool
+    async def data_operations(operation: str, entity_name: str, kwargs: str) -> dict:
+        """Data operations tool
 
         Available operations:
         - explore: Explore entity data (supports field_count, limit)
@@ -108,21 +104,36 @@ def create_mcp_server() -> FastMCP:
         - explore_entity_data: Comprehensive entity exploration
         """
         async with client_context() as client:
-            tools = UnifiedTools(client, _config)
+            tools = Tools(client, _config)
+
+            # Parse kwargs string as key=value pairs
+            parsed_kwargs = {}
+            if kwargs:
+                for pair in kwargs.split(","):
+                    if "=" in pair:
+                        key, value = pair.split("=", 1)
+                        # Try to convert to appropriate types
+                        try:
+                            if value.isdigit():
+                                parsed_kwargs[key.strip()] = int(value.strip())
+                            else:
+                                parsed_kwargs[key.strip()] = value.strip()
+                        except:
+                            parsed_kwargs[key.strip()] = value.strip()
 
             match operation:
                 case "explore":
-                    return await tools.data_explore(entity_name, **kwargs)
+                    return await tools.data_explore(entity_name, **parsed_kwargs)
                 case "sample_records":
-                    return await tools.data_sample_records(entity_name, **kwargs)
+                    return await tools.data_sample_records(entity_name, **parsed_kwargs)
                 case "field_values":
-                    field_name = kwargs.get("field_name")
+                    field_name = parsed_kwargs.get("field_name")
                     if not field_name:
                         raise ValueError(
                             "field_name required for 'field_values' operation"
                         )
                     return await tools.data_field_values(
-                        entity_name, field_name, **kwargs
+                        entity_name, field_name, **parsed_kwargs
                     )
                 case "explore_entity_data":
                     return await tools.data_explore_entity_data(entity_name)
@@ -130,8 +141,8 @@ def create_mcp_server() -> FastMCP:
                     raise ValueError(f"Unknown data operation: {operation}")
 
     @mcp.tool()
-    async def validation_operations(operation: str, **kwargs) -> dict:
-        """Unified validation operations tool
+    async def validation_operations(operation: str, kwargs: str) -> dict:
+        """Validation operations tool
 
         Available operations:
         - validate_query: Validate GraphQL query (requires query)
@@ -139,19 +150,27 @@ def create_mcp_server() -> FastMCP:
         - query_template: Generate safe query template (requires entity_name)
         """
         async with client_context() as client:
-            tools = UnifiedTools(client, _config)
+            tools = Tools(client, _config)
+
+            # Parse kwargs string as key=value pairs
+            parsed_kwargs = {}
+            if kwargs:
+                for pair in kwargs.split(","):
+                    if "=" in pair:
+                        key, value = pair.split("=", 1)
+                        parsed_kwargs[key.strip()] = value.strip()
 
             match operation:
                 case "validate_query":
-                    query = kwargs.get("query")
+                    query = parsed_kwargs.get("query")
                     if not query:
                         raise ValueError(
                             "query required for 'validate_query' operation"
                         )
                     return await tools.validation_validate_query_fields(query)
                 case "suggest_fields":
-                    field_name = kwargs.get("field_name")
-                    entity_name = kwargs.get("entity_name")
+                    field_name = parsed_kwargs.get("field_name")
+                    entity_name = parsed_kwargs.get("entity_name")
                     if not field_name or not entity_name:
                         raise ValueError(
                             "field_name and entity_name required for 'suggest_fields' operation"
@@ -160,13 +179,13 @@ def create_mcp_server() -> FastMCP:
                         field_name, entity_name
                     )
                 case "query_template":
-                    entity_name = kwargs.get("entity_name")
+                    entity_name = parsed_kwargs.get("entity_name")
                     if not entity_name:
                         raise ValueError(
                             "entity_name required for 'query_template' operation"
                         )
                     return await tools.validation_get_query_template(
-                        entity_name, **kwargs
+                        entity_name, **parsed_kwargs
                     )
                 case _:
                     raise ValueError(f"Unknown validation operation: {operation}")
@@ -179,76 +198,8 @@ def create_mcp_server() -> FastMCP:
             query: GraphQL query string
         """
         async with client_context() as client:
-            tools = UnifiedTools(client, _config)
+            tools = Tools(client, _config)
             return await tools.query_graphql(query)
-
-    # Legacy tool compatibility (keeping original names for backward compatibility)
-    @mcp.tool()
-    async def get_schema_summary() -> dict:
-        """Get schema summary (legacy compatibility)"""
-        return await schema_operations("summary")
-
-    @mcp.tool()
-    async def get_full_schema() -> dict:
-        """Get full schema (legacy compatibility)"""
-        return await schema_operations("full")
-
-    @mcp.tool()
-    async def get_entity_schema(entity_name: str) -> dict:
-        """Get entity schema (legacy compatibility)"""
-        return await schema_operations("entity", entity_name)
-
-    @mcp.tool()
-    async def list_available_entities() -> dict:
-        """List available entities (legacy compatibility)"""
-        return await schema_operations("list_available_entities")
-
-    @mcp.tool()
-    async def query_graphql(query: str) -> dict:
-        """Execute GraphQL query (legacy compatibility)"""
-        return await execute_graphql(query)
-
-    @mcp.tool()
-    async def get_field_values(
-        entity_name: str, field_name: str, limit: int = 20
-    ) -> dict:
-        """Get field values (legacy compatibility)"""
-        return await data_operations(
-            "field_values", entity_name, field_name=field_name, limit=limit
-        )
-
-    @mcp.tool()
-    async def get_sample_records(entity_name: str, limit: int = 5) -> dict:
-        """Get sample records (legacy compatibility)"""
-        return await data_operations("sample_records", entity_name, limit=limit)
-
-    @mcp.tool()
-    async def explore_entity_data(entity_name: str) -> dict:
-        """Explore entity data (legacy compatibility)"""
-        return await data_operations("explore_entity_data", entity_name)
-
-    @mcp.tool()
-    async def validate_query_fields(query: str) -> dict:
-        """Validate query fields (legacy compatibility)"""
-        return await validation_operations("validate_query", query=query)
-
-    @mcp.tool()
-    async def suggest_similar_fields(field_name: str, entity_name: str) -> dict:
-        """Suggest similar fields (legacy compatibility)"""
-        return await validation_operations(
-            "suggest_fields", field_name=field_name, entity_name=entity_name
-        )
-
-    @mcp.tool()
-    async def get_query_template(
-        entity_name: str, include_relationships: bool = True
-    ) -> dict:
-        """Get query template (legacy compatibility)"""
-        return await validation_operations(
-            "query_template",
-            entity_name=entity_name,
-            include_relationships=include_relationships,
-        )
 
     return mcp
 

@@ -7,8 +7,8 @@ from datetime import datetime, timedelta, UTC
 from dataclasses import dataclass
 from typing import Optional
 import httpx
-from ..config.settings import Gen3Config
-from ..exceptions import AuthenticationError, TokenRefreshError
+from .config import Gen3Config
+from .exceptions import Gen3ClientError
 
 
 @dataclass
@@ -74,23 +74,22 @@ class AuthManager:
                 self.credentials = json.load(f)
             self._credentials_loaded = True
         except FileNotFoundError:
-            raise AuthenticationError(
+            raise Gen3ClientError(
                 f"Credentials file not found: {self.config.credentials_file}"
             )
         except json.JSONDecodeError:
-            raise AuthenticationError(
+            raise Gen3ClientError(
                 f"Invalid JSON in credentials file: {self.config.credentials_file}"
             )
 
     async def _refresh_token(self):
         """Refresh the access token using config.auth_url"""
         if not self.credentials:
-            raise AuthenticationError("No credentials available")
+            raise Gen3ClientError("No credentials available")
 
         try:
-            # Use the pre-computed auth URL from config
             response = await self.http_client.post(
-                self.config.auth_url, json=self.credentials  # Consistent endpoint usage
+                self.config.auth_url, json=self.credentials
             )
             response.raise_for_status()
             token_data = response.json()
@@ -103,8 +102,8 @@ class AuthManager:
             )
 
         except httpx.HTTPStatusError as e:
-            raise TokenRefreshError(
+            raise Gen3ClientError(
                 f"HTTP error during token refresh: {e.response.status_code}"
             )
         except Exception as e:
-            raise TokenRefreshError(f"Failed to refresh token: {e}")
+            raise Gen3ClientError(f"Failed to refresh token: {e}")

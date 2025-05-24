@@ -47,18 +47,14 @@ Example for Claude Desktop `~/.config/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "gen3-mcp-server": {
-      "command": "uv",
+      "command": "uvx",
       "args": [
-          "--directory",
-          "/path/to/gen3-mcp",
-          "run",
-          "python",
-          "-m",
-          "gen3_mcp.main"
+        "--from", "/path/to/gen3-mcp",
+        "gen3-mcp"
       ],
       "env": {
-        "GEN3_BASE_URL": "https://gen3.datacommons.io/",
         "GEN3_CREDENTIALS_FILE": "/path/to/credentials.json",
+        "GEN3_BASE_URL": "https://gen3.datacommons.io/",
         "GEN3_LOG_LEVEL": "INFO"
       }
     }
