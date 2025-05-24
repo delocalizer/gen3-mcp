@@ -47,10 +47,8 @@ def test_imports():
         Gen3MCPError,
         Gen3Service,
         QueryService,
-        Tools,
-        extract_fields_from_query,
-        parse_kwargs_string,
-        validate_graphql_syntax,
+        extract_query_fields,
+        validate_graphql,
     )
 
     # Should not raise any import errors
@@ -58,11 +56,9 @@ def test_imports():
     assert Gen3Client is not None
     assert Gen3Service is not None
     assert QueryService is not None
-    assert Tools is not None
     assert Gen3MCPError is not None
-    assert extract_fields_from_query is not None
-    assert parse_kwargs_string is not None
-    assert validate_graphql_syntax is not None
+    assert extract_query_fields is not None
+    assert validate_graphql is not None
 
 
 class TestLoggingSetup:
@@ -118,16 +114,6 @@ class TestLoggingSetup:
             # Clean up
             logger.removeHandler(handler)
             logger.setLevel(original_level)
-
-
-class TestConfigBackwardCompatibility:
-    """Test that config functionality maintains backward compatibility"""
-
-    def test_config_still_works(self):
-        """Test that config creation still works as before"""
-        config = Gen3Config()
-        assert config.base_url == "https://gen3.datacommons.io"
-        assert config.log_level == "INFO"
 
 
 if __name__ == "__main__":

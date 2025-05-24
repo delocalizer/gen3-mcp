@@ -1,4 +1,4 @@
-"""Gen3 client implementation"""
+"""Gen3 client — handles low-level API calls"""
 
 import logging
 from typing import Any

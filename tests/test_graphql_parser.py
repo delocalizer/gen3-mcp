@@ -2,10 +2,10 @@
 
 import pytest
 
-from gen3_mcp.exceptions import QueryValidationError
+from gen3_mcp import QueryValidationError
 from gen3_mcp.graphql_parser import (
-    extract_fields_from_query,
-    validate_graphql_syntax,
+    extract_query_fields,
+    validate_graphql,
 )
 
 
@@ -15,7 +15,7 @@ class TestValidateGraphQLSyntax:
     def test_valid_simple_query(self):
         """Test validation of valid simple query"""
         query = "{ subject { id } }"
-        is_valid, error = validate_graphql_syntax(query)
+        is_valid, error = validate_graphql(query)
         assert is_valid is True
         assert error is None
 
@@ -34,14 +34,14 @@ class TestValidateGraphQLSyntax:
             }
         }
         """
-        is_valid, error = validate_graphql_syntax(query)
+        is_valid, error = validate_graphql(query)
         assert is_valid is True
         assert error is None
 
     def test_invalid_syntax_missing_brace(self):
         """Test validation of invalid syntax - missing closing brace"""
         query = "{ subject { id }"
-        is_valid, error = validate_graphql_syntax(query)
+        is_valid, error = validate_graphql(query)
         assert is_valid is False
         assert error is not None
         assert "Expected" in error or "EOF" in error
@@ -49,14 +49,14 @@ class TestValidateGraphQLSyntax:
     def test_invalid_syntax_missing_field(self):
         """Test validation of invalid syntax - empty selection set"""
         query = "{ subject { } }"
-        is_valid, error = validate_graphql_syntax(query)
+        is_valid, error = validate_graphql(query)
         assert is_valid is False
         assert error is not None
 
     def test_empty_query(self):
         """Test validation of empty query"""
         query = ""
-        is_valid, error = validate_graphql_syntax(query)
+        is_valid, error = validate_graphql(query)
         assert is_valid is False
         assert error is not None
 
@@ -67,14 +67,14 @@ class TestExtractFieldsFromQuery:
     def test_simple_query(self):
         """Test extraction from simple query"""
         query = "{ subject { id submitter_id } }"
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {"subject": ["id", "submitter_id"]}
         assert result == expected
 
     def test_query_with_arguments(self):
         """Test extraction from query with arguments"""
         query = "{ subject(first: 10) { id gender age_at_enrollment } }"
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {"subject": ["id", "gender", "age_at_enrollment"]}
         assert result == expected
 
@@ -93,7 +93,7 @@ class TestExtractFieldsFromQuery:
             }
         }
         """
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {
             "subject": ["id", "gender"],
             "samples": ["id", "sample_type", "anatomic_site"],
@@ -114,7 +114,7 @@ class TestExtractFieldsFromQuery:
             }
         }
         """
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {
             "subject": ["id", "gender"],
             "sample": ["sample_type", "anatomic_site"],
@@ -140,7 +140,7 @@ class TestExtractFieldsFromQuery:
             }
         }
         """
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {
             "subject": ["id"],
             "studies": ["project_id"],
@@ -165,7 +165,7 @@ class TestExtractFieldsFromQuery:
             age_at_enrollment
         }
         """
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         # Should at least extract the basic fields
         assert "subject" in result
         assert "id" in result["subject"]
@@ -174,12 +174,12 @@ class TestExtractFieldsFromQuery:
         """Test that invalid syntax raises QueryValidationError"""
         query = "{ subject { id }"  # Missing closing brace
         with pytest.raises(QueryValidationError, match="Invalid GraphQL syntax"):
-            extract_fields_from_query(query)
+            extract_query_fields(query)
 
     def test_duplicate_fields_removed(self):
         """Test that duplicate fields are removed"""
         query = "{ subject { id id submitter_id id } }"
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {"subject": ["id", "submitter_id"]}
         assert result == expected
 
@@ -194,7 +194,7 @@ class TestExtractFieldsFromQuery:
             }
         }
         """
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         assert "subject" in result
         assert len(result["subject"]) == 3
 
@@ -209,7 +209,7 @@ class TestExtractFieldsFromQuery:
         }
         """
         # Should extract fields even from mutations
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         assert "createSubject" in result or len(result) >= 0
 
 
@@ -221,7 +221,7 @@ class TestGraphQLParserEdgeCases:
         query = "{ subject }"  # No fields selected
         # Should handle gracefully, though may be invalid GraphQL
         try:
-            result = extract_fields_from_query(query)
+            result = extract_query_fields(query)
             # If it doesn't raise an error, should return empty fields
             assert isinstance(result, dict)
         except QueryValidationError:
@@ -239,7 +239,7 @@ class TestGraphQLParserEdgeCases:
             }
         }
         """
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {"subject": ["id", "gender"]}
         assert result == expected
 
@@ -256,7 +256,7 @@ class TestGraphQLParserEdgeCases:
         }
 
         """
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {"subject": ["id", "gender"]}
         assert result == expected
 
@@ -266,7 +266,7 @@ class TestGraphQLParserEdgeCases:
         fields = " ".join([f"field_{i}" for i in range(100)])
         query = f"{{ subject {{ {fields} }} }}"
 
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         assert "subject" in result
         assert len(result["subject"]) == 100
 
@@ -274,7 +274,7 @@ class TestGraphQLParserEdgeCases:
         """Test handling of unicode characters in field names"""
         # Note: GraphQL spec allows limited unicode in names
         query = "{ subject { id field_name } }"  # Using safe ASCII
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
         expected = {"subject": ["id", "field_name"]}
         assert result == expected
 
@@ -304,7 +304,7 @@ class TestGraphQLParsingWithQueryValidation:
         }
         """
 
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
 
         expected = {
             "subject": ["id", "submitter_id", "gender", "age_at_enrollment"],
@@ -320,15 +320,15 @@ class TestGraphQLParsingWithQueryValidation:
         invalid_query = "{ subject { id gender }"  # Missing closing brace
 
         # Valid query should work
-        is_valid, error = validate_graphql_syntax(valid_query)
+        is_valid, error = validate_graphql(valid_query)
         assert is_valid is True
         assert error is None
 
-        fields = extract_fields_from_query(valid_query)
+        fields = extract_query_fields(valid_query)
         assert fields == {"subject": ["id", "gender"]}
 
         # Invalid query should fail syntax validation
-        is_valid, error = validate_graphql_syntax(invalid_query)
+        is_valid, error = validate_graphql(invalid_query)
         assert is_valid is False
         assert error is not None
 
@@ -348,7 +348,7 @@ class TestGraphQLParsingWithQueryValidation:
         }
         """
 
-        result = extract_fields_from_query(query)
+        result = extract_query_fields(query)
 
         assert "subject" in result
         assert "studies" in result
@@ -366,7 +366,7 @@ class TestGraphQLErrorHandling:
         invalid_query = "{ subject { id }"  # Missing closing brace
 
         with pytest.raises(QueryValidationError, match="Invalid GraphQL syntax"):
-            extract_fields_from_query(invalid_query)
+            extract_query_fields(invalid_query)
 
 
 if __name__ == "__main__":

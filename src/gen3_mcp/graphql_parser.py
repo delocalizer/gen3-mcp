@@ -43,12 +43,9 @@ class FieldExtractorVisitor(Visitor):
             self.entity_stack.pop()
 
 
-def extract_fields_from_query(query: str) -> dict[str, list[str]]:
+def extract_query_fields(query: str) -> dict[str, list[str]]:
     """
-    Extract entity names and their fields from a GraphQL query using proper parsing.
-
-    This replaces the regex-based approach with a proper GraphQL AST parser
-    for more reliable field extraction.
+    Extract entity names and their fields from a GraphQL query.
 
     Args:
         query: GraphQL query string
@@ -60,10 +57,10 @@ def extract_fields_from_query(query: str) -> dict[str, list[str]]:
         QueryValidationError: If the GraphQL query has syntax errors
 
     Examples:
-        >>> extract_fields_from_query('{ subject { id name } }')
+        >>> extract_query_fields('{ subject { id name } }')
         {'subject': ['id', 'name']}
 
-        >>> extract_fields_from_query('{ subject { id samples { type } } }')
+        >>> extract_query_fields('{ subject { id samples { type } } }')
         {'subject': ['id'], 'samples': ['type']}
     """
     try:
@@ -93,7 +90,7 @@ def extract_fields_from_query(query: str) -> dict[str, list[str]]:
         raise QueryValidationError(f"Failed to parse GraphQL query: {e}") from e
 
 
-def validate_graphql_syntax(query: str) -> tuple[bool, str | None]:
+def validate_graphql(query: str) -> tuple[bool, str | None]:
     """
     Validate that a GraphQL query has correct syntax.
 
@@ -104,10 +101,10 @@ def validate_graphql_syntax(query: str) -> tuple[bool, str | None]:
         Tuple of (is_valid, error_message)
 
     Examples:
-        >>> validate_graphql_syntax('{ subject { id } }')
+        >>> validate_graphql('{ subject { id } }')
         (True, None)
 
-        >>> validate_graphql_syntax('{ subject { id }')  # Missing closing brace
+        >>> validate_graphql('{ subject { id }')  # Missing closing brace
         (False, 'Syntax Error: Expected Name, found EOF.')
     """
     try:

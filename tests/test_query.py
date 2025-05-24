@@ -2,8 +2,8 @@
 
 import pytest
 
+from gen3_mcp.data import Gen3Service
 from gen3_mcp.query import QueryService
-from gen3_mcp.service import Gen3Service
 
 
 @pytest.mark.asyncio
@@ -21,12 +21,12 @@ async def test_execute_graphql(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_execute_field_sampling(mock_client, config):
+async def test_field_sample(mock_client, config):
     """Test field value sampling"""
     gen3_service = Gen3Service(mock_client, config)
     query_service = QueryService(mock_client, config, gen3_service)
 
-    result = await query_service.execute_field_sampling("subject", "gender", limit=10)
+    result = await query_service.field_sample("subject", "gender", limit=10)
 
     assert "entity" in result
     assert "field" in result

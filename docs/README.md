@@ -1,24 +1,10 @@
 # Gen3 MCP Server
 
-A Model Context Protocol (MCP) server for interacting with Gen3 data commons, with comprehensive GraphQL query validation to prevent field name hallucinations.
-
-## Features
-
-### Core Gen3 Integration
-- **Schema Discovery**: Get complete data model and entity schemas
-- **GraphQL Queries**: Execute validated queries against Gen3 data
-- **Data Exploration**: Sample records and field value analysis
-- **Relationship Mapping**: Understand entity connections
-
-### Schema Validation Tools
-- **Query Validation**: Check GraphQL queries against actual schema before execution
-- **Field Suggestions**: Get intelligent suggestions for invalid field names
-- **Safe Templates**: Generate validated query templates with guaranteed valid fields
-- **Error Prevention**: Catch field name hallucinations before they cause failures
+A Model Context Protocol (MCP) server for interacting with Gen3 data commons, with GraphQL query validation to reduce hallucinations.
 
 ## Install and Configure 
 
-These instructions are for using the server in a chat client. For development, see [below](#Development).
+These instructions are for using the server in a chat client. For development, see [Development](DEVELOPMENT.md).
 
 ```bash
 # Clone the repository
@@ -76,133 +62,37 @@ Example for Claude Desktop `~/.config/Claude/claude_desktop_config.json`:
 
 ![Response](response.png "Response")
 
-## Development
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd gen3-mcp
+## Available Tools
 
-# create uv venv and install dependencies
-./setup_dev.sh
+The MCP server provides the following tools:
 
-# activate the virtual environment
-source .venv/bin/activate
+### Schema Tools (`schema_*`)
+- `schema_summary()` - Get schema summary with entity counts
+- `schema_full()` - Get complete schema definition
+- `schema_entity(entity_name)` - Get schema for specific entity
+- `schema_entities()` - Get list of all entities
+- `schema_describe_entities()` - Get detailed entity list with relationships
 
-# run tests
-pytest -v -W default
+### Data Tools (`data_*`)
+- `data_explore(entity_name, limit=5, field_count=10)` - Explore entity with intelligent field selection
+- `data_sample_records(entity_name, limit=5)` - Get sample records
+- `data_field_values(entity_name, field_name, limit=20)` - Analyze field value distribution
+- `data_explore_entity_data(entity_name)` - Comprehensive entity exploration
 
-# format code
-black src/ tests/
-```
+### Validation Tools 
+- `validate_query(query)` - Validate GraphQL query against schema
+- `suggest_fields(field_name, entity_name)` - Get suggestions for field names
+- `query_template(entity_name, include_relationships=True, max_fields=20)` - Generate safe query templates
 
-## Usage in code
+### GraphQL Tool
+- `execute_graphql(query)` - Execute GraphQL query against Gen3 data commons
 
-### Configuration
-Configuration in `settings.py` is set via environment variables:
-```bash
-export GEN3_LOG_LEVEL=DEBUG
-export GEN3_BASE_URL=https://commons.example.com
-export GEN3_CREDENTIALS_FILE=~/.gen3/credentials.json
-```
+### Resources
+- `gen3://info` - Information about the Gen3 instance
+- `gen3://endpoints` - Available API endpoints
+- `gen3://validation` - GraphQL validation guidance
 
-### Schema Operations
-```python
-# Get schema summary
-schema_operations(operation="summary")
-
-# Get complete schema
-schema_operations(operation="full")
-
-# Get specific entity schema
-schema_operations(operation="entity", entity_name="subject")
-
-# List all entities
-schema_operations(operation="entities")
-```
-
-### Data Operations
-```python
-# Explore entity data
-data_operations(operation="explore", entity_name="subject", limit=5)
-
-# Get sample records
-data_operations(operation="sample_records", entity_name="subject", limit=3)
-
-# Get field value distribution
-data_operations(operation="field_values", entity_name="subject", field_name="gender", limit=100)
-```
-
-### Validation Operations
-```python
-# Validate GraphQL query
-validation_operations(operation="validate_query", query="{ subject { id invalid_field } }")
-
-# Get field suggestions
-validation_operations(operation="suggest_fields", field_name="gander", entity_name="subject")
-
-# Generate safe query template
-validation_operations(operation="query_template", entity_name="subject")
-```
-
-### Direct Query Execution
-```python
-# Execute GraphQL query
-execute_graphql(query="{ subject(first: 5) { id submitter_id gender } }")
-```
-
-## Anti-Hallucination Workflow
-
-The validation tools follow a systematic approach to prevent GraphQL field name errors:
-
-1. **Start with Safe Templates**
-```python
-template = validation_operations(operation="query_template", entity_name="subject")
-print(template["template"])
-```
-
-2. **Validate Before Execution**
-```python
-query = "{ subject { id gender invalid_field } }"
-validation = validation_operations(operation="validate_query", query=query)
-
-if not validation["valid"]:
-    print("Errors found:", validation["summary"]["errors"])
-```
-
-3. **Get Smart Suggestions**
-```python
-suggestions = validation_operations(
-    operation="suggest_fields", 
-    field_name="invalid_field", 
-    entity_name="subject"
-)
-print("Did you mean:", [s["name"] for s in suggestions["suggestions"]])
-```
-
-4. **Execute Validated Query**
-```python
-if validation["valid"]:
-    result = execute_graphql(query)
-```
-
-
-### Project Structure
-
-```
-gen3-mcp/
-├── src/gen3_mcp/           # Main package
-│   ├── client/             # HTTP client & authentication
-│   ├── schema/             # Schema operations & validation
-│   ├── query/              # GraphQL operations
-│   ├── tools/              # MCP tool implementations
-│   ├── resources/          # MCP resources
-│   ├── config/             # Configuration management
-│   └── exceptions/         # Custom exceptions
-├── tests/                  # Test suite
-├── docs/                   # Documentation
-└── pyproject.toml          # Project configuration
-```
 
 ## Acknowledgments
 

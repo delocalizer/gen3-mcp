@@ -2,8 +2,8 @@
 
 import pytest
 
-from gen3_mcp.exceptions import Gen3SchemaError
-from gen3_mcp.service import Gen3Service
+from gen3_mcp import Gen3SchemaError
+from gen3_mcp.data import Gen3Service
 
 
 @pytest.mark.asyncio
@@ -21,20 +21,6 @@ async def test_get_full_schema_caching(mock_client, config):
     assert schema1 == schema2
 
 
-# @pytest.mark.asyncio
-# async def test_entity_exists(mock_client, config):
-#    """Test entity existence checking"""
-#    service = Gen3Service(mock_client, config)
-#
-#    # Mock full schema in cache
-#    service._cache["full_schema"] = {"subject": {}, "sample": {}}
-#    service._cache_timestamps["full_schema"] = time.time()
-#
-#    assert await service.entity_exists("subject")
-#    assert not await service.entity_exists("nonexistent")
-#
-
-
 @pytest.mark.asyncio
 async def test_get_entity_schema_not_found(mock_client, config):
     """Test Gen3SchemaError is raised for missing entities"""
@@ -43,21 +29,6 @@ async def test_get_entity_schema_not_found(mock_client, config):
 
     with pytest.raises(Gen3SchemaError):
         await service.get_entity_schema("nonexistent")
-
-
-@pytest.mark.asyncio
-async def test_get_schema_summary(mock_client, config):
-    """Test schema summary generation"""
-    service = Gen3Service(mock_client, config)
-
-    summary = await service.get_schema_summary()
-
-    assert "total_entities" in summary
-    assert "entity_names" in summary
-    assert "entities_by_category" in summary
-    assert summary["total_entities"] == 2  # subject and sample from mock
-    assert "subject" in summary["entity_names"]
-    assert "sample" in summary["entity_names"]
 
 
 @pytest.mark.asyncio
@@ -116,3 +87,67 @@ async def test_optimal_field_selection(mock_client, config):
     assert "type" in fields
     assert "gender" in fields  # Should include enum field
     assert len(fields) <= 10
+
+
+@pytest.mark.asyncio
+async def test_get_schema_summary(mock_client, config):
+    """Test schema summary generation"""
+    service = Gen3Service(mock_client, config)
+
+    summary = await service.get_schema_summary()
+
+    assert "total_entities" in summary
+    assert "entity_names" in summary
+    assert "entities_by_category" in summary
+    assert summary["total_entities"] == 2
+    assert "subject" in summary["entity_names"]
+    assert "sample" in summary["entity_names"]
+
+
+@pytest.mark.asyncio
+async def test_get_detailed_entities(mock_client, config):
+    """Test detailed entity information"""
+    service = Gen3Service(mock_client, config)
+
+    detailed = await service.get_detailed_entities()
+
+    assert "total_entities" in detailed
+    assert "entities" in detailed
+    assert "entities_by_category" in detailed
+    assert "relationship_summary" in detailed
+    assert detailed["total_entities"] == 2
+
+    # Check subject entity details
+    assert "subject" in detailed["entities"]
+    subject = detailed["entities"]["subject"]
+    assert "title" in subject
+    assert "description" in subject
+    assert "properties_count" in subject
+
+
+@pytest.mark.asyncio
+async def test_get_entity_names(mock_client, config):
+    """Test entity name retrieval"""
+    service = Gen3Service(mock_client, config)
+
+    entity_names = await service.get_entity_names()
+
+    assert isinstance(entity_names, list)
+    assert "subject" in entity_names
+    assert "sample" in entity_names
+    assert len(entity_names) == 2
+
+
+@pytest.mark.asyncio
+async def test_cache_clear(mock_client, config):
+    """Test cache clearing functionality"""
+    service = Gen3Service(mock_client, config)
+
+    # Add something to cache
+    service._update_cache("test", "value")
+    assert "test" in service._cache
+
+    # Clear cache
+    service.clear_cache()
+    assert len(service._cache) == 0
+    assert len(service._cache_timestamps) == 0

@@ -1,6 +1,6 @@
 """Pytest configuration and shared fixtures"""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -8,6 +8,22 @@ from gen3_mcp.config import Gen3Config
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
+
+
+@pytest.fixture(autouse=True)
+def reset_global_state():
+    """Reset global state before each test"""
+    from gen3_mcp import main
+
+    # Reset global state
+    main._config = None
+    main._client = None
+
+    yield
+
+    # Clean up after test
+    main._config = None
+    main._client = None
 
 
 @pytest.fixture
@@ -106,3 +122,115 @@ def mock_client():
     }
 
     return client
+
+
+def create_test_services():
+    """Helper to create mock services for testing"""
+    mock_gen3_service = AsyncMock()
+    mock_query_service = AsyncMock()
+
+    # Set up mock returns for common service calls
+    mock_gen3_service.get_schema_summary.return_value = {
+        "total_entities": 2,
+        "entity_names": ["subject", "sample"],
+        "entities_by_category": {"clinical": ["subject"], "biospecimen": ["sample"]},
+    }
+
+    mock_gen3_service.get_full_schema.return_value = {
+        "subject": {"properties": {"id": {"type": "string"}}},
+        "sample": {"properties": {"id": {"type": "string"}}},
+    }
+
+    mock_gen3_service.get_entity_schema.return_value = {
+        "properties": {"id": {"type": "string"}, "gender": {"enum": ["Male", "Female"]}}
+    }
+
+    mock_gen3_service.get_entity_names.return_value = ["subject", "sample"]
+
+    mock_gen3_service.get_detailed_entities.return_value = {
+        "total_entities": 2,
+        "entities": {"subject": {"title": "Subject"}, "sample": {"title": "Sample"}},
+    }
+
+    mock_gen3_service.get_sample_records.return_value = {
+        "entity": "subject",
+        "sample_records": [{"id": "1", "gender": "Male"}],
+    }
+
+    mock_gen3_service.explore_entity_data.return_value = {
+        "entity": "subject",
+        "schema_info": {"title": "Subject"},
+        "enum_fields": [{"field": "gender", "enum_values": ["Male", "Female"]}],
+    }
+
+    mock_query_service.field_sample.return_value = {
+        "entity": "subject",
+        "field": "gender",
+        "values": {"Male": 5, "Female": 3},
+    }
+
+    mock_query_service.validate_query_fields.return_value = {
+        "valid": True,
+        "extracted_fields": {"subject": ["id"]},
+        "validation_results": {},
+    }
+
+    mock_query_service.suggest_similar_fields.return_value = {
+        "field_name": "gander",
+        "entity_name": "subject",
+        "suggestions": [{"name": "gender", "similarity": 0.8}],
+    }
+
+    mock_query_service.generate_query_template.return_value = {
+        "entity_name": "subject",
+        "exists": True,
+        "template": "{ subject { id submitter_id } }",
+    }
+
+    mock_query_service.execute_graphql.return_value = {
+        "data": {"subject": [{"id": "1"}]}
+    }
+
+    return mock_gen3_service, mock_query_service
+
+
+@pytest.fixture
+async def mcp_test_setup():
+    """Fixture that handles MCP test setup and teardown"""
+    from gen3_mcp import main
+    from gen3_mcp.main import create_mcp_server
+
+    # Store original state
+    original_config = main._config
+    original_client = main._client
+    original_gen3_service = main._gen3_service
+    original_query_service = main._query_service
+
+    # Reset state (this is already done by reset_global_state, but being explicit)
+    main._config = None
+    main._client = None
+    main._gen3_service = None
+    main._query_service = None
+
+    # Create test services
+    mock_gen3_service, mock_query_service = create_test_services()
+
+    try:
+        with (
+            patch("gen3_mcp.main.get_gen3_service", return_value=mock_gen3_service),
+            patch("gen3_mcp.main.get_query_service", return_value=mock_query_service),
+        ):
+
+            mcp_server = create_mcp_server()
+
+            yield {
+                "mcp_server": mcp_server,
+                "mock_gen3_service": mock_gen3_service,
+                "mock_query_service": mock_query_service,
+            }
+    finally:
+        # Restore original state
+        main._config = original_config
+        main._client = original_client
+        main._gen3_service = original_gen3_service
+        main._query_service = original_query_service

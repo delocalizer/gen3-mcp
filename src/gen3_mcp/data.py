@@ -1,4 +1,4 @@
-"""Gen3 service for schema and core operations"""
+"""Service providing Gen3 data and schema operations"""
 
 import logging
 import time
@@ -8,11 +8,15 @@ from .client import Gen3Client
 from .config import Gen3Config
 from .exceptions import Gen3SchemaError
 
-logger = logging.getLogger("gen3-mcp.service")
+logger = logging.getLogger("gen3-mcp.data")
 
 
 class Gen3Service:
-    """Service for cached schema operations and data access"""
+    """
+    Service for cached schema operations and data access.
+
+    Requires a client and a config instance.
+    """
 
     def __init__(self, client: Gen3Client, config: Gen3Config):
         self.client = client
@@ -96,7 +100,7 @@ class Gen3Service:
         }
 
     async def get_detailed_entities(self) -> dict[str, Any]:
-        """Get detailed entity list with relationships (backward compatibility)"""
+        """Get detailed entity list with relationships"""
         full_schema = await self.get_full_schema()
 
         entities = {}
@@ -243,12 +247,12 @@ class Gen3Service:
         }
 
     async def get_sample_records(
-        self, entity_name: str, limit: int = 5
+        self, entity_name: str, limit: int = 5, max_fields: int = 15
     ) -> dict[str, Any]:
         """Get sample records for entity"""
         # Get schema to select fields intelligently
         schema = await self.get_entity_schema(entity_name)
-        fields = self._select_optimal_fields(schema, 15)
+        fields = self._select_optimal_fields(schema, max_fields)
 
         # Build query
         fields_str = "\n        ".join(fields)
@@ -260,6 +264,10 @@ class Gen3Service:
         }}
         """
 
+        # NOTE: as a one-time thing here we use the client.post_json directly
+        # rather than query.QueryService to avoid a circular dependency. If
+        # this service class ends up with more of these types of data methods
+        # a redesign should be considered.
         logger.info(f"Getting sample records for {entity_name}")
         result = await self.client.post_json(
             self.config.graphql_url,
@@ -298,7 +306,7 @@ class Gen3Service:
             if isinstance(prop, dict) and "enum" in prop
         ]
 
-        # Add priority fields
+        # Add priority fields (FIXME: a bit arbitrary)
         priority_fields = ["created_datetime", "updated_datetime", "state"]
 
         # Build final field list

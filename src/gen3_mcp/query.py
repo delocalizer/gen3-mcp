@@ -1,4 +1,4 @@
-"""Query service for validation, building, and execution"""
+"""GraphQL Query service for validation, building, and execution"""
 
 import logging
 from difflib import SequenceMatcher
@@ -6,9 +6,9 @@ from typing import Any
 
 from .client import Gen3Client
 from .config import Gen3Config
+from .data import Gen3Service
 from .exceptions import QueryValidationError
-from .graphql_parser import extract_fields_from_query, validate_graphql_syntax
-from .service import Gen3Service
+from .graphql_parser import extract_query_fields, validate_graphql
 
 logger = logging.getLogger("gen3-mcp.query")
 
@@ -43,7 +43,7 @@ class QueryService:
 
         return result
 
-    async def execute_field_sampling(
+    async def field_sample(
         self, entity_name: str, field_name: str, limit: int = 100
     ) -> dict[str, Any]:
         """Execute query for field value sampling with processing"""
@@ -95,7 +95,7 @@ class QueryService:
         logger.info("Validating GraphQL query fields")
 
         # First validate GraphQL syntax
-        is_valid_syntax, syntax_error = validate_graphql_syntax(query)
+        is_valid_syntax, syntax_error = validate_graphql(query)
         if not is_valid_syntax:
             return {
                 "valid": False,
@@ -106,7 +106,7 @@ class QueryService:
 
         try:
             # Use GraphQL parser
-            extracted_fields = extract_fields_from_query(query)
+            extracted_fields = extract_query_fields(query)
         except QueryValidationError as e:
             return {
                 "valid": False,

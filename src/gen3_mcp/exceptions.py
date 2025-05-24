@@ -1,7 +1,6 @@
-"""Custom exceptions for the Gen3 MCP package"""
+"""Gen3 MCP custom exceptions"""
 
 
-# Base exceptions
 class Gen3MCPError(Exception):
     """Base exception for all Gen3 MCP errors"""
 
