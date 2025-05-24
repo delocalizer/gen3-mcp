@@ -14,9 +14,11 @@ from .exceptions import (
     Gen3SchemaError,
     QueryValidationError,
 )
+from .graphql_parser import extract_fields_from_query, validate_graphql_syntax
 from .query import QueryService
 from .service import Gen3Service
 from .tools import Tools
+from .utils import parse_kwargs_string
 
 __all__ = [
     "__version__",
@@ -30,4 +32,7 @@ __all__ = [
     "Gen3ClientError",
     "Gen3SchemaError",
     "QueryValidationError",
+    "extract_fields_from_query",
+    "validate_graphql_syntax",
+    "parse_kwargs_string",
 ]

@@ -1,12 +1,13 @@
 """Query service for validation, building, and execution"""
 
 import logging
-import re
 from difflib import SequenceMatcher
 from typing import Any
 
 from .client import Gen3Client
 from .config import Gen3Config
+from .exceptions import QueryValidationError
+from .graphql_parser import extract_fields_from_query, validate_graphql_syntax
 from .service import Gen3Service
 
 logger = logging.getLogger("gen3-mcp.query")
@@ -93,8 +94,26 @@ class QueryService:
         """Validate all fields in a GraphQL query against the Gen3 schema"""
         logger.info("Validating GraphQL query fields")
 
+        # First validate GraphQL syntax
+        is_valid_syntax, syntax_error = validate_graphql_syntax(query)
+        if not is_valid_syntax:
+            return {
+                "valid": False,
+                "error": f"GraphQL syntax error: {syntax_error}",
+                "extracted_fields": {},
+                "validation_results": {},
+            }
+
         try:
-            extracted_fields = self._extract_graphql_fields(query)
+            # Use GraphQL parser
+            extracted_fields = extract_fields_from_query(query)
+        except QueryValidationError as e:
+            return {
+                "valid": False,
+                "error": str(e),
+                "extracted_fields": {},
+                "validation_results": {},
+            }
         except Exception as e:
             return {
                 "valid": False,
@@ -382,74 +401,6 @@ class QueryService:
                 "template": None,
                 "error": f"Failed to generate template: {e}",
             }
-
-    def _extract_graphql_fields(self, query: str) -> dict[str, list[str]]:
-        """Extract entity names and their requested fields from a GraphQL query"""
-        # Remove comments and normalize whitespace
-        query = re.sub(r"#.*$", "", query, flags=re.MULTILINE)
-        query = re.sub(r"\s+", " ", query).strip()
-
-        # Find all entity queries like "entity_name { field1 field2 { subfield } }"
-        entity_pattern = r"(\w+)\s*(?:\([^)]*\))?\s*\{"
-        matches = re.finditer(entity_pattern, query)
-
-        result = {}
-
-        for match in matches:
-            entity_name = match.group(1)
-            if entity_name in ["query", "mutation", "subscription"]:
-                continue
-
-            # Find the matching closing brace for this entity
-            start_pos = match.end() - 1  # Position of opening brace
-            brace_count = 1
-            pos = start_pos + 1
-
-            while pos < len(query) and brace_count > 0:
-                if query[pos] == "{":
-                    brace_count += 1
-                elif query[pos] == "}":
-                    brace_count -= 1
-                pos += 1
-
-            if brace_count == 0:
-                # Extract fields within this entity block
-                entity_content = query[start_pos + 1 : pos - 1]
-                fields = self._extract_fields_from_content(entity_content)
-                result[entity_name] = fields
-
-        return result
-
-    def _extract_fields_from_content(self, content: str) -> list[str]:
-        """Extract field names from entity content, handling nested structures"""
-        fields = []
-
-        # Split by whitespace and filter for valid field names
-        tokens = content.split()
-
-        for token in tokens:
-            # Remove common GraphQL syntax
-            token = token.strip("{}(),")
-
-            # Skip empty tokens, arguments, and comments
-            if not token or token.startswith("(") or token.startswith("#"):
-                continue
-
-            # Extract field name (before any arguments or nested structures)
-            field_match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)", token)
-            if field_match:
-                field_name = field_match.group(1)
-                # Skip GraphQL keywords
-                if field_name not in [
-                    "query",
-                    "mutation",
-                    "subscription",
-                    "fragment",
-                    "on",
-                ]:
-                    fields.append(field_name)
-
-        return list(set(fields))  # Remove duplicates
 
     def _get_all_valid_fields(self, schema: dict[str, Any]) -> set[str]:
         """Get all valid field names including relationships"""

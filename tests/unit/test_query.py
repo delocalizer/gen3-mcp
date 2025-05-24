@@ -132,34 +132,6 @@ async def test_nonexistent_entity_suggestions(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_extract_graphql_fields(mock_client, config):
-    """Test GraphQL field extraction"""
-    gen3_service = Gen3Service(mock_client, config)
-    query_service = QueryService(mock_client, config, gen3_service)
-
-    query = """
-    {
-        subject(first: 10) {
-            id
-            submitter_id
-            gender
-            studies {
-                id
-                study_name
-            }
-        }
-    }
-    """
-
-    extracted = query_service._extract_graphql_fields(query)
-
-    assert "subject" in extracted
-    assert "id" in extracted["subject"]
-    assert "gender" in extracted["subject"]
-    assert "studies" in extracted["subject"]
-
-
-@pytest.mark.asyncio
 async def test_similarity(mock_client, config):
     """Test similarity calculation"""
     gen3_service = Gen3Service(mock_client, config)

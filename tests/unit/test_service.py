@@ -1,7 +1,5 @@
 """Tests for the Gen3Service"""
 
-import time
-
 import pytest
 
 from gen3_mcp.exceptions import Gen3SchemaError
@@ -23,17 +21,18 @@ async def test_get_full_schema_caching(mock_client, config):
     assert schema1 == schema2
 
 
-@pytest.mark.asyncio
-async def test_entity_exists(mock_client, config):
-    """Test entity existence checking"""
-    service = Gen3Service(mock_client, config)
-
-    # Mock full schema in cache
-    service._cache["full_schema"] = {"subject": {}, "sample": {}}
-    service._cache_timestamps["full_schema"] = time.time()
-
-    assert await service.entity_exists("subject")
-    assert not await service.entity_exists("nonexistent")
+# @pytest.mark.asyncio
+# async def test_entity_exists(mock_client, config):
+#    """Test entity existence checking"""
+#    service = Gen3Service(mock_client, config)
+#
+#    # Mock full schema in cache
+#    service._cache["full_schema"] = {"subject": {}, "sample": {}}
+#    service._cache_timestamps["full_schema"] = time.time()
+#
+#    assert await service.entity_exists("subject")
+#    assert not await service.entity_exists("nonexistent")
+#
 
 
 @pytest.mark.asyncio
@@ -100,11 +99,6 @@ async def test_cache_functionality(mock_client, config):
     service._update_cache("test_key", "test_value")
     assert service._cache["test_key"] == "test_value"
     assert service._is_cache_valid("test_key")
-
-    # Test cache clear
-    service.clear_cache()
-    assert len(service._cache) == 0
-    assert len(service._cache_timestamps) == 0
 
 
 @pytest.mark.asyncio

@@ -62,20 +62,6 @@ class Gen3Service:
         full_schema = await self.get_full_schema()
         return list(full_schema.keys())
 
-    async def entity_exists(self, entity_name: str) -> bool:
-        """Check if entity exists"""
-        try:
-            # Try to get from full schema cache first
-            if self._is_cache_valid("full_schema"):
-                full_schema = self._cache["full_schema"]
-                return entity_name in full_schema
-
-            # Fall back to individual entity fetch
-            await self.get_entity_schema(entity_name)
-            return True
-        except Gen3SchemaError:
-            return False
-
     async def get_schema_summary(self) -> dict[str, Any]:
         """Generate schema summary from cached data"""
         entities = await self.get_entity_names()

@@ -6,6 +6,8 @@ import pytest
 
 from gen3_mcp import Gen3Config, Tools
 from gen3_mcp.main import create_mcp_server
+from gen3_mcp.query import QueryService
+from gen3_mcp.service import Gen3Service
 
 
 @pytest.mark.asyncio
@@ -53,9 +55,6 @@ async def test_tools_integration(mock_client, config):
 @pytest.mark.asyncio
 async def test_client_service_integration(mock_client, config):
     """Test that client and services work together"""
-    from gen3_mcp.query import QueryService
-    from gen3_mcp.service import Gen3Service
-
     # Create services
     gen3_service = Gen3Service(mock_client, config)
     query_service = QueryService(mock_client, config, gen3_service)
@@ -70,24 +69,11 @@ async def test_client_service_integration(mock_client, config):
     assert result is not None
 
 
-def test_simplified_imports():
-    """Test that all simplified imports work"""
-    # Test main imports
-
-    # Test that we can import config functions
-
-    # Test individual modules
-
-    # All should import without errors
-    assert True
-
-
 @pytest.mark.asyncio
 async def test_error_handling_integration(config):
     """Test error handling across the integrated system"""
     from gen3_mcp.client import Gen3Client
     from gen3_mcp.exceptions import Gen3SchemaError
-    from gen3_mcp.service import Gen3Service
 
     # Create a client that will fail
     mock_failing_client = AsyncMock(spec=Gen3Client)
@@ -121,8 +107,6 @@ def test_config_integration():
 @pytest.mark.asyncio
 async def test_caching_integration(mock_client, config):
     """Test that caching works across services"""
-    from gen3_mcp.service import Gen3Service
-
     service = Gen3Service(mock_client, config)
 
     # First call
@@ -145,7 +129,4 @@ async def test_caching_integration(mock_client, config):
 
 
 if __name__ == "__main__":
-    # Run integration tests
-    test_simplified_imports()
-    test_config_integration()
     print("✅ All integration tests passed!")

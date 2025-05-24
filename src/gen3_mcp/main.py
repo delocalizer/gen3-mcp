@@ -17,6 +17,7 @@ from .config import (
     setup_logging,
 )
 from .tools import Tools
+from .utils import parse_kwargs_string, validate_kwargs_for_operation
 
 logger = logging.getLogger("gen3-mcp.main")
 
@@ -108,24 +109,16 @@ def create_mcp_server() -> FastMCP:
         - sample_records: Get sample records (supports limit)
         - field_values: Get field value distribution (requires field_name, supports limit)
         - explore_entity_data: Comprehensive entity exploration
+
+        Args:
+            kwargs: String parameter due to MCP limitation - only primitive types allowed.
+                   Format: "key1=value1,key2=value2" (e.g., "limit=5,field_count=10")
         """
         async with client_context() as client:
             tools = Tools(client, _config)
 
-            # Parse kwargs string as key=value pairs
-            parsed_kwargs = {}
-            if kwargs:
-                for pair in kwargs.split(","):
-                    if "=" in pair:
-                        key, value = pair.split("=", 1)
-                        # Try to convert to appropriate types
-                        try:
-                            if value.isdigit():
-                                parsed_kwargs[key.strip()] = int(value.strip())
-                            else:
-                                parsed_kwargs[key.strip()] = value.strip()
-                        except:
-                            parsed_kwargs[key.strip()] = value.strip()
+            # Parse kwargs string with robust parsing and type conversion
+            parsed_kwargs = parse_kwargs_string(kwargs)
 
             match operation:
                 case "explore":
@@ -133,11 +126,10 @@ def create_mcp_server() -> FastMCP:
                 case "sample_records":
                     return await tools.data_sample_records(entity_name, **parsed_kwargs)
                 case "field_values":
+                    validate_kwargs_for_operation(
+                        "field_values", parsed_kwargs, ["field_name"]
+                    )
                     field_name = parsed_kwargs.get("field_name")
-                    if not field_name:
-                        raise ValueError(
-                            "field_name required for 'field_values' operation"
-                        )
                     return await tools.data_field_values(
                         entity_name, field_name, **parsed_kwargs
                     )
@@ -154,42 +146,38 @@ def create_mcp_server() -> FastMCP:
         - validate_query: Validate GraphQL query (requires query)
         - suggest_fields: Get field suggestions (requires field_name, entity_name)
         - query_template: Generate safe query template (requires entity_name)
+
+        Args:
+            kwargs: String parameter due to MCP limitation - only primitive types allowed.
+                   Format: "key1=value1,key2=value2" (e.g., "query=...,entity_name=subject")
         """
         async with client_context() as client:
             tools = Tools(client, _config)
 
-            # Parse kwargs string as key=value pairs
-            parsed_kwargs = {}
-            if kwargs:
-                for pair in kwargs.split(","):
-                    if "=" in pair:
-                        key, value = pair.split("=", 1)
-                        parsed_kwargs[key.strip()] = value.strip()
+            # Parse kwargs string with robust parsing and type conversion
+            parsed_kwargs = parse_kwargs_string(kwargs)
 
             match operation:
                 case "validate_query":
+                    validate_kwargs_for_operation(
+                        "validate_query", parsed_kwargs, ["query"]
+                    )
                     query = parsed_kwargs.get("query")
-                    if not query:
-                        raise ValueError(
-                            "query required for 'validate_query' operation"
-                        )
                     return await tools.validation_validate_query_fields(query)
                 case "suggest_fields":
+                    validate_kwargs_for_operation(
+                        "suggest_fields", parsed_kwargs, ["field_name", "entity_name"]
+                    )
                     field_name = parsed_kwargs.get("field_name")
                     entity_name = parsed_kwargs.get("entity_name")
-                    if not field_name or not entity_name:
-                        raise ValueError(
-                            "field_name and entity_name required for 'suggest_fields' operation"
-                        )
                     return await tools.validation_suggest_similar_fields(
                         field_name, entity_name
                     )
                 case "query_template":
+                    validate_kwargs_for_operation(
+                        "query_template", parsed_kwargs, ["entity_name"]
+                    )
                     entity_name = parsed_kwargs.get("entity_name")
-                    if not entity_name:
-                        raise ValueError(
-                            "entity_name required for 'query_template' operation"
-                        )
                     return await tools.validation_get_query_template(
                         entity_name, **parsed_kwargs
                     )

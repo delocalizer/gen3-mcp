@@ -48,6 +48,9 @@ def test_imports():
         Gen3Service,
         QueryService,
         Tools,
+        extract_fields_from_query,
+        parse_kwargs_string,
+        validate_graphql_syntax,
     )
 
     # Should not raise any import errors
@@ -57,6 +60,74 @@ def test_imports():
     assert QueryService is not None
     assert Tools is not None
     assert Gen3MCPError is not None
+    assert extract_fields_from_query is not None
+    assert parse_kwargs_string is not None
+    assert validate_graphql_syntax is not None
+
+
+class TestLoggingSetup:
+    """Test that logging setup works correctly"""
+
+    def test_logging_setup_without_force(self):
+        """Test that logging setup doesn't use force=True"""
+        import logging
+
+        from gen3_mcp.config import setup_logging
+
+        # Clear any existing handlers
+        root_logger = logging.getLogger()
+        original_handlers = root_logger.handlers[:]
+        root_logger.handlers = []
+
+        try:
+            # Set up logging
+            logger = setup_logging("DEBUG")
+            assert logger is not None
+            assert logger.name == "gen3-mcp"
+
+            # Should have added handlers without conflicts
+            assert len(root_logger.handlers) > 0
+
+            # Test that it doesn't override existing configuration
+            setup_logging("INFO")  # Should not cause conflicts
+
+        finally:
+            # Restore original handlers
+            root_logger.handlers = original_handlers
+
+    def test_logging_respects_existing_configuration(self):
+        """Test that logging respects existing configuration"""
+        import logging
+
+        from gen3_mcp.config import setup_logging
+
+        # Set up a handler first
+        logger = logging.getLogger()
+        handler = logging.StreamHandler()
+        logger.addHandler(handler)
+        original_level = logger.level
+
+        try:
+            # This should just set level, not add new handlers
+            setup_logging("DEBUG")
+
+            # Should still have our handler
+            assert handler in logger.handlers
+
+        finally:
+            # Clean up
+            logger.removeHandler(handler)
+            logger.setLevel(original_level)
+
+
+class TestConfigBackwardCompatibility:
+    """Test that config functionality maintains backward compatibility"""
+
+    def test_config_still_works(self):
+        """Test that config creation still works as before"""
+        config = Gen3Config()
+        assert config.base_url == "https://gen3.datacommons.io"
+        assert config.log_level == "INFO"
 
 
 if __name__ == "__main__":

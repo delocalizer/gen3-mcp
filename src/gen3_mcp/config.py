@@ -37,7 +37,7 @@ class Gen3Config(BaseSettings):
         default=300, ge=60, le=3600, description="Schema cache TTL in seconds"
     )
 
-    # Pre-computed endpoint properties
+    # Pre-computed API endpoint properties
     @computed_field
     @property
     def auth_url(self) -> str:
@@ -74,11 +74,17 @@ class Gen3Config(BaseSettings):
 def setup_logging(log_level: str = "INFO") -> logging.Logger:
     """Configure logging for the entire application"""
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
-    logging.basicConfig(
-        level=numeric_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        force=True,  # Override any existing configuration
-    )
+
+    # Only configure if not already configured to avoid conflicts
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=numeric_level,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
+    else:
+        # Just set the level if logging is already configured
+        logging.getLogger().setLevel(numeric_level)
+
     return logging.getLogger("gen3-mcp")
 
 
