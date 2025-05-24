@@ -45,7 +45,6 @@ class Tools:
     # Data Operations
     async def data_explore(self, entity_name: str, **kwargs) -> dict[str, Any]:
         """Explore entity using intelligent field selection"""
-        kwargs.get("field_count", 15)
         record_limit = kwargs.get("limit", 5)
 
         # Get sample records with optimal fields

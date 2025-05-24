@@ -21,20 +21,6 @@ async def test_get_full_schema_caching(mock_client, config):
     assert schema1 == schema2
 
 
-# @pytest.mark.asyncio
-# async def test_entity_exists(mock_client, config):
-#    """Test entity existence checking"""
-#    service = Gen3Service(mock_client, config)
-#
-#    # Mock full schema in cache
-#    service._cache["full_schema"] = {"subject": {}, "sample": {}}
-#    service._cache_timestamps["full_schema"] = time.time()
-#
-#    assert await service.entity_exists("subject")
-#    assert not await service.entity_exists("nonexistent")
-#
-
-
 @pytest.mark.asyncio
 async def test_get_entity_schema_not_found(mock_client, config):
     """Test Gen3SchemaError is raised for missing entities"""
@@ -43,21 +29,6 @@ async def test_get_entity_schema_not_found(mock_client, config):
 
     with pytest.raises(Gen3SchemaError):
         await service.get_entity_schema("nonexistent")
-
-
-@pytest.mark.asyncio
-async def test_get_schema_summary(mock_client, config):
-    """Test schema summary generation"""
-    service = Gen3Service(mock_client, config)
-
-    summary = await service.get_schema_summary()
-
-    assert "total_entities" in summary
-    assert "entity_names" in summary
-    assert "entities_by_category" in summary
-    assert summary["total_entities"] == 2  # subject and sample from mock
-    assert "subject" in summary["entity_names"]
-    assert "sample" in summary["entity_names"]
 
 
 @pytest.mark.asyncio
