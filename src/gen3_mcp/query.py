@@ -204,24 +204,33 @@ class QueryService:
             schema = await self.gen3_service.get_entity_schema(entity_name)
             valid_fields = self._get_all_valid_fields(schema)
 
-            # Calculate similarities using simple approach
+            # Calculate similarities
             suggestions = []
             for valid_field in valid_fields:
-                if field_name.lower() in valid_field.lower() or valid_field.lower() in field_name.lower():
-                    suggestions.append({
-                        "name": valid_field,
-                        "similarity": self._simple_similarity(field_name, valid_field),
-                        "type": self._get_field_type(schema, valid_field),
-                    })
+                similarity = self._similarity(field_name, valid_field)
+                if similarity > 0.4:  # Threshold for suggestions
+                    suggestions.append(
+                        {
+                            "name": valid_field,
+                            "similarity": similarity,
+                            "type": self._get_field_type(schema, valid_field),
+                        }
+                    )
 
             # Sort by similarity
             suggestions.sort(key=lambda x: x["similarity"], reverse=True)
+
+            # Also check for common patterns
+            pattern_suggestions = self._get_pattern_suggestions(
+                field_name, valid_fields
+            )
 
             return {
                 "field_name": field_name,
                 "entity_name": entity_name,
                 "entity_exists": True,
                 "suggestions": suggestions[:10],  # Top 10 suggestions
+                "pattern_suggestions": pattern_suggestions,
                 "total_valid_fields": len(valid_fields),
                 "message": f"Found {len(suggestions)} similar fields for '{field_name}' in '{entity_name}'",
             }
@@ -462,21 +471,9 @@ class QueryService:
 
         return valid_fields
 
-    def _simple_similarity(self, a: str, b: str) -> float:
-        """Calculate simple similarity between two strings"""
-        a_lower = a.lower()
-        b_lower = b.lower()
-        
-        # Exact match
-        if a_lower == b_lower:
-            return 1.0
-        
-        # Substring match
-        if a_lower in b_lower or b_lower in a_lower:
-            return 0.8
-            
-        # Use difflib for more complex matching
-        return SequenceMatcher(None, a_lower, b_lower).ratio()
+    def _similarity(self, a: str, b: str) -> float:
+        """Calculate similarity between two strings"""
+        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
     def _suggest_similar_entities(
         self, entity_name: str, valid_entities: set[str]
@@ -484,8 +481,8 @@ class QueryService:
         """Suggest similar entity names"""
         suggestions = []
         for valid_entity in valid_entities:
-            similarity = self._simple_similarity(entity_name, valid_entity)
-            if similarity > 0.4:  # Lower threshold for entity suggestions
+            similarity = self._similarity(entity_name, valid_entity)
+            if similarity > 0.6:
                 suggestions.append({"name": valid_entity, "similarity": similarity})
 
         suggestions.sort(key=lambda x: x["similarity"], reverse=True)
@@ -511,6 +508,39 @@ class QueryService:
                             return f"relationship -> {sublink.get('target_type', 'unknown')}"
 
         return "unknown"
+
+    def _get_pattern_suggestions(
+        self, field_name: str, valid_fields: set[str]
+    ) -> List[str]:
+        """Get suggestions based on common naming patterns"""
+        patterns = []
+
+        # Common field patterns
+        if "name" in field_name.lower():
+            patterns.extend(
+                [f for f in valid_fields if "name" in f.lower() or f.endswith("_name")]
+            )
+
+        if "type" in field_name.lower():
+            patterns.extend(
+                [f for f in valid_fields if "type" in f.lower() or f.endswith("_type")]
+            )
+
+        if "id" in field_name.lower():
+            patterns.extend(
+                [f for f in valid_fields if "id" in f.lower() or f.endswith("_id")]
+            )
+
+        if "date" in field_name.lower() or "time" in field_name.lower():
+            patterns.extend(
+                [
+                    f
+                    for f in valid_fields
+                    if any(x in f.lower() for x in ["date", "time", "datetime"])
+                ]
+            )
+
+        return list(set(patterns))[:5]  # Remove duplicates and limit
 
     def _generate_validation_summary(
         self, validation_results: Dict[str, Any]

@@ -159,16 +159,16 @@ async def test_extract_graphql_fields(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_simple_similarity(mock_client, config):
-    """Test simple similarity calculation"""
+async def test_similarity(mock_client, config):
+    """Test similarity calculation"""
     gen3_service = Gen3Service(mock_client, config)
     query_service = QueryService(mock_client, config, gen3_service)
 
     # Test exact match
-    assert query_service._simple_similarity("gender", "gender") == 1.0
+    assert query_service._similarity("gender", "gender") == 1.0
     
     # Test substring match
-    assert query_service._simple_similarity("gender", "gen") == 0.8
+    assert query_service._similarity("gender", "gen") == pytest.approx(0.667, rel=1e-3)
     
     # Test no match
-    assert query_service._simple_similarity("abc", "xyz") < 0.5
+    assert query_service._similarity("abc", "xyz") < 0.5
