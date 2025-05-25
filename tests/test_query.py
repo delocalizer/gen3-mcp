@@ -53,7 +53,7 @@ async def test_validate_valid_query(mock_client, config):
     }
     """
 
-    result = await query_service.validate_query_fields(valid_query)
+    result = await query_service.validate_query(valid_query)
 
     assert result["valid"]
     assert "subject" in result["extracted_fields"]
@@ -78,7 +78,7 @@ async def test_validate_invalid_query(mock_client, config):
     }
     """
 
-    result = await query_service.validate_query_fields(invalid_query)
+    result = await query_service.validate_query(invalid_query)
 
     assert not result["valid"]
     assert result["summary"]["total_errors"] > 0
@@ -132,16 +132,102 @@ async def test_nonexistent_entity_suggestions(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_similarity(mock_client, config):
-    """Test similarity calculation"""
+async def test_validate_relationship_query(mock_client, config):
+    """Test validation of queries with relationship traversals"""
     gen3_service = Gen3Service(mock_client, config)
     query_service = QueryService(mock_client, config, gen3_service)
 
-    # Test exact match
-    assert query_service._similarity("gender", "gender") == 1.0
+    # Query with relationship traversal that should now be valid
+    relationship_query = """
+    {
+        subject {
+            id
+            submitter_id
+            studies {
+                submitter_id
+                description
+            }
+        }
+    }
+    """
 
-    # Test substring match
-    assert query_service._similarity("gender", "gen") == pytest.approx(0.667, rel=1e-3)
+    result = await query_service.validate_query(relationship_query)
 
-    # Test no match
-    assert query_service._similarity("abc", "xyz") < 0.5
+    # Should be valid now with relationship support
+    assert result["valid"]
+    assert "subject" in result["extracted_fields"]
+    assert "studies" in result["extracted_fields"]
+    
+    # Subject should be valid as a direct entity
+    assert result["validation_results"]["subject"]["entity_exists"]
+    
+    # Studies should be valid as a relationship from subject
+    studies_result = result["validation_results"]["studies"]
+    assert len(studies_result["errors"]) == 0  # Should have no errors for valid relationship
+
+
+@pytest.mark.asyncio
+async def test_validate_plural_relationship_names(mock_client, config):
+    """Test validation of queries using plural relationship names"""
+    gen3_service = Gen3Service(mock_client, config)
+    query_service = QueryService(mock_client, config, gen3_service)
+
+    # Query using plural form of target entity (common pattern)
+    plural_query = """
+    {
+        sample {
+            id
+            submitter_id
+            subjects {
+                submitter_id
+                gender
+            }
+        }
+    }
+    """
+
+    result = await query_service.validate_query(plural_query)
+
+    # Should recognize 'subjects' as plural of 'subject' relationship
+    assert result["valid"]
+    assert "sample" in result["extracted_fields"]
+    assert "subjects" in result["extracted_fields"]
+    
+    # Both entities should validate successfully
+    assert result["validation_results"]["sample"]["entity_exists"]
+    subjects_result = result["validation_results"]["subjects"]
+    assert len(subjects_result["errors"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_validate_invalid_relationship_fields(mock_client, config):
+    """Test validation catches invalid fields in relationship contexts"""
+    gen3_service = Gen3Service(mock_client, config)
+    query_service = QueryService(mock_client, config, gen3_service)
+
+    # Query with invalid field in relationship context
+    invalid_field_query = """
+    {
+        subject {
+            id
+            submitter_id
+            studies {
+                submitter_id
+                invalid_study_field
+            }
+        }
+    }
+    """
+
+    result = await query_service.validate_query(invalid_field_query)
+
+    # Should catch the invalid field in the relationship context
+    assert not result["valid"]
+    assert result["summary"]["total_errors"] > 0
+    
+    # Should specifically identify the invalid field in the target entity
+    studies_result = result["validation_results"]["studies"]
+    assert len(studies_result["errors"]) > 0
+    error_message = studies_result["errors"][0]
+    assert "invalid_study_field" in error_message
+    assert "does not exist in target entity" in error_message

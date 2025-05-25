@@ -17,7 +17,7 @@ class TestSchemaTools:
         # In real usage, this would be called through MCP framework
         result = await mock_gen3_service.get_schema_summary()
 
-        assert result["total_entities"] == 2
+        assert result["total_entities"] == 3
         assert "subject" in result["entity_names"]
         mock_gen3_service.get_schema_summary.assert_called_once()
 
@@ -53,7 +53,7 @@ class TestSchemaTools:
         result = {"entities": entities}
 
         assert "entities" in result
-        assert result["entities"] == ["subject", "sample"]
+        assert result["entities"] == ["subject", "sample", "study"]
         mock_gen3_service.get_entity_names.assert_called_once()
 
     @pytest.mark.asyncio
@@ -65,7 +65,7 @@ class TestSchemaTools:
 
         assert "total_entities" in result
         assert "entities" in result
-        assert result["total_entities"] == 2
+        assert result["total_entities"] == 3
         mock_gen3_service.get_detailed_entities.assert_called_once()
 
 

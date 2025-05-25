@@ -290,6 +290,12 @@ class Gen3Service:
             "query_used": query.strip(),
         }
 
+    def clear_cache(self):
+        """Clear all cached data"""
+        self._cache.clear()
+        self._cache_timestamps.clear()
+        logger.info("Schema cache cleared")
+
     def _select_optimal_fields(
         self, schema: dict[str, Any], max_count: int
     ) -> list[str]:
@@ -347,9 +353,3 @@ class Gen3Service:
         self._cache[key] = value
         self._cache_timestamps[key] = time.time()
         logger.debug(f"Cached {key}")
-
-    def clear_cache(self):
-        """Clear all cached data"""
-        self._cache.clear()
-        self._cache_timestamps.clear()
-        logger.info("Schema cache cleared")

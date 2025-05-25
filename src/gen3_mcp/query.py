@@ -2,7 +2,8 @@
 
 import logging
 from difflib import SequenceMatcher
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 from .client import Gen3Client
 from .config import Gen3Config
@@ -11,6 +12,26 @@ from .exceptions import QueryValidationError
 from .graphql_parser import extract_query_fields, validate_graphql
 
 logger = logging.getLogger("gen3-mcp.query")
+
+
+@dataclass
+class ValidationResult:
+    """Result of field validation for an entity"""
+    valid: bool
+    field_validation: Dict[str, Any]
+    errors: List[str]
+    warnings: List[str]
+    entity_suggestions: Optional[List[Dict[str, Any]]] = None
+
+
+@dataclass
+class RelationshipInfo:
+    """Information about an entity relationship"""
+    name: str
+    target_type: str
+    multiplicity: str
+    required: bool
+    backref: str
 
 
 class QueryService:
@@ -90,11 +111,11 @@ class QueryService:
             "query_used": query.strip(),
         }
 
-    async def validate_query_fields(self, query: str) -> dict[str, Any]:
-        """Validate all fields in a GraphQL query against the Gen3 schema"""
+    async def validate_query(self, query: str) -> dict[str, Any]:
+        """Validate query syntax, then semantics of a GraphQL query against the Gen3 schema"""
         logger.info("Validating GraphQL query fields")
 
-        # First validate GraphQL syntax
+        # Validate GraphQL syntax
         is_valid_syntax, syntax_error = validate_graphql(query)
         if not is_valid_syntax:
             return {
@@ -104,97 +125,21 @@ class QueryService:
                 "validation_results": {},
             }
 
+        # Extract fields from query
         try:
-            # Use GraphQL parser
             extracted_fields = extract_query_fields(query)
         except QueryValidationError as e:
-            return {
-                "valid": False,
-                "error": str(e),
-                "extracted_fields": {},
-                "validation_results": {},
-            }
+            return self._error_response(str(e), {})
         except Exception as e:
-            return {
-                "valid": False,
-                "error": f"Failed to parse GraphQL query: {e}",
-                "extracted_fields": {},
-                "validation_results": {},
-            }
+            return self._error_response(f"Failed to parse GraphQL query: {e}", {})
 
-        validation_results = {}
-        all_valid = True
-
-        # Get list of valid entities
+        # Validate extracted fields
         try:
-            valid_entities = set(await self.gen3_service.get_entity_names())
+            validation_results = await self._validate_extracted_fields(extracted_fields)
         except Exception as e:
-            return {
-                "valid": False,
-                "error": f"Failed to fetch entity list: {e}",
-                "extracted_fields": extracted_fields,
-                "validation_results": {},
-            }
+            return self._error_response(f"Validation failed: {e}", extracted_fields)
 
-        for entity_name, fields in extracted_fields.items():
-            entity_result = {
-                "entity_exists": entity_name in valid_entities,
-                "field_validation": {},
-                "errors": [],
-                "warnings": [],
-            }
-
-            if not entity_result["entity_exists"]:
-                entity_result["errors"].append(f"Entity '{entity_name}' does not exist")
-                all_valid = False
-
-                # Suggest similar entity names
-                suggestions = self._suggest_similar_entities(
-                    entity_name, valid_entities
-                )
-                if suggestions:
-                    entity_result["entity_suggestions"] = suggestions
-            else:
-                # Validate fields for this entity
-                try:
-                    schema = await self.gen3_service.get_entity_schema(entity_name)
-                    valid_fields = self._get_all_valid_fields(schema)
-
-                    for field in fields:
-                        field_valid = field in valid_fields
-                        entity_result["field_validation"][field] = {
-                            "valid": field_valid,
-                            "suggestions": [],
-                        }
-
-                        if not field_valid:
-                            entity_result["errors"].append(
-                                f"Field '{field}' does not exist in entity '{entity_name}'"
-                            )
-                            all_valid = False
-
-                            # Generate suggestions for invalid fields
-                            suggestions = await self.suggest_similar_fields(
-                                field, entity_name
-                            )
-                            entity_result["field_validation"][field]["suggestions"] = (
-                                suggestions.get("suggestions", [])
-                            )
-
-                except Exception as e:
-                    entity_result["errors"].append(
-                        f"Failed to validate fields for entity '{entity_name}': {e}"
-                    )
-                    all_valid = False
-
-            validation_results[entity_name] = entity_result
-
-        return {
-            "valid": all_valid,
-            "extracted_fields": extracted_fields,
-            "validation_results": validation_results,
-            "summary": self._generate_validation_summary(validation_results),
-        }
+        return self._format_validation_response(extracted_fields, validation_results)
 
     async def suggest_similar_fields(
         self, field_name: str, entity_name: str
@@ -204,13 +149,12 @@ class QueryService:
 
         try:
             # Check if entity exists
-            valid_entities = set(await self.gen3_service.get_entity_names())
+            schema_data = await self._load_schema_data()
+            all_entities = schema_data["entities"]
 
-            if entity_name not in valid_entities:
+            if entity_name not in all_entities:
                 # Suggest similar entity names
-                entity_suggestions = self._suggest_similar_entities(
-                    entity_name, valid_entities
-                )
+                entity_suggestions = self._get_entity_suggestions(entity_name, all_entities)
 
                 return {
                     "field_name": field_name,
@@ -222,36 +166,28 @@ class QueryService:
                 }
 
             # Get schema for the entity
-            schema = await self.gen3_service.get_entity_schema(entity_name)
-            valid_fields = self._get_all_valid_fields(schema)
+            schema = all_entities[entity_name]
+            valid_fields = self._get_entity_fields(schema)
 
             # Calculate similarities
             suggestions = []
             for valid_field in valid_fields:
-                similarity = self._similarity(field_name, valid_field)
+                similarity = SequenceMatcher(None, field_name.lower(), valid_field.lower()).ratio()
                 if similarity > 0.4:  # Threshold for suggestions
-                    suggestions.append(
-                        {
-                            "name": valid_field,
-                            "similarity": similarity,
-                            "type": self._get_field_type(schema, valid_field),
-                        }
-                    )
+                    suggestions.append({
+                        "name": valid_field,
+                        "similarity": similarity,
+                        "type": "string",  # Simplified type info
+                    })
 
             # Sort by similarity
             suggestions.sort(key=lambda x: x["similarity"], reverse=True)
-
-            # Also check for common patterns
-            pattern_suggestions = self._get_pattern_suggestions(
-                field_name, valid_fields
-            )
 
             return {
                 "field_name": field_name,
                 "entity_name": entity_name,
                 "entity_exists": True,
                 "suggestions": suggestions[:10],  # Top 10 suggestions
-                "pattern_suggestions": pattern_suggestions,
                 "total_valid_fields": len(valid_fields),
                 "message": f"Found {len(suggestions)} similar fields for '{field_name}' in '{entity_name}'",
             }
@@ -271,13 +207,13 @@ class QueryService:
         logger.info(f"Generating query template for {entity_name}")
 
         try:
-            # Check if entity exists
-            valid_entities = set(await self.gen3_service.get_entity_names())
+            # Load schema data
+            schema_data = await self._load_schema_data()
+            all_entities = schema_data["entities"]
+            all_relationships = schema_data["relationships"]
 
-            if entity_name not in valid_entities:
-                suggestions = self._suggest_similar_entities(
-                    entity_name, valid_entities
-                )
+            if entity_name not in all_entities:
+                suggestions = self._get_entity_suggestions(entity_name, all_entities)
                 return {
                     "entity_name": entity_name,
                     "exists": False,
@@ -287,7 +223,7 @@ class QueryService:
                 }
 
             # Get schema
-            schema = await self.gen3_service.get_entity_schema(entity_name)
+            schema = all_entities[entity_name]
 
             # Collect basic fields
             basic_fields = ["id", "submitter_id", "type"]
@@ -333,30 +269,15 @@ class QueryService:
 
             # Collect relationship fields
             relationship_fields = []
-            if include_relationships:
-                links = schema.get("links", [])
-                for link in links:
-                    if isinstance(link, dict):
-                        if "name" in link:
-                            relationship_fields.append(
-                                {
-                                    "name": link["name"],
-                                    "target_type": link.get("target_type"),
-                                    "multiplicity": link.get("multiplicity"),
-                                    "required": link.get("required", False),
-                                }
-                            )
-                        elif "subgroup" in link:
-                            for sublink in link["subgroup"]:
-                                if "name" in sublink:
-                                    relationship_fields.append(
-                                        {
-                                            "name": sublink["name"],
-                                            "target_type": sublink.get("target_type"),
-                                            "multiplicity": sublink.get("multiplicity"),
-                                            "required": sublink.get("required", False),
-                                        }
-                                    )
+            if include_relationships and entity_name in all_relationships:
+                relationships = all_relationships[entity_name]
+                for rel in relationships[:5]:  # Limit to 5 examples
+                    relationship_fields.append({
+                        "name": rel.name,
+                        "target_type": rel.target_type,
+                        "multiplicity": rel.multiplicity,
+                        "required": rel.required,
+                    })
 
             # Generate the template
             template_fields = basic_fields + schema_fields
@@ -368,7 +289,7 @@ class QueryService:
             # Add relationship examples
             if relationship_fields:
                 template += "    \n    # Relationship fields (uncomment as needed):\n"
-                for rel in relationship_fields[:5]:  # Limit to 5 examples
+                for rel in relationship_fields:
                     template += f"    # {rel['name']} {{\n"
                     template += "    #     id\n"
                     template += "    #     submitter_id\n"
@@ -402,99 +323,7 @@ class QueryService:
                 "error": f"Failed to generate template: {e}",
             }
 
-    def _get_all_valid_fields(self, schema: dict[str, Any]) -> set[str]:
-        """Get all valid field names including relationships"""
-        valid_fields = set(schema.get("properties", {}).keys())
-
-        # Add common GraphQL fields
-        valid_fields.update(
-            ["id", "type", "submitter_id", "created_datetime", "updated_datetime"]
-        )
-
-        # Add relationship fields from links
-        links = schema.get("links", [])
-        for link in links:
-            if isinstance(link, dict):
-                if "name" in link:
-                    valid_fields.add(link["name"])
-                elif "subgroup" in link:
-                    for sublink in link["subgroup"]:
-                        if isinstance(sublink, dict) and "name" in sublink:
-                            valid_fields.add(sublink["name"])
-
-        return valid_fields
-
-    def _similarity(self, a: str, b: str) -> float:
-        """Calculate similarity between two strings"""
-        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
-
-    def _suggest_similar_entities(
-        self, entity_name: str, valid_entities: set[str]
-    ) -> list[dict[str, Any]]:
-        """Suggest similar entity names"""
-        suggestions = []
-        for valid_entity in valid_entities:
-            similarity = self._similarity(entity_name, valid_entity)
-            if similarity > 0.6:
-                suggestions.append({"name": valid_entity, "similarity": similarity})
-
-        suggestions.sort(key=lambda x: x["similarity"], reverse=True)
-        return suggestions[:5]
-
-    def _get_field_type(self, schema: dict[str, Any], field_name: str) -> str:
-        """Get the type of a field from schema"""
-        properties = schema.get("properties", {})
-        if field_name in properties:
-            field_def = properties[field_name]
-            if isinstance(field_def, dict):
-                return field_def.get("type", "unknown")
-
-        # Check if it's a relationship field
-        links = schema.get("links", [])
-        for link in links:
-            if isinstance(link, dict):
-                if link.get("name") == field_name:
-                    return f"relationship -> {link.get('target_type', 'unknown')}"
-                elif "subgroup" in link:
-                    for sublink in link["subgroup"]:
-                        if sublink.get("name") == field_name:
-                            return f"relationship -> {sublink.get('target_type', 'unknown')}"
-
-        return "unknown"
-
-    def _get_pattern_suggestions(
-        self, field_name: str, valid_fields: set[str]
-    ) -> list[str]:
-        """Get suggestions based on common naming patterns"""
-        patterns = []
-
-        # Common field patterns
-        if "name" in field_name.lower():
-            patterns.extend(
-                [f for f in valid_fields if "name" in f.lower() or f.endswith("_name")]
-            )
-
-        if "type" in field_name.lower():
-            patterns.extend(
-                [f for f in valid_fields if "type" in f.lower() or f.endswith("_type")]
-            )
-
-        if "id" in field_name.lower():
-            patterns.extend(
-                [f for f in valid_fields if "id" in f.lower() or f.endswith("_id")]
-            )
-
-        if "date" in field_name.lower() or "time" in field_name.lower():
-            patterns.extend(
-                [
-                    f
-                    for f in valid_fields
-                    if any(x in f.lower() for x in ["date", "time", "datetime"])
-                ]
-            )
-
-        return list(set(patterns))[:5]  # Remove duplicates and limit
-
+    # Helper methods
     def _generate_validation_summary(
         self, validation_results: dict[str, Any]
     ) -> dict[str, Any]:
@@ -528,3 +357,284 @@ class QueryService:
             "total_errors": len(all_errors),
             "errors": all_errors,
         }
+
+    def _error_response(self, error_msg: str, extracted_fields: dict) -> dict[str, Any]:
+        """Create error response"""
+        return {
+            "valid": False,
+            "error": error_msg,
+            "extracted_fields": extracted_fields,
+            "validation_results": {},
+        }
+
+    def _format_validation_response(self, extracted_fields: dict, validation_results: dict) -> dict[str, Any]:
+        """Format the final validation response"""
+        formatted_results = self._convert_validation_results(validation_results)
+        all_valid = all(result.valid for result in validation_results.values())
+        
+        return {
+            "valid": all_valid,
+            "extracted_fields": extracted_fields,
+            "validation_results": formatted_results,
+            "summary": self._generate_validation_summary(formatted_results),
+        }
+
+    def _convert_validation_results(self, validation_results: Dict[str, ValidationResult]) -> dict:
+        """Convert ValidationResult objects to the expected API format"""
+        formatted_results = {}
+        
+        for entity_name, result in validation_results.items():
+            formatted_result = {
+                "entity_exists": (result.valid or len(result.errors) == 0 or 
+                                not any("does not exist" in error for error in result.errors)),
+                "field_validation": result.field_validation,
+                "errors": result.errors,
+                "warnings": result.warnings,
+            }
+            
+            if result.entity_suggestions:
+                formatted_result["entity_suggestions"] = result.entity_suggestions
+                
+            formatted_results[entity_name] = formatted_result
+            
+        return formatted_results
+
+    # FIXME caching
+    async def _load_schema_data(self) -> dict:
+        """Load all necessary schema data for validation"""
+        try:
+            entities = await self.gen3_service.get_full_schema()
+            relationships = {entity_name: self._extract_relationships(entity_schema) 
+                           for entity_name, entity_schema in entities.items()}
+            return {"entities": entities, "relationships": relationships}
+        except Exception:
+            return {"entities": {}, "relationships": {}}
+
+    def _create_not_found_result(self, entity_name: str, all_entities: Dict[str, Any]) -> ValidationResult:
+        """Create validation result for entity not found"""
+        return ValidationResult(
+            valid=False,
+            field_validation={},
+            errors=[f"Entity '{entity_name}' does not exist"],
+            warnings=[],
+            entity_suggestions=self._get_entity_suggestions(entity_name, all_entities)
+        )
+    
+    def _find_relationship_parent(self,
+                                relationship_name: str,
+                                all_extracted_fields: Dict[str, List[str]],
+                                entity_relationships: Dict[str, List[RelationshipInfo]]) -> Tuple[Optional[str], Optional[RelationshipInfo]]:
+        """Find which entity this relationship_name belongs to"""
+        for potential_parent in all_extracted_fields.keys():
+            if potential_parent in entity_relationships:
+                for relationship in entity_relationships[potential_parent]:
+                    if self._is_relationship_match(relationship_name, relationship):
+                        return potential_parent, relationship
+        return None, None
+    
+    def _is_relationship_match(self, relationship_name: str, relationship: RelationshipInfo) -> bool:
+        """Check if a relationship name matches using various naming patterns"""
+        # Exact match
+        if relationship_name == relationship.name:
+            return True
+            
+        # Plural of target type
+        if relationship_name == f"{relationship.target_type}s":
+            return True
+            
+        # Backref match
+        if relationship_name == relationship.backref:
+            return True
+            
+        # Handle irregular plurals FIXME a bit arbitrary atm
+        irregular_plurals = {
+            "child": "children",
+            "person": "people", 
+            "datum": "data",
+            "analysis": "analyses",
+            "diagnosis": "diagnoses"
+        }
+        
+        target_type = relationship.target_type
+        if target_type in irregular_plurals and relationship_name == irregular_plurals[target_type]:
+            return True
+            
+        return False
+    
+    def _extract_relationships(self, entity_schema: Dict[str, Any]) -> List[RelationshipInfo]:
+        """Extract relationships from entity schema links"""
+        relationships = []
+        links = entity_schema.get('links', [])
+        
+        for link in links:
+            if isinstance(link, dict):
+                if "subgroup" in link:
+                    relationships.extend(self._process_subgroup_links(link["subgroup"]))
+                else:
+                    relationships.append(self._create_relationship_info(link))
+        
+        return relationships
+
+    def _process_subgroup_links(self, subgroup: List[Dict[str, Any]]) -> List[RelationshipInfo]:
+        """Process subgroup links from schema"""
+        return [self._create_relationship_info(sublink) 
+               for sublink in subgroup if isinstance(sublink, dict)]
+
+    def _create_relationship_info(self, link: Dict[str, Any]) -> RelationshipInfo:
+        """Create RelationshipInfo from link definition"""
+        return RelationshipInfo(
+            name=link.get('name', ''),
+            target_type=link.get('target_type', ''),
+            multiplicity=link.get('multiplicity', ''),
+            required=link.get('required', False),
+            backref=link.get('backref', '')
+        )
+    
+    def _get_entity_fields(self, entity_schema: Dict[str, Any]) -> set:
+        """Extract all valid fields from entity schema"""
+        fields = set()
+        
+        # Add properties
+        properties = entity_schema.get('properties', {})
+        fields.update(properties.keys())
+        
+        # Add system properties
+        system_properties = entity_schema.get('systemProperties', [])
+        fields.update(system_properties)
+        
+        # Add common GraphQL fields
+        fields.update(['id', 'type', 'submitter_id', 'created_datetime', 'updated_datetime'])
+        
+        return fields
+    
+    def _get_field_suggestions(self, field_name: str, available_fields: set) -> List[str]:
+        """Get field suggestions using fuzzy matching"""
+        suggestions = []
+        for available_field in available_fields:
+            similarity = SequenceMatcher(None, field_name.lower(), available_field.lower()).ratio()
+            if similarity > 0.6:
+                suggestions.append(available_field)
+        
+        return sorted(suggestions, key=lambda x: SequenceMatcher(None, field_name.lower(), x.lower()).ratio(), reverse=True)[:3]
+    
+    def _get_entity_suggestions(self, entity_name: str, all_entities: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get entity suggestions using fuzzy matching"""
+        suggestions = []
+        for available_entity in all_entities.keys():
+            similarity = SequenceMatcher(None, entity_name.lower(), available_entity.lower()).ratio()
+            if similarity > 0.5:
+                suggestions.append({
+                    "name": available_entity,
+                    "similarity": similarity
+                })
+        
+        return sorted(suggestions, key=lambda x: x["similarity"], reverse=True)[:3]
+
+    async def _validate_extracted_fields(self, extracted_fields: Dict[str, List[str]]) -> Dict[str, ValidationResult]:
+        """Main validation orchestration for extracted fields"""
+        schema_data = await self._load_schema_data()
+        results = {}
+        
+        for entity_name, fields in extracted_fields.items():
+            results[entity_name] = await self._validate_single_entity(
+                entity_name, fields, schema_data, extracted_fields
+            )
+            
+        return results
+
+    async def _validate_single_entity(self, 
+                                    entity_name: str, 
+                                    fields: List[str],
+                                    schema_data: dict,
+                                    all_extracted_fields: Dict[str, List[str]]) -> ValidationResult:
+        """Validate a single entity and its fields"""
+        entities = schema_data["entities"]
+        relationships = schema_data["relationships"]
+        
+        # Check if this is a direct entity
+        if entity_name in entities:
+            return await self._validate_direct_entity(entity_name, fields, entities, relationships)
+        
+        # Check if this is a relationship field
+        parent_entity, relationship = self._find_relationship_parent(
+            entity_name, all_extracted_fields, relationships
+        )
+        
+        if parent_entity and relationship:
+            return await self._validate_relationship_fields(
+                entity_name, fields, relationship, entities
+            )
+        
+        # Entity not found
+        return self._create_not_found_result(entity_name, entities)
+    
+    async def _validate_direct_entity(self, 
+                              entity_name: str, 
+                              fields: List[str],
+                              all_entities: Dict[str, Any],
+                              entity_relationships: Dict[str, List[RelationshipInfo]]) -> ValidationResult:
+        """Validate fields for a direct entity"""
+        entity_schema = all_entities[entity_name]
+        available_fields = self._get_entity_fields(entity_schema)
+        relationship_fields = {rel.name for rel in entity_relationships.get(entity_name, [])}
+        
+        field_validation = {}
+        errors = []
+        
+        for field in fields:
+            if field in available_fields:
+                field_validation[field] = {"valid": True, "suggestions": []}
+            elif field in relationship_fields:
+                field_validation[field] = {
+                    "valid": True, 
+                    "suggestions": [],
+                    "type": "relationship"
+                }
+            else:
+                suggestions = self._get_field_suggestions(field, available_fields)
+                field_validation[field] = {"valid": False, "suggestions": suggestions}
+                errors.append(f"Field '{field}' does not exist in entity '{entity_name}'")
+        
+        return ValidationResult(
+            valid=len(errors) == 0,
+            field_validation=field_validation,
+            errors=errors,
+            warnings=[]
+        )
+    
+    async def _validate_relationship_fields(self,
+                                    relationship_name: str,
+                                    fields: List[str], 
+                                    relationship: RelationshipInfo,
+                                    all_entities: Dict[str, Any]) -> ValidationResult:
+        """Validate fields for an entity accessed through a relationship"""
+        target_entity_name = relationship.target_type
+        
+        if target_entity_name not in all_entities:
+            return ValidationResult(
+                valid=False,
+                field_validation={},
+                errors=[f"Target entity '{target_entity_name}' for relationship '{relationship_name}' does not exist"],
+                warnings=[]
+            )
+        
+        target_entity_schema = all_entities[target_entity_name]
+        available_fields = self._get_entity_fields(target_entity_schema)
+        
+        field_validation = {}
+        errors = []
+        
+        for field in fields:
+            if field in available_fields:
+                field_validation[field] = {"valid": True, "suggestions": []}
+            else:
+                suggestions = self._get_field_suggestions(field, available_fields)
+                field_validation[field] = {"valid": False, "suggestions": suggestions}
+                errors.append(f"Field '{field}' does not exist in target entity '{target_entity_name}'")
+        
+        return ValidationResult(
+            valid=len(errors) == 0,
+            field_validation=field_validation,
+            errors=errors,
+            warnings=[]
+        )

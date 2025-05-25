@@ -99,9 +99,10 @@ async def test_get_schema_summary(mock_client, config):
     assert "total_entities" in summary
     assert "entity_names" in summary
     assert "entities_by_category" in summary
-    assert summary["total_entities"] == 2
+    assert summary["total_entities"] == 3
     assert "subject" in summary["entity_names"]
     assert "sample" in summary["entity_names"]
+    assert "study" in summary["entity_names"]
 
 
 @pytest.mark.asyncio
@@ -115,7 +116,7 @@ async def test_get_detailed_entities(mock_client, config):
     assert "entities" in detailed
     assert "entities_by_category" in detailed
     assert "relationship_summary" in detailed
-    assert detailed["total_entities"] == 2
+    assert detailed["total_entities"] == 3
 
     # Check subject entity details
     assert "subject" in detailed["entities"]
@@ -135,7 +136,8 @@ async def test_get_entity_names(mock_client, config):
     assert isinstance(entity_names, list)
     assert "subject" in entity_names
     assert "sample" in entity_names
-    assert len(entity_names) == 2
+    assert "study" in entity_names
+    assert len(entity_names) == 3
 
 
 @pytest.mark.asyncio

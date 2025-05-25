@@ -56,6 +56,15 @@ FULL_SCHEMA = {
                         "name": "studies",
                         "target_type": "study",
                         "multiplicity": "many_to_many",
+                        "backref": "subjects",
+                        "required": True
+                    },
+                    {
+                        "name": "samples",
+                        "target_type": "sample",
+                        "multiplicity": "one_to_many",
+                        "backref": "subjects",
+                        "required": False
                     }
                 ]
             }
@@ -72,13 +81,51 @@ FULL_SCHEMA = {
             "sample_type": {"type": "string"},
             "anatomic_site": {"type": "string"},
         },
+        "links": [
+            {
+                "subgroup": [
+                    {
+                        "name": "subjects",
+                        "target_type": "subject",
+                        "multiplicity": "many_to_one",
+                        "backref": "samples",
+                        "required": True
+                    }
+                ]
+            }
+        ],
         "required": ["submitter_id", "type"],
         "category": "biospecimen",
+    },
+    "study": {
+        "properties": {
+            "id": {"type": "string"},
+            "submitter_id": {"type": "string"},
+            "type": {"type": "string"},
+            "description": {"type": "string"},
+            "study_design": {"type": "string"},
+        },
+        "links": [
+            {
+                "subgroup": [
+                    {
+                        "name": "subjects",
+                        "target_type": "subject",
+                        "multiplicity": "many_to_many",
+                        "backref": "studies",
+                        "required": True
+                    }
+                ]
+            }
+        ],
+        "required": ["submitter_id", "type"],
+        "category": "administrative",
     },
 }
 
 SUBJECT_SCHEMA = FULL_SCHEMA["subject"]
 SAMPLE_SCHEMA = FULL_SCHEMA["sample"]
+STUDY_SCHEMA = FULL_SCHEMA["study"]
 
 
 def mock_get_json_side_effect(url, **kwargs):
@@ -92,6 +139,9 @@ def mock_get_json_side_effect(url, **kwargs):
     elif url.endswith("/sample"):
         # Single entity schema request
         return SAMPLE_SCHEMA
+    elif url.endswith("/study"):
+        # Single entity schema request
+        return STUDY_SCHEMA
     else:
         # Unknown entity
         return None
@@ -131,25 +181,26 @@ def create_test_services():
 
     # Set up mock returns for common service calls
     mock_gen3_service.get_schema_summary.return_value = {
-        "total_entities": 2,
-        "entity_names": ["subject", "sample"],
-        "entities_by_category": {"clinical": ["subject"], "biospecimen": ["sample"]},
+        "total_entities": 3,
+        "entity_names": ["subject", "sample", "study"],
+        "entities_by_category": {"clinical": ["subject"], "biospecimen": ["sample"], "administrative": ["study"]},
     }
 
     mock_gen3_service.get_full_schema.return_value = {
         "subject": {"properties": {"id": {"type": "string"}}},
         "sample": {"properties": {"id": {"type": "string"}}},
+        "study": {"properties": {"id": {"type": "string"}}},
     }
 
     mock_gen3_service.get_entity_schema.return_value = {
         "properties": {"id": {"type": "string"}, "gender": {"enum": ["Male", "Female"]}}
     }
 
-    mock_gen3_service.get_entity_names.return_value = ["subject", "sample"]
+    mock_gen3_service.get_entity_names.return_value = ["subject", "sample", "study"]
 
     mock_gen3_service.get_detailed_entities.return_value = {
-        "total_entities": 2,
-        "entities": {"subject": {"title": "Subject"}, "sample": {"title": "Sample"}},
+        "total_entities": 3,
+        "entities": {"subject": {"title": "Subject"}, "sample": {"title": "Sample"}, "study": {"title": "Study"}},
     }
 
     mock_gen3_service.get_sample_records.return_value = {

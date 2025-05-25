@@ -61,9 +61,8 @@ def create_mcp_server() -> FastMCP:
     """Create and configure the MCP server"""
     mcp = FastMCP("gen3")
 
-    # Register tools
+    # ===== SCHEMA TOOLS =====
 
-    # Schema operations
     @mcp.tool()
     async def schema_summary() -> dict:
         """Get schema summary"""
@@ -99,7 +98,8 @@ def create_mcp_server() -> FastMCP:
         gen3_service = await get_gen3_service()
         return await gen3_service.get_detailed_entities()
 
-    # Data operations
+    # ===== BASIC DATA TOOLS =====
+
     @mcp.tool()
     async def data_explore(
         entity_name: str, limit: int = 5, field_count: int = 10
@@ -163,7 +163,7 @@ def create_mcp_server() -> FastMCP:
             query: GraphQL query string to validate
         """
         query_service = await get_query_service()
-        return await query_service.validate_query_fields(query)
+        return await query_service.validate_query(query)
 
     @mcp.tool()
     async def suggest_fields(field_name: str, entity_name: str) -> dict:
@@ -192,7 +192,6 @@ def create_mcp_server() -> FastMCP:
             entity_name, include_relationships, max_fields
         )
 
-    # GraphQL execution
     @mcp.tool()
     async def execute_graphql(query: str) -> dict:
         """Execute GraphQL query against the Gen3 data commons
@@ -206,7 +205,8 @@ def create_mcp_server() -> FastMCP:
             return {"error": "Query execution failed"}
         return result
 
-    # Register resources
+    # ===== RESOURCES =====
+
     @mcp.resource("gen3://info")
     def info_resource() -> str:
         """Basic information about the Gen3 data commons instance"""
@@ -241,42 +241,42 @@ Use the tools below to fetch live data from these endpoints."""
 
 These tools help prevent field name hallucinations when working with Gen3 GraphQL queries:
 
-1. validation_validate_query(query="...")
+1. validate_query(query="...")
    - Validates all field names in a GraphQL query against the actual schema
    - Returns detailed errors and suggestions for invalid fields
    - Use before executing queries to catch mistakes early
 
-2. validation_suggest_fields(field_name="...", entity_name="...")
+2. suggest_fields(field_name="...", entity_name="...")
    - Finds similar field names when you use an invalid field
    - Uses string similarity and pattern matching
    - Suggests alternative entity names if entity doesn't exist
 
-3. validation_query_template(entity_name="...")
+3. query_template(entity_name="...")
    - Generates safe query templates with guaranteed valid fields
    - Includes basic fields, important properties, and relationship examples
    - Use as starting point for building queries
 
 Recommended Workflow:
-1. Start with validation_query_template(entity_name="subject")
+1. Start with query_template(entity_name="subject")
 2. Modify the template as needed
-3. Use validation_validate_query(query="...") to check your changes
-4. If validation fails, use validation_suggest_fields(...) to fix errors
+3. Use validate_query(query="...") to check your changes
+4. If validation fails, use suggest_fields(...) to fix errors
 5. Execute the validated query with execute_graphql(query="...")
 
 Example:
 ```
 # Get a template
-template = validation_query_template(entity_name="subject")
+template = query_template(entity_name="subject")
 
 # Modify it
 query = "{ subject { id gender invalid_field } }"
 
 # Validate
-validation = validation_validate_query(query=query)
+validation = validate_query(query=query)
 
 # Fix errors using suggestions
 if not validation["valid"]:
-    suggestions = validation_suggest_fields(field_name="invalid_field",
+    suggestions = suggest_fields(field_name="invalid_field",
                                           entity_name="subject")
 ```
 
