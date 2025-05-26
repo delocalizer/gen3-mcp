@@ -495,7 +495,7 @@ class QueryService:
     async def _load_schema_data(self) -> dict:
         """Load all necessary schema data for validation"""
         try:
-            entities = await self.gen3_service.get_full_schema()
+            entities = await self.gen3_service.get_schema_full()
             relationships = {
                 entity_name: self._extract_relationships(entity_schema)
                 for entity_name, entity_schema in entities.items()

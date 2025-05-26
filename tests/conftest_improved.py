@@ -186,7 +186,7 @@ def create_realistic_test_services():
         },
     }
 
-    mock_gen3_service.get_full_schema.return_value = schema
+    mock_gen3_service.get_schema_full.return_value = schema
     mock_gen3_service.get_entity_names.return_value = entity_names
 
     # Set up realistic entity schema responses

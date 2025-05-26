@@ -190,7 +190,7 @@ def create_test_services():
         },
     }
 
-    mock_gen3_service.get_full_schema.return_value = {
+    mock_gen3_service.get_schema_full.return_value = {
         "subject": {"properties": {"id": {"type": "string"}}},
         "sample": {"properties": {"id": {"type": "string"}}},
         "study": {"properties": {"id": {"type": "string"}}},

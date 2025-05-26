@@ -26,11 +26,11 @@ class TestSchemaTools:
         """Test schema_full tool calls service method directly"""
         mock_gen3_service = mcp_test_setup["mock_gen3_service"]
 
-        result = await mock_gen3_service.get_full_schema()
+        result = await mock_gen3_service.get_schema_full()
 
         assert "subject" in result
         assert "sample" in result
-        mock_gen3_service.get_full_schema.assert_called_once()
+        mock_gen3_service.get_schema_full.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_schema_entity(self, mcp_test_setup):
