@@ -157,13 +157,15 @@ async def test_validate_relationship_query(mock_client, config):
     assert result["valid"]
     assert "subject" in result["extracted_fields"]
     assert "studies" in result["extracted_fields"]
-    
+
     # Subject should be valid as a direct entity
     assert result["validation_results"]["subject"]["entity_exists"]
-    
+
     # Studies should be valid as a relationship from subject
     studies_result = result["validation_results"]["studies"]
-    assert len(studies_result["errors"]) == 0  # Should have no errors for valid relationship
+    assert (
+        len(studies_result["errors"]) == 0
+    )  # Should have no errors for valid relationship
 
 
 @pytest.mark.asyncio
@@ -192,7 +194,7 @@ async def test_validate_plural_relationship_names(mock_client, config):
     assert result["valid"]
     assert "sample" in result["extracted_fields"]
     assert "subjects" in result["extracted_fields"]
-    
+
     # Both entities should validate successfully
     assert result["validation_results"]["sample"]["entity_exists"]
     subjects_result = result["validation_results"]["subjects"]
@@ -224,7 +226,7 @@ async def test_validate_invalid_relationship_fields(mock_client, config):
     # Should catch the invalid field in the relationship context
     assert not result["valid"]
     assert result["summary"]["total_errors"] > 0
-    
+
     # Should specifically identify the invalid field in the target entity
     studies_result = result["validation_results"]["studies"]
     assert len(studies_result["errors"]) > 0

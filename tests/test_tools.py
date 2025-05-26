@@ -101,16 +101,12 @@ class TestDataTools:
         """Test data_field_values tool calls service method directly"""
         mock_query_service = mcp_test_setup["mock_query_service"]
 
-        result = await mock_query_service.field_sample(
-            "subject", "gender", 20
-        )
+        result = await mock_query_service.field_sample("subject", "gender", 20)
 
         assert result["entity"] == "subject"
         assert result["field"] == "gender"
         assert "values" in result
-        mock_query_service.field_sample.assert_called_once_with(
-            "subject", "gender", 20
-        )
+        mock_query_service.field_sample.assert_called_once_with("subject", "gender", 20)
 
     @pytest.mark.asyncio
     async def test_data_explore_entity_data(self, mcp_test_setup):

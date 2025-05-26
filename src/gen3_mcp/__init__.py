@@ -14,7 +14,7 @@ from .exceptions import (
     QueryValidationError,
 )
 from .graphql_parser import extract_query_fields, validate_graphql
-from .query import QueryService, ValidationResult, RelationshipInfo
+from .query import QueryService, RelationshipInfo, ValidationResult
 
 __version__ = "1.0.1"
 
