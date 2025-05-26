@@ -222,6 +222,39 @@ def create_test_services():
         "enum_fields": [{"field": "gender", "enum_values": ["Male", "Female"]}],
     }
 
+    mock_gen3_service.get_entity_context.return_value = {
+        "entity_name": "subject",
+        "exists": True,
+        "schema_summary": {
+            "title": "Subject",
+            "description": "The collection of all data related to a specific subject",
+            "category": "administrative",
+            "total_properties": 7,
+            "required_fields": ["submitter_id", "type"]
+        },
+        "hierarchical_position": {
+            "parents": [],
+            "children": [{"entity": "sample", "backref_field": "samples"}],
+            "parent_count": 0,
+            "child_count": 1
+        },
+        "graphql_fields": {
+            "backref_fields": ["samples"],
+            "available_as_backref": ["subjects"],
+            "direct_fields": ["id", "submitter_id", "gender"],
+            "system_fields": ["id", "submitter_id", "type"]
+        },
+        "query_patterns": {
+            "basic_query": "{ subject(first: 10) { id submitter_id type } }",
+            "with_relationships": [],
+            "usage_examples": ["Use subject as starting point"]
+        },
+        "data_flow_position": {
+            "position": "root",
+            "description": "Top-level entity"
+        }
+    }
+
     mock_query_service.field_sample.return_value = {
         "entity": "subject",
         "field": "gender",

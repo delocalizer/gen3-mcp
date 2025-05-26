@@ -63,15 +63,15 @@ def create_mcp_server() -> FastMCP:
 
     # ===== SCHEMA DISCOVERY TOOLS =====
 
-    @mcp.tool()
-    async def schema_summary() -> dict:
-        """Get schema summary - Overview of all entities and categories in the data commons"""
-        gen3_service = await get_gen3_service()
-        return await gen3_service.get_schema_summary()
+#    @mcp.tool()
+#    async def schema_summary() -> dict:
+#        """Get schema summary - Overview of all entities and categories in the data commons"""
+#        gen3_service = await get_gen3_service()
+#        return await gen3_service.get_schema_summary()
 
     @mcp.tool()
     async def schema_full() -> dict:
-        """Get complete schema - Full schema definitions for all entities (use sparingly, large output)"""
+        """Get complete schema - Full schema definitions for all entities"""
         gen3_service = await get_gen3_service()
         return await gen3_service.get_full_schema()
 
@@ -86,17 +86,20 @@ def create_mcp_server() -> FastMCP:
         return await gen3_service.get_entity_schema(entity_name)
 
     @mcp.tool()
-    async def schema_entities() -> dict:
-        """Get list of all entities - Simple list of available entity names"""
-        gen3_service = await get_gen3_service()
-        entities = await gen3_service.get_entity_names()
-        return {"entities": entities}
-
-    @mcp.tool()
     async def schema_describe_entities() -> dict:
         """Get detailed entity list with relationships - Entity summaries plus relationship mapping"""
         gen3_service = await get_gen3_service()
         return await gen3_service.get_detailed_entities()
+
+    @mcp.tool()
+    async def schema_entity_context(entity_name: str) -> dict:
+        """Get entity context and hierarchical position - Understand entity relationships, GraphQL field names, and data flow position
+
+        Args:
+            entity_name: Name of the entity to get context for
+        """
+        gen3_service = await get_gen3_service()
+        return await gen3_service.get_entity_context(entity_name)
 
     # ===== DATA EXPLORATION TOOLS =====
 
@@ -266,22 +269,24 @@ Use the tools below to fetch live data from these endpoints."""
         return """Gen3 Data Commons Exploration Workflow
 
 == DISCOVERY PHASE ==
-1. schema_summary() - Get overview of all entities and categories
+1. schema_full() - Get overview of all entities and categories
 2. schema_describe_entities() - Understand entity relationships
-3. data_explore(entity_name="subject") - Preview data for key entities
+3. schema_entity_context(entity_name="subject") - Get hierarchical context and GraphQL field names
+4. data_explore(entity_name="subject") - Preview data for key entities
 
 == QUERY BUILDING PHASE ==
-4. query_template(entity_name="subject") - Generate safe starting template
-5. Modify the template as needed for your use case
-6. validate_query(query="...") - Check syntax and field names
-7. If validation fails: suggest_fields(field_name="...", entity_name="...")
+5. query_template(entity_name="subject") - Generate safe starting template
+6. Modify the template as needed for your use case
+7. validate_query(query="...") - Check syntax and field names
+8. If validation fails: suggest_fields(field_name="...", entity_name="...")
 
 == EXECUTION PHASE ==
-8. execute_graphql(query="...") - Run your validated query
-9. data_field_values(entity_name="...", field_name="...") - Analyze specific fields
+9. execute_graphql(query="...") - Run your validated query
+10. data_field_values(entity_name="...", field_name="...") - Analyze specific fields
 
 == KEY PRINCIPLES ==
 - Always start with templates rather than writing queries from scratch
+- Use schema_entity_context() to understand backref field names for relationships
 - Validate before executing to catch field name errors
 - Use suggestions to fix invalid field names
 - Explore relationships through schema_describe_entities() first
@@ -385,14 +390,9 @@ Always validate complex queries before execution to save time and ensure accurac
                 "description": "Understand the data model and available entities",
                 "tools": [
                     {
-                        "name": "schema_summary",
+                        "name": "schema_full",
                         "purpose": "Get overview of all entities and categories",
                         "when_to_use": "Starting exploration, understanding data structure",
-                    },
-                    {
-                        "name": "schema_entities",
-                        "purpose": "List all available entity names",
-                        "when_to_use": "Need simple list of what entities exist",
                     },
                     {
                         "name": "schema_describe_entities",
@@ -403,6 +403,11 @@ Always validate complex queries before execution to save time and ensure accurac
                         "name": "schema_entity",
                         "purpose": "Complete schema for specific entity",
                         "when_to_use": "Need detailed field definitions for one entity",
+                    },
+                    {
+                        "name": "schema_entity_context",
+                        "purpose": "Entity context with hierarchical position and GraphQL field names",
+                        "when_to_use": "Understanding entity relationships and how to query linked data",
                     },
                 ],
             },
@@ -463,9 +468,10 @@ Always validate complex queries before execution to save time and ensure accurac
             },
             "workflow_guidance": {
                 "discovery_workflow": [
-                    "1. schema_summary() - overview",
+                    "1. schema_full() - overview",
                     "2. schema_describe_entities() - relationships",
-                    "3. data_explore(entity_name) - preview data",
+                    "3. schema_entity_context(entity_name) - hierarchical context",
+                    "4. data_explore(entity_name) - preview data",
                 ],
                 "query_workflow": [
                     "1. query_template(entity_name) - safe starting point",
