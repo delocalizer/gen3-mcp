@@ -21,11 +21,19 @@ class ValidationError:
     suggestions: List[str] = None
 
 @dataclass
+class QueryNode:
+    """Represents a node in the validated GraphQL query tree"""
+    entity_name: str          # The name used in the query ("samples")
+    resolved_entity: str      # The schema entity it resolves to ("sample") 
+    fields: List[str]         # Scalar fields selected
+    children: Dict[str, 'QueryNode']  # Nested selections
+
+@dataclass
 class ValidationResult:
     """Result of GraphQL query validation"""
     is_valid: bool
     errors: List[ValidationError]
-    extracted_fields: Dict[str, List[str]]  # entity -> field names
+    query_tree: Optional['QueryNode']  # Hierarchical query structure
 
 @dataclass
 class EntityPath:
@@ -81,12 +89,18 @@ def extract_fields(query: str) -> Dict[str, List[str]]:
     Raises:
         GraphQLSyntaxError: If query has syntax errors
     """
+    # For backward compatibility, extract the flat format from validation result
+    from .schema_extract import SchemaExtract
+    
+    # Create a minimal schema for extraction (won't validate, just extract structure)
+    dummy_schema = SchemaExtract()
+    
     try:
         ast = parse(query)
         extractor = GraphQLFieldExtractor()
         visit(ast, extractor)
         
-        # Convert to legacy format for backwards compatibility
+        # Convert to legacy format
         result = {}
         for entity_path in extractor.entity_paths.values():
             result[entity_path.entity_name] = list(dict.fromkeys(entity_path.fields))
@@ -135,7 +149,7 @@ def validate_graphql(query: str, schema: SchemaExtract) -> ValidationResult:
                 message=f"GraphQL syntax error: {e}",
                 suggestions=[]
             )],
-            extracted_fields={}
+            query_tree=None
         )
     
     errors = []
@@ -145,15 +159,13 @@ def validate_graphql(query: str, schema: SchemaExtract) -> ValidationResult:
         path_errors = _validate_entity_path(entity_path, schema)
         errors.extend(path_errors)
     
-    # Convert to legacy format for return value
-    extracted_fields = {}
-    for entity_path in extractor.entity_paths.values():
-        extracted_fields[entity_path.entity_name] = entity_path.fields
+    # Build query tree from validated paths
+    query_tree = _build_query_tree(extractor.entity_paths, schema) if extractor.entity_paths else None
     
     return ValidationResult(
         is_valid=len(errors) == 0,
         errors=errors,
-        extracted_fields=extracted_fields
+        query_tree=query_tree
     )
 
 def _validate_entity_path(entity_path: EntityPath, schema: SchemaExtract) -> List[ValidationError]:
@@ -238,5 +250,88 @@ def _validate_direct_entity_fields(entity_schema: EntitySchema, field_names: Lis
             ))
     
     return errors
+
+def _build_query_tree(entity_paths: Dict[str, EntityPath], schema: SchemaExtract) -> Optional[QueryNode]:
+    """Build a hierarchical query tree from entity paths"""
+    if not entity_paths:
+        return None
+    
+    # Find the root entity (path length 1)
+    root_path = None
+    for entity_path in entity_paths.values():
+        if len(entity_path.path) == 1:
+            root_path = entity_path
+            break
+    
+    if not root_path:
+        return None
+    
+    def build_node(current_path: List[str]) -> QueryNode:
+        # Find the entity_path that matches this path
+        matching_entity_path = None
+        for entity_path in entity_paths.values():
+            if entity_path.path == current_path:
+                matching_entity_path = entity_path
+                break
+        
+        if not matching_entity_path:
+            # Create a node with minimal info if path not found
+            entity_name = current_path[-1]
+            return QueryNode(
+                entity_name=entity_name,
+                resolved_entity=entity_name,  # Fallback
+                fields=[],
+                children={}
+            )
+        
+        # Determine resolved entity type
+        resolved_entity = _resolve_entity_type(current_path, schema)
+        
+        # Build children for paths that extend this one
+        children = {}
+        current_path_str = "/".join(current_path)
+        
+        for entity_path in entity_paths.values():
+            path_str = "/".join(entity_path.path)
+            # If this path extends current path by exactly one level
+            if (path_str.startswith(current_path_str + "/") and 
+                len(entity_path.path) == len(current_path) + 1):
+                child_name = entity_path.path[-1]
+                children[child_name] = build_node(entity_path.path)
+        
+        return QueryNode(
+            entity_name=matching_entity_path.entity_name,
+            resolved_entity=resolved_entity,
+            fields=matching_entity_path.fields.copy(),
+            children=children
+        )
+    
+    return build_node(root_path.path)
+
+def _resolve_entity_type(path: List[str], schema: SchemaExtract) -> str:
+    """Resolve what schema entity type a path resolves to"""
+    if not path:
+        return "unknown"
+    
+    # Start with root entity
+    if path[0] not in schema.entities:
+        return path[-1]  # Fallback to entity name
+    
+    current_schema = schema.entities[path[0]]
+    
+    # Walk through relationships
+    for i in range(1, len(path)):
+        relationship_name = path[i]
+        if relationship_name in current_schema.relationships:
+            relationship = current_schema.relationships[relationship_name]
+            target_schema = schema.entities.get(relationship.target_type)
+            if target_schema:
+                current_schema = target_schema
+            else:
+                return path[-1]  # Fallback
+        else:
+            return path[-1]  # Fallback
+    
+    return current_schema.name
 
 # The old _find_parent_relationship function is no longer needed with path-based validation
