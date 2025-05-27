@@ -21,12 +21,20 @@ class EntitySchema:
 class SchemaExtract:
     """Minimal schema structure for efficient GraphQL validation"""
     
+    # Simple static cache for schema extract (once per execution)
+    _cached_extract: 'SchemaExtract' = None
+    
     def __init__(self):
         self.entities: Dict[str, EntitySchema] = {}
     
     @classmethod
     def from_full_schema(cls, full_schema: Dict[str, Any]) -> 'SchemaExtract':
         """Extract minimal validation schema from full Gen3 schema"""
+        # Return cached version if available
+        if cls._cached_extract is not None:
+            return cls._cached_extract
+        
+        # Create new extract
         extract = cls()
         
         for entity_name, entity_def in full_schema.items():
@@ -79,6 +87,9 @@ class SchemaExtract:
         
         # Add backref relationships (reverse lookups)
         cls._add_backref_relationships(extract)
+        
+        # Cache the result
+        cls._cached_extract = extract
         
         return extract
     
