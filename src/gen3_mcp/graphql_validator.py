@@ -85,37 +85,6 @@ class GraphQLFieldExtractor(Visitor):
             self.path_stack.pop()
 
 
-def extract_fields(query: str) -> dict[str, list[str]]:
-    """
-    Extract entity and field information from GraphQL query
-
-    Args:
-        query: GraphQL query string
-
-    Returns:
-        Dict mapping entity names to list of field names
-
-    Raises:
-        GraphQLSyntaxError: If query has syntax errors
-    """
-    # For backward compatibility, extract the flat format from validation result
-    from .schema_extract import SchemaExtract
-
-    # Create a minimal schema for extraction (won't validate, just extract structure)
-    SchemaExtract()
-
-    ast = parse(query)
-    extractor = GraphQLFieldExtractor()
-    visit(ast, extractor)
-
-    # Convert to legacy format
-    result = {}
-    for entity_path in extractor.entity_paths.values():
-        result[entity_path.entity_name] = list(dict.fromkeys(entity_path.fields))
-
-    return result
-
-
 def suggest_similar_strings(
     target: str, candidates: set[str], threshold: float = 0.6
 ) -> list[str]:

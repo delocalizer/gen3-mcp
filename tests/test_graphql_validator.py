@@ -6,10 +6,7 @@ from pathlib import Path
 import pytest
 from graphql import GraphQLSyntaxError
 
-from gen3_mcp.graphql_validator import (
-    extract_fields,
-    validate_graphql,
-)
+from gen3_mcp.graphql_validator import validate_graphql
 from gen3_mcp.schema_extract import SchemaExtract
 
 
@@ -104,72 +101,6 @@ class TestSchemaExtract:
         subjects_rel = study.relationships["subjects"]
         assert subjects_rel.target_type == "subject"
         assert subjects_rel.backref == "studies"
-
-
-class TestFieldExtraction:
-    """Test GraphQL field extraction functionality"""
-
-    def test_simple_field_extraction(self):
-        """Test extraction from simple query"""
-        query = "{ subject { id submitter_id gender } }"
-        result = extract_fields(query)
-
-        expected = {"subject": ["id", "submitter_id", "gender"]}
-        assert result == expected
-
-    def test_nested_field_extraction(self):
-        """Test extraction from nested query"""
-        query = """
-        {
-            subject {
-                id
-                gender
-                samples {
-                    id
-                    sample_type
-                }
-            }
-        }
-        """
-        result = extract_fields(query)
-
-        expected = {"subject": ["id", "gender"], "samples": ["id", "sample_type"]}
-        assert result == expected
-
-    def test_deeply_nested_extraction(self):
-        """Test extraction from deeply nested query"""
-        query = """
-        {
-            subject {
-                id
-                samples {
-                    id
-                    aliquots {
-                        id
-                        aligned_reads_files {
-                            submitter_id
-                        }
-                    }
-                }
-            }
-        }
-        """
-        result = extract_fields(query)
-
-        expected = {
-            "subject": ["id"],
-            "samples": ["id"],
-            "aliquots": ["id"],
-            "aligned_reads_files": ["submitter_id"],
-        }
-        assert result == expected
-
-    def test_syntax_error_handling(self):
-        """Test that syntax errors are handled properly"""
-        invalid_query = "{ subject { id }"  # Missing closing brace
-
-        with pytest.raises(GraphQLSyntaxError):
-            extract_fields(invalid_query)
 
 
 class TestValidationWithTestQueries:

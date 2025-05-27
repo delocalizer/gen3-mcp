@@ -33,39 +33,6 @@ async def test_get_schema_full_caching(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_optimal_field_selection(mock_client, config):
-    """Test intelligent field selection"""
-    service = Gen3Service(mock_client, config)
-
-    # Get the subject schema from the loaded schema
-    schema = await service.get_schema_full()
-    subject_schema = schema["subject"]
-
-    fields = service._select_optimal_fields(subject_schema, 10)
-
-    assert "id" in fields
-    assert "submitter_id" in fields
-    assert "type" in fields
-    assert "gender" in fields  # Should include enum field
-    assert len(fields) <= 10
-
-
-@pytest.mark.asyncio
-async def test_cache_clear(mock_client, config):
-    """Test cache clearing functionality"""
-    service = Gen3Service(mock_client, config)
-
-    # Add something to cache
-    service._update_cache("test", "value")
-    assert "test" in service._cache
-
-    # Clear cache
-    service.clear_cache()
-    assert len(service._cache) == 0
-    assert len(service._cache_timestamps) == 0
-
-
-@pytest.mark.asyncio
 async def test_get_entity_context_valid_entity(mock_client, config):
     """Test entity context for valid entity"""
     service = Gen3Service(mock_client, config)
@@ -151,30 +118,6 @@ async def test_get_entity_context_details(mock_client, config, reference_context
 
     # reference_context is farily  large; inspect file by eye for details
     TestCase().assertDictEqual(result, reference_context)
-
-
-@pytest.mark.asyncio
-async def test_entity_name_suggestions(mock_client, config):
-    """Test entity name suggestion functionality"""
-    service = Gen3Service(mock_client, config)
-
-    # Test with a similar but incorrect entity name
-    full_schema = await service.get_schema_full()
-    suggestions = service._get_entity_name_suggestions("subj", full_schema)
-
-    assert isinstance(suggestions, list)
-    assert len(suggestions) > 0
-
-    # Should suggest "subject" for "subj"
-    suggestion_names = [s["name"] for s in suggestions]
-    assert "subject" in suggestion_names
-
-    # Check suggestion structure
-    for suggestion in suggestions:
-        assert "name" in suggestion
-        assert "similarity" in suggestion
-        assert "category" in suggestion
-        assert 0 <= suggestion["similarity"] <= 1
 
 
 @pytest.mark.asyncio

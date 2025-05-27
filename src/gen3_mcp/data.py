@@ -276,66 +276,6 @@ class Gen3Service:
         self._update_cache(cache_key, context)
         return context
 
-    async def get_entity_fields(self, entity_name: str) -> set:
-        """Get all the direct fields (properties) on an entity"""
-        cache_key = f"{entity_name}_direct_fields"
-
-        if self._is_cache_valid(cache_key):
-            logger.debug(f"Using cached {entity_name} fields")
-            return self._cache[cache_key]
-
-        full_schema = await self.get_schema_full()
-        try:
-            schema = full_schema[entity_name]
-        except KeyError as ke:
-            raise Gen3SchemaError from ke
-
-        fields = {
-            field_name for field_name, field in schema.get("properties", {}).items()
-        }
-        self._update_cache(cache_key, fields)
-        return fields
-
-    def clear_cache(self):
-        """Clear all cached data"""
-        self._cache.clear()
-        self._cache_timestamps.clear()
-        logger.info("Schema cache cleared")
-
-    def _select_optimal_fields(
-        self, schema: dict[str, Any], max_count: int
-    ) -> list[str]:
-        """Intelligent field selection prioritizing useful fields"""
-        properties = schema.get("properties", {})
-
-        # Start with essential fields
-        fields = ["id", "submitter_id", "type"]
-
-        # Build final field list
-        remaining_slots = max_count - len(fields)
-
-        # Add enum fields (good for filtering)
-        enum_fields = [
-            name
-            for name, prop in properties.items()
-            if isinstance(prop, dict) and "enum" in prop
-        ]
-        for field in enum_fields:
-            if field not in fields and remaining_slots > 0:
-                fields.append(field)
-                remaining_slots -= 1
-
-        # Fill with other fields, avoiding internal fields
-        other_fields = [
-            f for f in properties.keys() if f not in fields and not f.startswith("_")
-        ][:remaining_slots]
-        fields.extend(other_fields)
-
-        logger.debug(
-            f"Selected {len(fields)} optimal fields from {len(properties)} available"
-        )
-        return fields
-
     def _is_cache_valid(self, key: str) -> bool:
         """Check if cache entry is still valid"""
         if key not in self._cache:
@@ -348,35 +288,6 @@ class Gen3Service:
         self._cache[key] = value
         self._cache_timestamps[key] = time.time()
         logger.debug(f"Cached {key}")
-
-    def _get_entity_name_suggestions(
-        self, entity_name: str, full_schema: dict[str, Any]
-    ) -> list[dict[str, Any]]:
-        """Get suggestions for similar entity names using fuzzy matching"""
-        from difflib import SequenceMatcher
-
-        suggestions = []
-        for available_entity in full_schema.keys():
-            if not isinstance(full_schema[available_entity], dict):
-                continue
-
-            similarity = SequenceMatcher(
-                None, entity_name.lower(), available_entity.lower()
-            ).ratio()
-
-            if similarity > 0.4:  # Threshold for suggestions
-                suggestions.append(
-                    {
-                        "name": available_entity,
-                        "similarity": similarity,
-                        "category": full_schema[available_entity].get(
-                            "category", "unknown"
-                        ),
-                    }
-                )
-
-        # Sort by similarity, return top 5
-        return sorted(suggestions, key=lambda x: x["similarity"], reverse=True)[:5]
 
     def _generate_query_patterns(
         self, entity_name: str, parents: list, children: list

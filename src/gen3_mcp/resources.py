@@ -63,8 +63,7 @@ def get_workflow_resource() -> str:
 == COMMONS-AGNOSTIC APPROACH ==
 - Start with schema_summary() to see what entities exist in your specific commons
 - Common entity patterns: studies, participants/subjects, samples, files
-- Use entity_fields() to see available fields for any entity
-- Use schema_entity_context() to understand relationships between entities
+- Use schema_entity_context() to see available fields and relationships for any entity
 
 This workflow prevents field name hallucinations and reduces query failures."""
 
@@ -94,11 +93,6 @@ def get_tools_by_category_resource() -> dict[str, Any]:
                     "name": "query_template",
                     "purpose": "Generate safe query starting templates",
                     "when_to_use": "ALWAYS start here for new queries",
-                },
-                {
-                    "name": "entity_fields",
-                    "purpose": "Get all available fields for a specific entity",
-                    "when_to_use": "When building queries or fixing field validation errors",
                 },
                 {
                     "name": "validate_query",

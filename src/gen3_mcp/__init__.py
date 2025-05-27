@@ -12,7 +12,6 @@ from .exceptions import (
     Gen3MCPError,
     Gen3SchemaError,
 )
-from .graphql_validator import validate_graphql
 from .query import QueryService
 
 __version__ = "1.1.0"
@@ -27,5 +26,4 @@ __all__ = [
     "Gen3MCPError",
     "Gen3ClientError",
     "Gen3SchemaError",
-    "validate_graphql",
 ]

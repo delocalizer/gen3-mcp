@@ -64,7 +64,7 @@ class QueryService:
                     )
                 elif "type" in error_msg.lower():
                     suggestions.append(
-                        "Check entity names with schema_summary() or entity_fields()"
+                        "Check entity names with schema_summary() or schema_entity_context()"
                     )
 
             if suggestions:
@@ -106,7 +106,7 @@ class QueryService:
             response["next_steps"] = {
                 "suggestions": [
                     "Fix the validation errors using the suggestions above",
-                    "Use entity_fields() to see available fields for an entity",
+                    "Use schema_entity_context() to see available fields and relationships for an entity",
                     "Use schema_summary() to see available entities",
                 ],
                 "workflow": [
