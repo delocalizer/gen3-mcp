@@ -1,15 +1,15 @@
 """MCP server resources for working with a Gen3 data commons"""
 
+from typing import Any
+
 from .config import Gen3Config
 
 
-@mcp.resource("gen3://info")
-@mcp.resource("gen3://endpoints")
-@mcp.resource("gen3://tools-by-category")
-@mcp.resource("gen3://workflow")
-def info_resource() -> str:
+def get_info_resource(config: Gen3Config | None = None) -> str:
     """Basic information about the Gen3 data commons instance"""
-    config = _config if _config else Gen3Config()
+    if config is None:
+        config = Gen3Config()
+
     return f"""Gen3 Data Commons MCP Server
 
 Endpoint: {config.base_url}
@@ -23,9 +23,11 @@ Available APIs:
 Use the tools below to fetch live data from these endpoints."""
 
 
-def endpoints_resource() -> dict[str, str]:
+def get_endpoints_resource(config: Gen3Config | None = None) -> dict[str, str]:
     """Available API endpoints for the Gen3 data commons"""
-    config = _config if _config else Gen3Config()
+    if config is None:
+        config = Gen3Config()
+
     return {
         "base_url": config.base_url,
         "schema": config.schema_url,
@@ -34,7 +36,7 @@ def endpoints_resource() -> dict[str, str]:
     }
 
 
-def workflow_resource() -> str:
+def get_workflow_resource() -> str:
     """Recommended workflow for exploring Gen3 data commons"""
     return """Gen3 Data Commons Exploration Workflow
 
@@ -63,7 +65,7 @@ def workflow_resource() -> str:
 This workflow prevents field name hallucinations and reduces query failures."""
 
 
-def tools_by_category_resource() -> dict:
+def get_tools_by_category_resource() -> dict[str, Any]:
     """Tools organized by usage category for better discoverability"""
     return {
         "schema_discovery": {
@@ -124,3 +126,27 @@ def tools_by_category_resource() -> dict:
             ],
         },
     }
+
+
+def register_resources(mcp, config: Gen3Config | None = None):
+    """Register all resources with the MCP server"""
+
+    @mcp.resource("gen3://info")
+    def info_resource() -> str:
+        """Basic information about the Gen3 data commons instance"""
+        return get_info_resource(config)
+
+    @mcp.resource("gen3://endpoints")
+    def endpoints_resource() -> dict[str, str]:
+        """Available API endpoints for the Gen3 data commons"""
+        return get_endpoints_resource(config)
+
+    @mcp.resource("gen3://workflow")
+    def workflow_resource() -> str:
+        """Recommended workflow for exploring Gen3 data commons"""
+        return get_workflow_resource()
+
+    @mcp.resource("gen3://tools-by-category")
+    def tools_by_category_resource() -> dict[str, Any]:
+        """Tools organized by usage category for better discoverability"""
+        return get_tools_by_category_resource()

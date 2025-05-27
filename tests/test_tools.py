@@ -331,19 +331,6 @@ class TestToolIntegration:
         assert mock_query_service.validate_query_fields.called
         assert mock_query_service.execute_graphql.called
 
-    def test_tools_no_longer_import_wrapper_modules(self):
-        """Test that tools don't import from removed wrapper modules"""
-        # Import main to trigger tool definitions
-        from gen3_mcp import main
-
-        # Verify wrapper modules are not imported
-        assert "gen3_mcp.tools" not in sys.modules
-        assert "gen3_mcp.resources" not in sys.modules
-
-        # Verify we can create MCP server without wrapper modules
-        mcp = main.create_mcp_server()
-        assert mcp is not None
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

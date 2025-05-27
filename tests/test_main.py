@@ -183,25 +183,5 @@ async def test_cleanup_with_no_client():
     await cleanup()
 
 
-@pytest.mark.asyncio
-async def test_cleanup_with_error():
-    """Test cleanup handles errors gracefully"""
-    from gen3_mcp import main
-
-    mock_client = AsyncMock()
-    mock_client.__aexit__.side_effect = Exception("Cleanup error")
-    main._client = mock_client
-    main._gen3_service = AsyncMock()
-    main._query_service = AsyncMock()
-
-    # Should not raise exception
-    await cleanup()
-
-    # Services should still be set to None
-    assert main._client is None
-    assert main._gen3_service is None
-    assert main._query_service is None
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -9,6 +9,7 @@ from .client import Gen3Client
 from .config import Gen3Config, setup_logging
 from .data import Gen3Service
 from .query import QueryService
+from .resources import register_resources
 
 logger = logging.getLogger("gen3-mcp.main")
 
@@ -61,6 +62,9 @@ def create_mcp_server() -> FastMCP:
     """Create and configure the MCP server"""
     mcp = FastMCP("gen3")
 
+    # Register resources
+    register_resources(mcp, _config)
+
     # ===== SCHEMA DISCOVERY TOOLS =====
 
     @mcp.tool()
@@ -74,7 +78,8 @@ def create_mcp_server() -> FastMCP:
     @mcp.tool()
     async def schema_entity_context(entity_name: str) -> dict:
         """Get detailed entity context - field names, relationships to ancestor
-        entities, and backrefs that define inverse relationships
+        entities, backrefs that define inverse relationships, example queries,
+        and more.
 
         Args:
             entity_name: Name of the entity to get context for

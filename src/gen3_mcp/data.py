@@ -244,19 +244,23 @@ class Gen3Service:
                 "required_fields": schema.get("required", []),
             },
             "hierarchical_position": {
-                "parents": parents,  # Entities that link to this one
-                "children": children,  # Entities this one links to
+                "parents": sorted(
+                    parents, key=lambda x: x["entity"]
+                ),  # Entities that link to this one
+                "children": sorted(
+                    children, key=lambda x: x["entity"]
+                ),  # Entities this one links to
                 "parent_count": len(parents),
                 "child_count": len(children),
             },
             "graphql_fields": {
-                "backref_fields": list(
-                    set(backref_fields)
+                "backref_fields": sorted(
+                    list(set(backref_fields))
                 ),  # Fields available when linking FROM this entity
-                "available_as_backref": list(
-                    set(available_as_backref)
+                "available_as_backref": sorted(
+                    list(set(available_as_backref))
                 ),  # This entity available as backref field
-                "direct_fields": list(schema.get("properties", {}).keys()),
+                "direct_fields": sorted(list(schema.get("properties", {}).keys())),
                 "system_fields": [
                     "id",
                     "submitter_id",
@@ -269,9 +273,6 @@ class Gen3Service:
             "data_flow_position": self._determine_data_flow_position(parents, children),
         }
 
-        import json
-
-        print(json.dumps(context))
         self._update_cache(cache_key, context)
         return context
 
