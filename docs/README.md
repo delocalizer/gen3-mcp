@@ -57,31 +57,22 @@ Example for Claude Desktop `~/.config/Claude/claude_desktop_config.json`:
 
 The MCP server provides the following tools:
 
-### Schema Tools (`schema_*`)
-- `schema_summary()` - Get schema summary with entity counts
-- `schema_full()` - Get complete schema definition
-- `schema_entity(entity_name)` - Get schema for specific entity
-- `schema_entities()` - Get list of all entities
-- `schema_describe_entities()` - Get detailed entity list with relationships
+### Schema Discovery Tools
+- `schema_summary()` - Get overview of all entities and their relationships
+- `schema_entity_context(entity_name)` - Get detailed entity context with hierarchical position and GraphQL field names
 
-### Data Tools (`data_*`)
-- `data_explore(entity_name, limit=5, field_count=10)` - Explore entity with intelligent field selection
-- `data_sample_records(entity_name, limit=5)` - Get sample records
-- `data_field_values(entity_name, field_name, limit=20)` - Analyze field value distribution
-- `data_explore_entity_data(entity_name)` - Comprehensive entity exploration
+### Query Building Tools  
+- `query_template(entity_name, include_relationships=True, max_fields=20)` - Generate safe query templates with validated fields
+- `validate_query(query)` - Validate GraphQL query syntax and field names against schema
 
-### Validation Tools 
-- `validate_query(query)` - Validate GraphQL query against schema
-- `suggest_fields(field_name, entity_name)` - Get suggestions for field names
-- `query_template(entity_name, include_relationships=True, max_fields=20)` - Generate safe query templates
-
-### GraphQL Tool
-- `execute_graphql(query)` - Execute GraphQL query against Gen3 data commons
+### Query Execution Tool
+- `execute_graphql(query)` - Execute validated GraphQL queries against the Gen3 data commons
 
 ### Resources
 - `gen3://info` - Information about the Gen3 instance
-- `gen3://endpoints` - Available API endpoints
-- `gen3://validation` - GraphQL validation guidance
+- `gen3://endpoints` - Available API endpoints  
+- `gen3://workflow` - Recommended workflow for exploring Gen3 data commons
+- `gen3://tools-by-category` - Tools organized by usage category
 
 
 ## Acknowledgments
