@@ -269,6 +269,9 @@ class Gen3Service:
             "data_flow_position": self._determine_data_flow_position(parents, children),
         }
 
+        import json
+
+        print(json.dumps(context))
         self._update_cache(cache_key, context)
         return context
 
@@ -390,7 +393,31 @@ class Gen3Service:
             "usage_examples": [],
         }
 
-        # Generate patterns with relationships
+        # Generate query patterns with relationships for parents and children
+
+        # 1. Generate patterns for parent relationships (entities this entity links TO)
+        if parents:
+            for _i, parent in enumerate(parents[:2]):  # Limit to 2 examples
+                link_name = parent.get("link_name")
+                if link_name:
+                    example = f"""{{
+    {entity_name}(first: 5) {{
+        id
+        submitter_id
+        {link_name} {{
+            id
+            submitter_id
+        }}
+    }}
+}}"""
+                    pattern_info = {
+                        "description": f"Get {entity_name} with linked {parent['entity']} data",
+                        "query": example,
+                        "target_entity": parent["entity"],
+                    }
+                    patterns["with_relationships"].append(pattern_info)
+
+        # 2. Generate patterns for child relationships (entities that link TO this entity)
         if children:
             for child in children[:2]:  # Limit to 2 examples
                 if child.get("backref_field"):
@@ -404,13 +431,12 @@ class Gen3Service:
         }}
     }}
 }}"""
-                    patterns["with_relationships"].append(
-                        {
-                            "description": f"Get {entity_name} with linked {child['entity']} data",
-                            "query": example,
-                            "target_entity": child["entity"],
-                        }
-                    )
+                    pattern_info = {
+                        "description": f"Get {entity_name} with linked {child['entity']} data",
+                        "query": example,
+                        "target_entity": child["entity"],
+                    }
+                    patterns["with_relationships"].append(pattern_info)
 
         # Generate usage examples
         patterns["usage_examples"] = [
@@ -418,9 +444,20 @@ class Gen3Service:
             f"Query {entity_name} fields: id, submitter_id, type",
         ]
 
+        # Include relationship fields in usage examples
+        relationship_fields = []
+        if parents:
+            parent_fields = [p.get("link_name") for p in parents if p.get("link_name")]
+            relationship_fields.extend(parent_fields)
         if children:
+            child_fields = [
+                c.get("backref_field") for c in children if c.get("backref_field")
+            ]
+            relationship_fields.extend(child_fields)
+
+        if relationship_fields:
             patterns["usage_examples"].append(
-                f"Access linked data via: {', '.join([c.get('backref_field', 'unknown') for c in children[:3] if c.get('backref_field')])}"
+                f"Access linked data via: {', '.join(relationship_fields[:3])}"
             )
 
         return patterns

@@ -373,4 +373,3 @@ def _resolve_entity_type(path: list[str], schema: SchemaExtract) -> str:
             return path[-1]  # Fallback
 
     return current_schema.name
-

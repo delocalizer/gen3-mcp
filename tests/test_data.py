@@ -1,8 +1,20 @@
 """Tests for the Gen3Service"""
 
+import json
+from pathlib import Path
+from unittest import TestCase
+
 import pytest
 
 from gen3_mcp.data import Gen3Service
+
+
+@pytest.fixture(scope="session")
+def reference_context():
+    """Load the reference entity_context for a subject"""
+    schema_path = Path(__file__).parent / "subject_entity_context.json"
+    with open(schema_path) as f:
+        return json.load(f)
 
 
 @pytest.mark.asyncio
@@ -131,6 +143,17 @@ async def test_get_entity_context_relationships(mock_client, config):
 
 
 @pytest.mark.asyncio
+async def test_get_entity_context_details(mock_client, config, reference_context):
+    """Test entity context details for 'subject'"""
+    service = Gen3Service(mock_client, config)
+
+    result = await service.get_entity_context("subject")
+
+    # reference_context is farily  large; inspect file by eye for details
+    TestCase().assertDictEqual(result, reference_context)
+
+
+@pytest.mark.asyncio
 async def test_entity_name_suggestions(mock_client, config):
     """Test entity name suggestion functionality"""
     service = Gen3Service(mock_client, config)
@@ -161,7 +184,12 @@ async def test_generate_query_patterns(mock_client, config):
 
     # Mock hierarchical data
     parents = [
-        {"entity": "study", "relationship": "member_of", "backref_field": "subjects"}
+        {
+            "entity": "study",
+            "relationship": "member_of",
+            "backref_field": "subjects",
+            "link_name": "studies",
+        }
     ]
 
     children = [
@@ -320,7 +348,12 @@ async def test_query_patterns_complex_hierarchy_validation(mock_client, config):
     # Test with the sample entity which has both parents (subject) and could have children
     # Mock complex hierarchy
     parents = [
-        {"entity": "subject", "relationship": "related_to", "backref_field": "subjects"}
+        {
+            "entity": "subject",
+            "relationship": "related_to",
+            "backref_field": "subjects",
+            "link_name": "subjects",
+        }
     ]
 
     children = [

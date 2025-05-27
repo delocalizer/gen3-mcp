@@ -4,7 +4,6 @@ Test Resource Loading Approaches - Usage Examples and Comparison
 This file demonstrates different ways to load the ex_schema.json as a test resource.
 """
 
-
 import pytest
 
 # ============================================================================
