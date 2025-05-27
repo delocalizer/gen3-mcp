@@ -2,14 +2,14 @@
 
 import pytest
 
-from gen3_mcp.schema import Gen3Service
+from gen3_mcp.schema import SchemaService
 from gen3_mcp.query import QueryService
 
 
 @pytest.mark.asyncio
 async def test_execute_graphql(mock_client, config):
     """Test GraphQL query execution"""
-    gen3_service = Gen3Service(mock_client, config)
+    gen3_service = SchemaService(mock_client, config)
     query_service = QueryService(mock_client, config, gen3_service)
 
     query = "{ subject { id submitter_id } }"
@@ -23,7 +23,7 @@ async def test_execute_graphql(mock_client, config):
 @pytest.mark.asyncio
 async def test_generate_query_template(mock_client, config):
     """Test query template generation"""
-    gen3_service = Gen3Service(mock_client, config)
+    gen3_service = SchemaService(mock_client, config)
     query_service = QueryService(mock_client, config, gen3_service)
 
     template = await query_service.generate_query_template("subject")

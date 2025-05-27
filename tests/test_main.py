@@ -21,7 +21,7 @@ def test_mcp_server_creation():
 
 @pytest.mark.asyncio
 async def test_get_gen3_service():
-    """Test Gen3Service creation and reuse"""
+    """Test SchemaService creation and reuse"""
     from gen3_mcp import main
 
     # Reset global state
@@ -32,7 +32,7 @@ async def test_get_gen3_service():
 
     with (
         patch("gen3_mcp.main.Gen3Client") as mock_client_class,
-        patch("gen3_mcp.main.Gen3Service") as mock_service_class,
+        patch("gen3_mcp.main.SchemaService") as mock_service_class,
     ):
 
         mock_client = AsyncMock()
@@ -72,7 +72,7 @@ async def test_get_query_service():
 
     with (
         patch("gen3_mcp.main.Gen3Client") as mock_client_class,
-        patch("gen3_mcp.main.Gen3Service") as mock_gen3_service_class,
+        patch("gen3_mcp.main.SchemaService") as mock_gen3_service_class,
         patch("gen3_mcp.main.QueryService") as mock_query_service_class,
     ):
 
@@ -107,7 +107,7 @@ async def test_get_query_service():
 
 @pytest.mark.asyncio
 async def test_service_dependency_order():
-    """Test that QueryService properly depends on Gen3Service"""
+    """Test that QueryService properly depends on SchemaService"""
     from gen3_mcp import main
 
     # Reset global state
@@ -118,7 +118,7 @@ async def test_service_dependency_order():
 
     with (
         patch("gen3_mcp.main.Gen3Client") as mock_client_class,
-        patch("gen3_mcp.main.Gen3Service") as mock_gen3_service_class,
+        patch("gen3_mcp.main.SchemaService") as mock_gen3_service_class,
         patch("gen3_mcp.main.QueryService") as mock_query_service_class,
     ):
 
@@ -129,10 +129,10 @@ async def test_service_dependency_order():
         mock_query_service = AsyncMock()
         mock_query_service_class.return_value = mock_query_service
 
-        # Get QueryService should automatically create Gen3Service first
+        # Get QueryService should automatically create SchemaService first
         await get_query_service()
 
-        # Verify both services are created and QueryService gets Gen3Service as dependency
+        # Verify both services are created and QueryService gets SchemaService as dependency
         mock_gen3_service_class.assert_called_once()
         mock_query_service_class.assert_called_once_with(
             mock_client, main._config, mock_gen3_service

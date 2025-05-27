@@ -45,14 +45,14 @@ def test_imports():
         Gen3Client,
         Gen3Config,
         Gen3MCPError,
-        Gen3Service,
+        SchemaService,
         QueryService,
     )
 
     # Should not raise any import errors
     assert Gen3Config is not None
     assert Gen3Client is not None
-    assert Gen3Service is not None
+    assert SchemaService is not None
     assert QueryService is not None
     assert Gen3MCPError is not None
 

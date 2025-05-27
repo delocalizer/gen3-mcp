@@ -5,7 +5,7 @@ from typing import Any
 
 from .client import Gen3Client
 from .config import Gen3Config
-from .schema import Gen3Service
+from .schema import SchemaService
 from .graphql_validator import validate_graphql
 from .schema_extract import SchemaExtract
 
@@ -16,7 +16,7 @@ class QueryService:
     """Query operations: validation, building, and execution"""
 
     def __init__(
-        self, client: Gen3Client, config: Gen3Config, gen3_service: Gen3Service
+        self, client: Gen3Client, config: Gen3Config, gen3_service: SchemaService
     ):
         self.client = client
         self.config = config

@@ -7,7 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .client import Gen3Client
 from .config import Gen3Config, setup_logging
-from .schema import Gen3Service
+from .schema import SchemaService
 from .query import QueryService
 from .resources import register_resources
 
@@ -16,7 +16,7 @@ logger = logging.getLogger("gen3-mcp.main")
 # Global state
 _config: Gen3Config | None = None
 _client: Gen3Client | None = None
-_gen3_service: Gen3Service | None = None
+_gen3_service: SchemaService | None = None
 _query_service: QueryService | None = None
 
 
@@ -37,13 +37,13 @@ async def _get_ready():
         logger.info(f"Connected to Gen3 instance: {_config.base_url}")
 
 
-async def get_gen3_service() -> Gen3Service:
-    """Get or create the Gen3Service instance"""
+async def get_gen3_service() -> SchemaService:
+    """Get or create the SchemaService instance"""
     global _gen3_service
     if _gen3_service is None:
         await _get_ready()
-        _gen3_service = Gen3Service(_client, _config)
-        logger.info("Initialized Gen3Service")
+        _gen3_service = SchemaService(_client, _config)
+        logger.info("Initialized SchemaService")
     return _gen3_service
 
 

@@ -11,7 +11,7 @@ from .exceptions import Gen3SchemaError
 logger = logging.getLogger("gen3-mcp.schema")
 
 
-class Gen3Service:
+class SchemaService:
     """
     Service for cached schema operations and data access.
 

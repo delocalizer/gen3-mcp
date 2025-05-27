@@ -1,4 +1,4 @@
-"""Tests for the Gen3Service"""
+"""Tests for the SchemaService"""
 
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest import TestCase
 
 import pytest
 
-from gen3_mcp.schema import Gen3Service
+from gen3_mcp.schema import SchemaService
 
 
 @pytest.fixture(scope="session")
@@ -20,7 +20,7 @@ def reference_context():
 @pytest.mark.asyncio
 async def test_get_schema_full_caching(mock_client, config):
     """Test that full schema is cached properly"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     # First call should hit the client
     schema1 = await service.get_schema_full()
@@ -35,7 +35,7 @@ async def test_get_schema_full_caching(mock_client, config):
 @pytest.mark.asyncio
 async def test_get_entity_context_valid_entity(mock_client, config):
     """Test entity context for valid entity"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     result = await service.get_entity_context("subject")
 
@@ -89,7 +89,7 @@ async def test_get_entity_context_valid_entity(mock_client, config):
 @pytest.mark.asyncio
 async def test_get_entity_context_relationships(mock_client, config):
     """Test entity context relationship analysis"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     result = await service.get_entity_context("subject")
 
@@ -112,7 +112,7 @@ async def test_get_entity_context_relationships(mock_client, config):
 @pytest.mark.asyncio
 async def test_get_entity_context_details(mock_client, config, reference_context):
     """Test entity context details for 'subject'"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     result = await service.get_entity_context("subject")
 
@@ -123,7 +123,7 @@ async def test_get_entity_context_details(mock_client, config, reference_context
 @pytest.mark.asyncio
 async def test_generate_query_patterns(mock_client, config):
     """Test query pattern generation"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     # Mock hierarchical data
     parents = [
@@ -165,7 +165,7 @@ async def test_generate_query_patterns(mock_client, config):
 @pytest.mark.asyncio
 async def test_determine_data_flow_position(mock_client, config):
     """Test data flow position determination"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     # Test root entity (no parents)
     root_position = service._determine_data_flow_position([], [{"entity": "sample"}])
@@ -186,7 +186,7 @@ async def test_determine_data_flow_position(mock_client, config):
 @pytest.mark.asyncio
 async def test_query_patterns_basic_query_validation(mock_client, config):
     """Test that the basic query pattern generated is valid GraphQL"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     # Get a real schema extract for validation
     full_schema = await service.get_schema_full()
@@ -226,7 +226,7 @@ async def test_query_patterns_basic_query_validation(mock_client, config):
 @pytest.mark.asyncio
 async def test_query_patterns_relationship_query_validation(mock_client, config):
     """Test that relationship query patterns generated are valid GraphQL"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     # Get schema extract for validation
     full_schema = await service.get_schema_full()
@@ -279,7 +279,7 @@ async def test_query_patterns_relationship_query_validation(mock_client, config)
 @pytest.mark.asyncio
 async def test_query_patterns_complex_hierarchy_validation(mock_client, config):
     """Test query pattern validation for entities with both parents and children"""
-    service = Gen3Service(mock_client, config)
+    service = SchemaService(mock_client, config)
 
     # Get schema extract for validation
     full_schema = await service.get_schema_full()
