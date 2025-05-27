@@ -108,17 +108,11 @@ def create_mcp_server() -> FastMCP:
 
         # Add workflow guidance in response
         if result.get("exists"):
-            result["workflow_tip"] = (
+            result["next_step"] = (
                 "Use validate_query() to check any modifications, then execute_graphql() to run the query"
             )
 
         return result
-
-    @mcp.tool()
-    async def entity_fields(entity_name: str) -> set:
-        """Get all the direct fields (properties) on an entity"""
-        gen3_service = await get_gen3_service()
-        return await gen3_service.get_entity_fields(entity_name)
 
     @mcp.tool()
     async def validate_query(query: str) -> dict:

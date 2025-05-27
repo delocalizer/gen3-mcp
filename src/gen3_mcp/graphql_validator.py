@@ -104,19 +104,16 @@ def extract_fields(query: str) -> dict[str, list[str]]:
     # Create a minimal schema for extraction (won't validate, just extract structure)
     SchemaExtract()
 
-    try:
-        ast = parse(query)
-        extractor = GraphQLFieldExtractor()
-        visit(ast, extractor)
+    ast = parse(query)
+    extractor = GraphQLFieldExtractor()
+    visit(ast, extractor)
 
-        # Convert to legacy format
-        result = {}
-        for entity_path in extractor.entity_paths.values():
-            result[entity_path.entity_name] = list(dict.fromkeys(entity_path.fields))
+    # Convert to legacy format
+    result = {}
+    for entity_path in extractor.entity_paths.values():
+        result[entity_path.entity_name] = list(dict.fromkeys(entity_path.fields))
 
-        return result
-    except GraphQLSyntaxError as e:
-        raise GraphQLSyntaxError(f"Invalid GraphQL syntax: {e}") from e
+    return result
 
 
 def suggest_similar_strings(

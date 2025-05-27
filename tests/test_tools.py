@@ -1,7 +1,5 @@
 """Tests for MCP tools functionality"""
 
-import sys
-
 import pytest
 
 
@@ -244,20 +242,6 @@ class TestValidationTools:
         assert result["valid"] is True
         assert "extracted_fields" in result
         mock_query_service.validate_query_fields.assert_called_once_with(query)
-
-    @pytest.mark.asyncio
-    async def test_validation_suggest_fields(self, mcp_test_setup):
-        """Test validation_suggest_fields tool calls service method directly"""
-        mock_query_service = mcp_test_setup["mock_query_service"]
-
-        result = await mock_query_service.suggest_similar_fields("gander", "subject")
-
-        assert result["field_name"] == "gander"
-        assert result["entity_name"] == "subject"
-        assert len(result["suggestions"]) > 0
-        mock_query_service.suggest_similar_fields.assert_called_once_with(
-            "gander", "subject"
-        )
 
     @pytest.mark.asyncio
     async def test_validation_query_template(self, mcp_test_setup):

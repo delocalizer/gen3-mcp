@@ -193,12 +193,6 @@ def create_test_services():
         "validation_results": {},
     }
 
-    mock_query_service.suggest_similar_fields.return_value = {
-        "field_name": "gander",
-        "entity_name": "subject",
-        "suggestions": [{"name": "gender", "similarity": 0.8}],
-    }
-
     mock_query_service.generate_query_template.return_value = {
         "entity_name": "subject",
         "exists": True,

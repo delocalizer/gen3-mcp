@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from graphql import GraphQLSyntaxError
 
 from gen3_mcp.graphql_validator import (
     extract_fields,
@@ -167,7 +168,7 @@ class TestFieldExtraction:
         """Test that syntax errors are handled properly"""
         invalid_query = "{ subject { id }"  # Missing closing brace
 
-        with pytest.raises(Exception):  # Should raise GraphQLSyntaxError
+        with pytest.raises(GraphQLSyntaxError):
             extract_fields(invalid_query)
 
 

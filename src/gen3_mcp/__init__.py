@@ -15,7 +15,7 @@ from .exceptions import (
 from .graphql_validator import validate_graphql
 from .query import QueryService
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 __all__ = [
     "__version__",

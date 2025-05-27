@@ -255,12 +255,12 @@ class Gen3Service:
             },
             "graphql_fields": {
                 "backref_fields": sorted(
-                    list(set(backref_fields))
+                    set(backref_fields)
                 ),  # Fields available when linking FROM this entity
                 "available_as_backref": sorted(
-                    list(set(available_as_backref))
+                    set(available_as_backref)
                 ),  # This entity available as backref field
-                "direct_fields": sorted(list(schema.get("properties", {}).keys())),
+                "direct_fields": sorted(schema.get("properties", {}).keys()),
                 "system_fields": [
                     "id",
                     "submitter_id",

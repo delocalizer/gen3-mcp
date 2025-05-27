@@ -42,25 +42,29 @@ def get_workflow_resource() -> str:
 
 == DISCOVERY PHASE ==
 1. schema_summary() - Get overview of all entities and categories
-2. schema_entity_context(entity_name="subject") - Get hierarchical context and GraphQL field names
+2. schema_entity_context(entity_name=<entity>) - Get hierarchical context and GraphQL field names
+   Use an entity name from step 1, often starting with core entities like study participants
 
 == DATA DISCOVERY - QUERY BUILDING PHASE ==
-3. query_template(entity_name="subject") - Generate safe starting template
+3. query_template(entity_name=<entity>) - Generate safe starting template
+   (alternative: look at query_patterns in the data returned by schema_entity_context)
 4. Modify the template as needed for your use case
 5. validate_query(query="...") - Check syntax and field names
-6. If validation fails: suggest_fields(field_name="...", entity_name="...")
-7. execute_graphql(query="...") - Run your validated query
+   (on failure, take note of suggestions in the response)
+6. execute_graphql(query="...") - Run your validated query
 
 == KEY PRINCIPLES ==
-- Use schema_summary to understand backref field names for relationships
+- Use schema_summary to understand relationships and discover entity names
 - Always start with templates rather than writing queries from scratch
 - Validate before executing to catch field name errors
-- Use suggestions to fix invalid field names
+- Use suggestions to fix invalid entity and field names
+- Entity and field names vary by commons - always discover them first
 
-== COMMON PATTERNS ==
-- Subject data: subject { id age_at_enrollment sex race ethnicity }
-- File listings: file { id file_name file_size data_format submitter_id }
-- With relationships: subject { samples { sample_type anatomic_site } }
+== COMMONS-AGNOSTIC APPROACH ==
+- Start with schema_summary() to see what entities exist in your specific commons
+- Common entity patterns: studies, participants/subjects, samples, files
+- Use entity_fields() to see available fields for any entity
+- Use schema_entity_context() to understand relationships between entities
 
 This workflow prevents field name hallucinations and reduces query failures."""
 
@@ -92,14 +96,14 @@ def get_tools_by_category_resource() -> dict[str, Any]:
                     "when_to_use": "ALWAYS start here for new queries",
                 },
                 {
+                    "name": "entity_fields",
+                    "purpose": "Get all available fields for a specific entity",
+                    "when_to_use": "When building queries or fixing field validation errors",
+                },
+                {
                     "name": "validate_query",
                     "purpose": "Check query syntax and field names",
                     "when_to_use": "Before executing any modified query",
-                },
-                {
-                    "name": "suggest_fields",
-                    "purpose": "Fix invalid field names",
-                    "when_to_use": "When validation shows field errors",
                 },
             ],
         },
@@ -121,8 +125,7 @@ def get_tools_by_category_resource() -> dict[str, Any]:
             "query_workflow": [
                 "1. query_template(entity_name) - safe starting point",
                 "2. validate_query(query) - check modifications",
-                "3. suggest_fields() if errors - fix field names",
-                "4. execute_graphql(query) - run validated query",
+                "3. execute_graphql(query) - run validated query",
             ],
         },
     }
