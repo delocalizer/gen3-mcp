@@ -37,7 +37,7 @@ def config():
     )
 
 
-# Define the test schema data
+# Define the test schema data matching the structure that tests expect
 FULL_SCHEMA = {
     "subject": {
         "properties": {
@@ -51,22 +51,12 @@ FULL_SCHEMA = {
         },
         "links": [
             {
-                "subgroup": [
-                    {
-                        "name": "studies",
-                        "target_type": "study",
-                        "multiplicity": "many_to_many",
-                        "backref": "subjects",
-                        "required": True,
-                    },
-                    {
-                        "name": "samples",
-                        "target_type": "sample",
-                        "multiplicity": "one_to_many",
-                        "backref": "subjects",
-                        "required": False,
-                    },
-                ]
+                "backref": "subjects",
+                "label": "member_of",
+                "multiplicity": "many_to_many",
+                "name": "studies",
+                "required": True,
+                "target_type": "study",
             }
         ],
         "required": ["submitter_id", "type"],
@@ -80,18 +70,18 @@ FULL_SCHEMA = {
             "type": {"type": "string"},
             "sample_type": {"type": "string"},
             "anatomic_site": {"type": "string"},
+            "composition": {"type": "string"},
+            "days_to_collection": {"type": "integer"},
+            "sample_volume": {"type": "number"},
         },
         "links": [
             {
-                "subgroup": [
-                    {
-                        "name": "subjects",
-                        "target_type": "subject",
-                        "multiplicity": "many_to_one",
-                        "backref": "samples",
-                        "required": True,
-                    }
-                ]
+                "backref": "samples",
+                "label": "related_to",
+                "multiplicity": "many_to_one",
+                "name": "subjects",
+                "required": True,
+                "target_type": "subject",
             }
         ],
         "required": ["submitter_id", "type"],
@@ -102,30 +92,85 @@ FULL_SCHEMA = {
             "id": {"type": "string"},
             "submitter_id": {"type": "string"},
             "type": {"type": "string"},
-            "description": {"type": "string"},
+            "study_description": {"type": "string"},
+            "data_description": {"type": "string"},
             "study_design": {"type": "string"},
         },
         "links": [
             {
-                "subgroup": [
-                    {
-                        "name": "subjects",
-                        "target_type": "subject",
-                        "multiplicity": "many_to_many",
-                        "backref": "studies",
-                        "required": True,
-                    }
-                ]
+                "backref": "studies",
+                "label": "performed_for",
+                "multiplicity": "many_to_one",
+                "name": "projects",
+                "required": True,
+                "target_type": "project",
             }
         ],
         "required": ["submitter_id", "type"],
         "category": "administrative",
+    },
+    "aliquot": {
+        "properties": {
+            "id": {"type": "string"},
+            "submitter_id": {"type": "string"},
+            "type": {"type": "string"},
+            "concentration": {"type": "number"},
+        },
+        "links": [
+            {
+                "backref": "aliquots",
+                "label": "derived_from",
+                "multiplicity": "many_to_many",
+                "name": "samples",
+                "required": True,
+                "target_type": "sample",
+            }
+        ],
+        "required": ["submitter_id", "type"],
+        "category": "biospecimen",
+    },
+    "aligned_reads_file": {
+        "properties": {
+            "id": {"type": "string"},
+            "submitter_id": {"type": "string"},
+            "type": {"type": "string"},
+            "file_name": {"type": "string"},
+            "file_size": {"type": "integer"},
+        },
+        "links": [
+            {
+                "exclusive": False,
+                "required": True,
+                "subgroup": [
+                    {
+                        "backref": "aligned_reads_files",
+                        "label": "data_from",
+                        "multiplicity": "many_to_many",
+                        "name": "aliquots",
+                        "required": False,
+                        "target_type": "aliquot",
+                    },
+                    {
+                        "backref": "aligned_reads_files",
+                        "label": "data_from",
+                        "multiplicity": "many_to_one",
+                        "name": "subjects",
+                        "required": False,
+                        "target_type": "subject",
+                    },
+                ],
+            }
+        ],
+        "required": ["submitter_id", "type"],
+        "category": "data_file",
     },
 }
 
 SUBJECT_SCHEMA = FULL_SCHEMA["subject"]
 SAMPLE_SCHEMA = FULL_SCHEMA["sample"]
 STUDY_SCHEMA = FULL_SCHEMA["study"]
+ALIQUOT_SCHEMA = FULL_SCHEMA["aliquot"]
+ALIGNED_READS_FILE_SCHEMA = FULL_SCHEMA["aligned_reads_file"]
 
 
 def mock_get_json_side_effect(url, **kwargs):
@@ -142,6 +187,12 @@ def mock_get_json_side_effect(url, **kwargs):
     elif url.endswith("/study"):
         # Single entity schema request
         return STUDY_SCHEMA
+    elif url.endswith("/aliquot"):
+        # Single entity schema request
+        return ALIQUOT_SCHEMA
+    elif url.endswith("/aligned_reads_file"):
+        # Single entity schema request
+        return ALIGNED_READS_FILE_SCHEMA
     else:
         # Unknown entity
         return None
@@ -181,12 +232,12 @@ def create_test_services():
 
     # Set up mock returns for common service calls
     mock_gen3_service.get_schema_summary.return_value = {
-        "total_entities": 3,
-        "entity_names": ["subject", "sample", "study"],
+        "total_entities": 5,
+        "entity_names": ["subject", "sample", "study", "aliquot", "aligned_reads_file"],
         "entities_by_category": {
-            "clinical": ["subject"],
-            "biospecimen": ["sample"],
-            "administrative": ["study"],
+            "administrative": ["subject", "study"],
+            "biospecimen": ["sample", "aliquot"],
+            "data_file": ["aligned_reads_file"],
         },
     }
 
@@ -194,20 +245,30 @@ def create_test_services():
         "subject": {"properties": {"id": {"type": "string"}}},
         "sample": {"properties": {"id": {"type": "string"}}},
         "study": {"properties": {"id": {"type": "string"}}},
+        "aliquot": {"properties": {"id": {"type": "string"}}},
+        "aligned_reads_file": {"properties": {"id": {"type": "string"}}},
     }
 
     mock_gen3_service.get_entity_schema.return_value = {
         "properties": {"id": {"type": "string"}, "gender": {"enum": ["Male", "Female"]}}
     }
 
-    mock_gen3_service.get_entity_names.return_value = ["subject", "sample", "study"]
+    mock_gen3_service.get_entity_names.return_value = [
+        "subject",
+        "sample",
+        "study",
+        "aliquot",
+        "aligned_reads_file",
+    ]
 
     mock_gen3_service.get_detailed_entities.return_value = {
-        "total_entities": 3,
+        "total_entities": 5,
         "entities": {
             "subject": {"title": "Subject"},
             "sample": {"title": "Sample"},
             "study": {"title": "Study"},
+            "aliquot": {"title": "Aliquot"},
+            "aligned_reads_file": {"title": "Aligned Reads File"},
         },
     }
 
@@ -230,29 +291,26 @@ def create_test_services():
             "description": "The collection of all data related to a specific subject",
             "category": "administrative",
             "total_properties": 7,
-            "required_fields": ["submitter_id", "type"]
+            "required_fields": ["submitter_id", "type"],
         },
         "hierarchical_position": {
             "parents": [],
             "children": [{"entity": "sample", "backref_field": "samples"}],
             "parent_count": 0,
-            "child_count": 1
+            "child_count": 1,
         },
         "graphql_fields": {
             "backref_fields": ["samples"],
             "available_as_backref": ["subjects"],
             "direct_fields": ["id", "submitter_id", "gender"],
-            "system_fields": ["id", "submitter_id", "type"]
+            "system_fields": ["id", "submitter_id", "type"],
         },
         "query_patterns": {
             "basic_query": "{ subject(first: 10) { id submitter_id type } }",
             "with_relationships": [],
-            "usage_examples": ["Use subject as starting point"]
+            "usage_examples": ["Use subject as starting point"],
         },
-        "data_flow_position": {
-            "position": "root",
-            "description": "Top-level entity"
-        }
+        "data_flow_position": {"position": "root", "description": "Top-level entity"},
     }
 
     mock_query_service.field_sample.return_value = {

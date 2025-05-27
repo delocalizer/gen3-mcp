@@ -96,16 +96,16 @@ class Gen3Service:
         Generate schema summary using SchemaExtract
         """
         from .schema_extract import SchemaExtract
-        
+
         cache_key = "schema_summary"
 
         if self._is_cache_valid(cache_key):
             logger.debug("Using cached schema summary")
             return self._cache[cache_key]
-        
+
         full_schema = await self.get_schema_full()
         schema_extract = SchemaExtract.from_full_schema(full_schema)
-        
+
         summary = {
             "total_entities": len(schema_extract.entities),
             "entities": {
@@ -114,14 +114,14 @@ class Gen3Service:
                     "relationships_count": len(entity.relationships),
                     "fields": list(entity.fields),
                     "relationships": {
-                        rel_name: rel.target_type 
+                        rel_name: rel.target_type
                         for rel_name, rel in entity.relationships.items()
-                    }
+                    },
                 }
                 for name, entity in schema_extract.entities.items()
-            }
+            },
         }
-        
+
         self._update_cache(cache_key, summary)
         return summary
 
@@ -286,9 +286,9 @@ class Gen3Service:
         except KeyError as ke:
             raise Gen3SchemaError from ke
 
-        fields = set(
-            field_name for field_name, field in schema.get('properties', {}).items()
-        )
+        fields = {
+            field_name for field_name, field in schema.get("properties", {}).items()
+        }
         self._update_cache(cache_key, fields)
         return fields
 

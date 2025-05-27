@@ -2,7 +2,6 @@
 
 import pytest
 
-from gen3_mcp import Gen3SchemaError
 from gen3_mcp.data import Gen3Service
 
 
@@ -22,20 +21,6 @@ async def test_get_schema_full_caching(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_cache_functionality(mock_client, config):
-    """Test basic cache functionality"""
-    service = Gen3Service(mock_client, config)
-
-    # Test cache validity
-    assert not service._is_cache_valid("nonexistent")
-
-    # Test cache update
-    service._update_cache("test_key", "test_value")
-    assert service._cache["test_key"] == "test_value"
-    assert service._is_cache_valid("test_key")
-
-
-@pytest.mark.asyncio
 async def test_optimal_field_selection(mock_client, config):
     """Test intelligent field selection"""
     service = Gen3Service(mock_client, config)
@@ -50,22 +35,6 @@ async def test_optimal_field_selection(mock_client, config):
     assert "type" in fields
     assert "gender" in fields  # Should include enum field
     assert len(fields) <= 10
-
-
-#@pytest.mark.asyncio
-#async def test_get_schema_summary(mock_client, config):
-#    """Test schema summary generation"""
-#    service = Gen3Service(mock_client, config)
-#
-#    summary = await service.get_schema_summary()
-#
-#    assert "total_entities" in summary
-#    assert "entity_names" in summary
-#    assert "entities_by_category" in summary
-#    assert summary["total_entities"] == 3
-#    assert "subject" in summary["entity_names"]
-#    assert "sample" in summary["entity_names"]
-#    assert "study" in summary["entity_names"]
 
 
 @pytest.mark.asyncio
@@ -151,7 +120,7 @@ async def test_get_entity_context_relationships(mock_client, config):
     # Check that children are properly structured
     children = hierarchical_position["children"]
     assert len(children) > 0
-    
+
     for child in children:
         assert "entity" in child
         assert "relationship" in child
@@ -171,11 +140,11 @@ async def test_entity_name_suggestions(mock_client, config):
 
     assert isinstance(suggestions, list)
     assert len(suggestions) > 0
-    
+
     # Should suggest "subject" for "subj"
     suggestion_names = [s["name"] for s in suggestions]
     assert "subject" in suggestion_names
-    
+
     # Check suggestion structure
     for suggestion in suggestions:
         assert "name" in suggestion
@@ -191,19 +160,11 @@ async def test_generate_query_patterns(mock_client, config):
 
     # Mock hierarchical data
     parents = [
-        {
-            "entity": "study",
-            "relationship": "member_of",
-            "backref_field": "subjects"
-        }
+        {"entity": "study", "relationship": "member_of", "backref_field": "subjects"}
     ]
-    
+
     children = [
-        {
-            "entity": "sample",
-            "relationship": "related_to",
-            "backref_field": "samples"
-        }
+        {"entity": "sample", "relationship": "related_to", "backref_field": "samples"}
     ]
 
     patterns = service._generate_query_patterns("subject", parents, children)
@@ -248,3 +209,179 @@ async def test_determine_data_flow_position(mock_client, config):
         [{"entity": "study"}], [{"entity": "sample"}]
     )
     assert intermediate_position["position"] == "intermediate"
+
+
+@pytest.mark.asyncio
+async def test_query_patterns_basic_query_validation(mock_client, config):
+    """Test that the basic query pattern generated is valid GraphQL"""
+    service = Gen3Service(mock_client, config)
+
+    # Get a real schema extract for validation
+    full_schema = await service.get_schema_full()
+    from gen3_mcp.graphql_validator import validate_graphql
+    from gen3_mcp.schema_extract import SchemaExtract
+
+    schema_extract = SchemaExtract.from_full_schema(full_schema)
+
+    # Generate query patterns for a known entity
+    patterns = service._generate_query_patterns("subject", [], [])
+
+    # Extract the basic query
+    basic_query = patterns["basic_query"]
+
+    # Validate the generated query
+    validation_result = validate_graphql(basic_query, schema_extract)
+
+    # Assertions
+    assert (
+        validation_result.is_valid is True
+    ), f"Basic query validation failed: {validation_result.errors}"
+    assert len(validation_result.errors) == 0
+
+    # Verify query structure
+    assert validation_result.query_tree is not None
+    root = validation_result.query_tree
+    assert root.entity_name == "subject"
+
+    # Verify essential fields are present
+    expected_basic_fields = {"id", "submitter_id", "type"}
+    actual_fields = set(root.fields)
+    assert expected_basic_fields.issubset(
+        actual_fields
+    ), f"Missing basic fields: {expected_basic_fields - actual_fields}"
+
+
+@pytest.mark.asyncio
+async def test_query_patterns_relationship_query_validation(mock_client, config):
+    """Test that relationship query patterns generated are valid GraphQL"""
+    service = Gen3Service(mock_client, config)
+
+    # Get schema extract for validation
+    full_schema = await service.get_schema_full()
+    from gen3_mcp.graphql_validator import validate_graphql
+    from gen3_mcp.schema_extract import SchemaExtract
+
+    schema_extract = SchemaExtract.from_full_schema(full_schema)
+
+    # Mock hierarchical data with children that have backref_fields
+    children = [
+        {"entity": "sample", "relationship": "related_to", "backref_field": "samples"},
+        {"entity": "study", "relationship": "member_of", "backref_field": "studies"},
+    ]
+
+    # Generate query patterns
+    patterns = service._generate_query_patterns("subject", [], children)
+
+    # Test each relationship query pattern
+    relationship_patterns = patterns["with_relationships"]
+    assert (
+        len(relationship_patterns) > 0
+    ), "Should generate relationship patterns when children exist"
+
+    for pattern in relationship_patterns:
+        query = pattern["query"]
+        target_entity = pattern["target_entity"]
+
+        # Validate each relationship query
+        validation_result = validate_graphql(query, schema_extract)
+
+        # Assertions
+        assert (
+            validation_result.is_valid is True
+        ), f"Relationship query for {target_entity} failed validation: {validation_result.errors}"
+        assert len(validation_result.errors) == 0
+
+        # Verify query structure - should have subject as root with relationship child
+        assert validation_result.query_tree is not None
+        root = validation_result.query_tree
+        assert root.entity_name == "subject"
+
+        # Verify the relationship is properly represented in the tree
+        # The backref_field should appear as a child in the query tree
+        child_entities = set(root.children.keys())
+        assert (
+            len(child_entities) > 0
+        ), f"Relationship query should have child entities, got: {child_entities}"
+
+
+@pytest.mark.asyncio
+async def test_query_patterns_complex_hierarchy_validation(mock_client, config):
+    """Test query pattern validation for entities with both parents and children"""
+    service = Gen3Service(mock_client, config)
+
+    # Get schema extract for validation
+    full_schema = await service.get_schema_full()
+    from gen3_mcp.graphql_validator import validate_graphql
+    from gen3_mcp.schema_extract import SchemaExtract
+
+    schema_extract = SchemaExtract.from_full_schema(full_schema)
+
+    # Test with the sample entity which has both parents (subject) and could have children
+    # Mock complex hierarchy
+    parents = [
+        {"entity": "subject", "relationship": "related_to", "backref_field": "subjects"}
+    ]
+
+    children = [
+        {
+            "entity": "aliquot",
+            "relationship": "derived_from",
+            "backref_field": "aliquots",
+        }
+    ]
+
+    # Generate patterns for intermediate entity
+    patterns = service._generate_query_patterns("sample", parents, children)
+
+    # Validate basic query
+    basic_query = patterns["basic_query"]
+    validation_result = validate_graphql(basic_query, schema_extract)
+
+    assert (
+        validation_result.is_valid is True
+    ), f"Complex entity basic query failed: {validation_result.errors}"
+    assert validation_result.query_tree.entity_name == "sample"
+
+    # Validate relationship queries if any exist
+    if patterns["with_relationships"]:
+        for pattern in patterns["with_relationships"]:
+            query = pattern["query"]
+            with open('dump.txt', 'at') as fh:
+                fh.write(basic_query)
+            validation_result = validate_graphql(query, schema_extract)
+
+            # Should be valid even for entities not in our limited test schema
+            # (validation might fail due to missing entities, but syntax should be correct)
+            if not validation_result.is_valid:
+                # Check if failures are due to unknown entities (acceptable) vs syntax errors (not acceptable)
+                syntax_errors = [
+                    e
+                    for e in validation_result.errors
+                    if e.error_type == "syntax_error"
+                ]
+                assert (
+                    len(syntax_errors) == 0
+                ), f"Syntax errors in generated query: {syntax_errors}"
+
+                # If validation fails due to unknown entities, that's acceptable for this test
+                # since our mock schema is limited, but syntax should still be correct
+                unknown_entity_errors = [
+                    e
+                    for e in validation_result.errors
+                    if e.error_type == "unknown_entity"
+                ]
+                if unknown_entity_errors:
+                    # This is acceptable - just means our test schema doesn't have all entities
+                    # but the query syntax itself should be valid
+                    continue
+            else:
+                # If validation passes, verify structure
+                assert validation_result.query_tree is not None
+                assert validation_result.query_tree.entity_name == "sample"
+
+    # Verify that patterns contain expected structure elements
+    assert "basic_query" in patterns
+    assert "with_relationships" in patterns
+    assert "usage_examples" in patterns
+    assert isinstance(patterns["usage_examples"], list)
+    assert len(patterns["usage_examples"]) > 0

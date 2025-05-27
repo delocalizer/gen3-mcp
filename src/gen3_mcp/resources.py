@@ -1,11 +1,11 @@
 """MCP server resources for working with a Gen3 data commons"""
+from .config import Gen3Config
 
 
 @mcp.resource("gen3://info")
 @mcp.resource("gen3://endpoints")
 @mcp.resource("gen3://tools-by-category")
 @mcp.resource("gen3://workflow")
-
 def info_resource() -> str:
     """Basic information about the Gen3 data commons instance"""
     config = _config if _config else Gen3Config()
@@ -21,6 +21,7 @@ Available APIs:
 
 Use the tools below to fetch live data from these endpoints."""
 
+
 def endpoints_resource() -> dict[str, str]:
     """Available API endpoints for the Gen3 data commons"""
     config = _config if _config else Gen3Config()
@@ -30,6 +31,7 @@ def endpoints_resource() -> dict[str, str]:
         "graphql": config.graphql_url,
         "auth": config.auth_url,
     }
+
 
 def workflow_resource() -> str:
     """Recommended workflow for exploring Gen3 data commons"""

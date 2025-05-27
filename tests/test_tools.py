@@ -17,7 +17,7 @@ class TestSchemaTools:
         # In real usage, this would be called through MCP framework
         result = await mock_gen3_service.get_schema_summary()
 
-        assert result["total_entities"] == 3
+        assert result["total_entities"] == 5
         assert "subject" in result["entity_names"]
         mock_gen3_service.get_schema_summary.assert_called_once()
 
@@ -53,7 +53,7 @@ class TestSchemaTools:
         result = {"entities": entities}
 
         assert "entities" in result
-        assert result["entities"] == ["subject", "sample", "study"]
+        assert result["entities"] == ["subject", "sample", "study", "aliquot", "aligned_reads_file"]
         mock_gen3_service.get_entity_names.assert_called_once()
 
     @pytest.mark.asyncio
@@ -65,14 +65,14 @@ class TestSchemaTools:
 
         assert "total_entities" in result
         assert "entities" in result
-        assert result["total_entities"] == 3
+        assert result["total_entities"] == 5
         mock_gen3_service.get_detailed_entities.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_schema_entity_context(self, mcp_test_setup):
         """Test schema_entity_context tool calls service method directly"""
         mock_gen3_service = mcp_test_setup["mock_gen3_service"]
-        
+
         # Set up mock return for get_entity_context
         mock_gen3_service.get_entity_context.return_value = {
             "entity_name": "subject",
@@ -82,31 +82,37 @@ class TestSchemaTools:
                 "description": "The collection of all data related to a specific subject",
                 "category": "administrative",
                 "total_properties": 7,
-                "required_fields": ["submitter_id", "type"]
+                "required_fields": ["submitter_id", "type"],
             },
             "hierarchical_position": {
                 "parents": [
                     {
                         "entity": "study",
                         "relationship": "member_of",
-                        "backref_field": "subjects"
+                        "backref_field": "subjects",
                     }
                 ],
                 "children": [
                     {
                         "entity": "sample",
                         "relationship": "related_to",
-                        "backref_field": "samples"
+                        "backref_field": "samples",
                     }
                 ],
                 "parent_count": 1,
-                "child_count": 1
+                "child_count": 1,
             },
             "graphql_fields": {
                 "backref_fields": ["samples"],
                 "available_as_backref": ["subjects"],
                 "direct_fields": ["id", "submitter_id", "gender", "age_at_enrollment"],
-                "system_fields": ["id", "submitter_id", "type", "created_datetime", "updated_datetime"]
+                "system_fields": [
+                    "id",
+                    "submitter_id",
+                    "type",
+                    "created_datetime",
+                    "updated_datetime",
+                ],
             },
             "query_patterns": {
                 "basic_query": "{ subject(first: 10) { id submitter_id type } }",
@@ -114,21 +120,21 @@ class TestSchemaTools:
                     {
                         "description": "Get subject with linked sample data",
                         "query": "{ subject(first: 5) { id submitter_id samples { id submitter_id } } }",
-                        "target_entity": "sample"
+                        "target_entity": "sample",
                     }
                 ],
                 "usage_examples": [
                     "Use subject as starting point for data exploration",
                     "Query subject fields: id, submitter_id, type",
-                    "Access linked data via: samples"
-                ]
+                    "Access linked data via: samples",
+                ],
             },
             "data_flow_position": {
                 "position": "intermediate",
                 "parent_count": 1,
                 "child_count": 1,
-                "description": "Intermediate entity in the data hierarchy - connects other entities"
-            }
+                "description": "Intermediate entity in the data hierarchy - connects other entities",
+            },
         }
 
         result = await mock_gen3_service.get_entity_context("subject")
@@ -140,25 +146,25 @@ class TestSchemaTools:
         assert "graphql_fields" in result
         assert "query_patterns" in result
         assert "data_flow_position" in result
-        
+
         # Check that hierarchical position contains expected structure
         hierarchical_position = result["hierarchical_position"]
         assert hierarchical_position["parent_count"] == 1
         assert hierarchical_position["child_count"] == 1
         assert len(hierarchical_position["parents"]) == 1
         assert len(hierarchical_position["children"]) == 1
-        
+
         # Check GraphQL fields structure
         graphql_fields = result["graphql_fields"]
         assert "samples" in graphql_fields["backref_fields"]
         assert "subjects" in graphql_fields["available_as_backref"]
-        
+
         # Check query patterns contain useful examples
         query_patterns = result["query_patterns"]
         assert "subject" in query_patterns["basic_query"]
         assert len(query_patterns["with_relationships"]) > 0
         assert len(query_patterns["usage_examples"]) > 0
-        
+
         mock_gen3_service.get_entity_context.assert_called_once_with("subject")
 
 

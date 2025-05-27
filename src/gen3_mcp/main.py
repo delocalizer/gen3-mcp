@@ -153,7 +153,6 @@ def create_mcp_server() -> FastMCP:
 
         return result
 
-
     return mcp
 
 

@@ -1,10 +1,11 @@
 """Pytest configuration and shared fixtures with improved schema loading"""
 
 import json
-import pytest
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from gen3_mcp.config import Gen3Config
 
@@ -15,11 +16,13 @@ pytest_plugins = ("pytest_asyncio",)
 # OPTION 1: Simple global variable approach
 # ============================================================================
 
-def load_test_schema() -> Dict[str, Any]:
+
+def load_test_schema() -> dict[str, Any]:
     """Load the test schema from ex_schema.json"""
     schema_path = Path(__file__).parent / "ex_schema.json"
-    with open(schema_path, 'r') as f:
+    with open(schema_path) as f:
         return json.load(f)
+
 
 # Load once at module level
 TEST_SCHEMA = load_test_schema()
@@ -30,57 +33,61 @@ TEST_SCHEMA = load_test_schema()
 
 _schema_cache = None
 
-def get_test_schema() -> Dict[str, Any]:
+
+def get_test_schema() -> dict[str, Any]:
     """Get test schema with lazy loading and caching"""
     global _schema_cache
     if _schema_cache is None:
         schema_path = Path(__file__).parent / "ex_schema.json"
-        with open(schema_path, 'r') as f:
+        with open(schema_path) as f:
             _schema_cache = json.load(f)
     return _schema_cache
+
 
 # ============================================================================
 # OPTION 3: Class-based resource manager (most robust)
 # ============================================================================
 
+
 class TestSchemaManager:
     """Manages test schema resources with proper lifecycle"""
-    
+
     def __init__(self):
         self._schema = None
         self._schema_path = Path(__file__).parent / "ex_schema.json"
-    
+
     @property
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         """Get the full schema"""
         if self._schema is None:
             self._load_schema()
         return self._schema
-    
+
     def _load_schema(self) -> None:
         """Load schema from file"""
-        with open(self._schema_path, 'r') as f:
+        with open(self._schema_path) as f:
             self._schema = json.load(f)
-    
-    def get_entity_schema(self, entity_name: str) -> Dict[str, Any]:
+
+    def get_entity_schema(self, entity_name: str) -> dict[str, Any]:
         """Get schema for a specific entity"""
         return self.schema.get(entity_name, {})
-    
-    def get_entity_properties(self, entity_name: str) -> Dict[str, Any]:
+
+    def get_entity_properties(self, entity_name: str) -> dict[str, Any]:
         """Get properties for a specific entity"""
         return self.get_entity_schema(entity_name).get("properties", {})
-    
+
     def get_entity_links(self, entity_name: str) -> list:
         """Get links for a specific entity"""
         return self.get_entity_schema(entity_name).get("links", [])
-    
+
     def get_available_entities(self) -> list:
         """Get list of available entity names"""
         return list(self.schema.keys())
-    
+
     def reload(self) -> None:
         """Force reload schema from file"""
         self._schema = None
+
 
 # Global instance
 schema_manager = TestSchemaManager()
@@ -89,45 +96,53 @@ schema_manager = TestSchemaManager()
 # OPTION 4: Pytest fixture-based approach
 # ============================================================================
 
+
 @pytest.fixture(scope="session")
-def test_schema_fixture() -> Dict[str, Any]:
+def test_schema_fixture() -> dict[str, Any]:
     """Session-scoped fixture for test schema"""
     schema_path = Path(__file__).parent / "ex_schema.json"
-    with open(schema_path, 'r') as f:
+    with open(schema_path) as f:
         return json.load(f)
+
 
 @pytest.fixture(scope="session")
 def schema_manager_fixture() -> TestSchemaManager:
     """Session-scoped fixture for schema manager"""
     return TestSchemaManager()
 
+
 # ============================================================================
 # Individual entity fixtures (convenient for specific tests)
 # ============================================================================
+
 
 @pytest.fixture
 def subject_schema(test_schema_fixture):
     """Fixture for subject entity schema"""
     return test_schema_fixture["subject"]
 
-@pytest.fixture  
+
+@pytest.fixture
 def sample_schema(test_schema_fixture):
     """Fixture for sample entity schema"""
     return test_schema_fixture["sample"]
+
 
 @pytest.fixture
 def study_schema(test_schema_fixture):
     """Fixture for study entity schema"""
     return test_schema_fixture["study"]
 
+
 # ============================================================================
 # Enhanced mock fixtures using the real schema
 # ============================================================================
 
+
 def mock_get_json_side_effect_realistic(url, **kwargs):
     """Enhanced mock side effect using real schema structure"""
     schema = get_test_schema()
-    
+
     if url.endswith("/_all"):
         # Full schema request
         return schema
@@ -141,6 +156,7 @@ def mock_get_json_side_effect_realistic(url, **kwargs):
         # Extract entity name from URL and try to find it
         entity_name = url.split("/")[-1]
         return schema.get(entity_name, None)
+
 
 @pytest.fixture
 def mock_client_realistic():
@@ -161,21 +177,22 @@ def mock_client_realistic():
                     "gender": "Female",
                     "age_at_enrollment": 45,
                     "race": "White",
-                    "ethnicity": "Not Hispanic or Latino"
+                    "ethnicity": "Not Hispanic or Latino",
                 }
             ]
         }
     }
     return client
 
+
 def create_realistic_test_services():
     """Create mock services using realistic schema"""
     mock_gen3_service = AsyncMock()
     mock_query_service = AsyncMock()
-    
+
     schema = get_test_schema()
     entity_names = list(schema.keys())
-    
+
     # Set up mock returns based on real schema
     mock_gen3_service.get_schema_summary.return_value = {
         "total_entities": len(entity_names),
@@ -192,13 +209,15 @@ def create_realistic_test_services():
     # Set up realistic entity schema responses
     def get_entity_schema_side_effect(entity_name):
         return schema.get(entity_name, {})
-    
+
     mock_gen3_service.get_entity_schema.side_effect = get_entity_schema_side_effect
 
     mock_gen3_service.get_detailed_entities.return_value = {
         "total_entities": len(entity_names),
-        "entities": {name: {"title": schema[name].get("title", name.title())} 
-                    for name in entity_names},
+        "entities": {
+            name: {"title": schema[name].get("title", name.title())}
+            for name in entity_names
+        },
     }
 
     # Sample realistic data
@@ -207,9 +226,9 @@ def create_realistic_test_services():
         "sample_records": [
             {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
-                "submitter_id": "subject_001", 
+                "submitter_id": "subject_001",
                 "gender": "Female",
-                "age_at_enrollment": 45
+                "age_at_enrollment": 45,
             }
         ],
     }
@@ -219,9 +238,7 @@ def create_realistic_test_services():
     mock_gen3_service.explore_entity_data.return_value = {
         "entity": "subject",
         "schema_info": {"title": "Subject"},
-        "enum_fields": [
-            {"field": "gender", "enum_values": subject_gender_enum}
-        ],
+        "enum_fields": [{"field": "gender", "enum_values": subject_gender_enum}],
     }
 
     # Rest of the mock setup...
@@ -254,6 +271,7 @@ def create_realistic_test_services():
     }
 
     return mock_gen3_service, mock_query_service
+
 
 @pytest.fixture
 async def mcp_test_setup_realistic():
@@ -297,9 +315,11 @@ async def mcp_test_setup_realistic():
         main._gen3_service = original_gen3_service
         main._query_service = original_query_service
 
+
 # ============================================================================
 # Legacy compatibility
 # ============================================================================
+
 
 @pytest.fixture(autouse=True)
 def reset_global_state():
@@ -316,6 +336,7 @@ def reset_global_state():
     main._config = None
     main._client = None
 
+
 @pytest.fixture
 def config():
     """Test configuration"""
@@ -325,6 +346,7 @@ def config():
         log_level="DEBUG",
         schema_cache_ttl=60,  # Shorter TTL for testing
     )
+
 
 # Backward compatibility - provide the old fixture name mapping to new realistic schema
 @pytest.fixture
