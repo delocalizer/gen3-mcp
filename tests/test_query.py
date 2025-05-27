@@ -2,7 +2,7 @@
 
 import pytest
 
-from gen3_mcp.data import Gen3Service
+from gen3_mcp.schema import Gen3Service
 from gen3_mcp.query import QueryService
 
 

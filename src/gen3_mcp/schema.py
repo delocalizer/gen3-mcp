@@ -1,4 +1,4 @@
-"""Service providing Gen3 data and schema operations"""
+"""Service providing Gen3 schema operations and caching"""
 
 import logging
 import time
@@ -8,7 +8,7 @@ from .client import Gen3Client
 from .config import Gen3Config
 from .exceptions import Gen3SchemaError
 
-logger = logging.getLogger("gen3-mcp.data")
+logger = logging.getLogger("gen3-mcp.schema")
 
 
 class Gen3Service:

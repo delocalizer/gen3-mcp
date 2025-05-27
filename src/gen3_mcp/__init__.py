@@ -6,7 +6,7 @@ with GraphQL query validation to reduce field name hallucinations.
 
 from .client import Gen3Client
 from .config import Gen3Config, setup_logging
-from .data import Gen3Service
+from .schema import Gen3Service
 from .exceptions import (
     Gen3ClientError,
     Gen3MCPError,

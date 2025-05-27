@@ -5,7 +5,7 @@ from typing import Any
 
 from .client import Gen3Client
 from .config import Gen3Config
-from .data import Gen3Service
+from .schema import Gen3Service
 from .graphql_validator import validate_graphql
 from .schema_extract import SchemaExtract
 

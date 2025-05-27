@@ -7,7 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .client import Gen3Client
 from .config import Gen3Config, setup_logging
-from .data import Gen3Service
+from .schema import Gen3Service
 from .query import QueryService
 from .resources import register_resources
 
