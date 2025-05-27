@@ -50,17 +50,7 @@ Example for Claude Desktop `~/.config/Claude/claude_desktop_config.json`:
 
 ## Example Usage in chat client
 
-**prompt**
-
-> Explore the data commons at https://gen3.datacommons.io.
->
-> Summarize the data model.
->
-> Construct and run a query that returns data about 5 participants.
-
-**response**
-
-![Response](response.png "Response")
+[![Screenshot of Claude chat](chat_screenshot.png)](https://claude.ai/share/db7e3a4b-a200-4bff-9e9c-0e43b6708f12)
 
 
 ## Available Tools
