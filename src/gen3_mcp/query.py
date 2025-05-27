@@ -91,7 +91,7 @@ class QueryService:
         # Convert to expected MCP response format
         response = {
             "valid": result.is_valid,
-            "extracted_fields": result.extracted_fields,
+            "query_tree": result.query_tree,
             "errors": [
                 {
                     "entity": err.entity,

@@ -14,25 +14,6 @@ from gen3_mcp.graphql_validator import (
 )
 
 
-def get_entities_from_tree(query_tree: QueryNode) -> set:
-    """Extract all entity names from a query tree"""
-    entities = {query_tree.entity_name}
-    for child in query_tree.children.values():
-        entities.update(get_entities_from_tree(child))
-    return entities
-
-
-def tree_to_extracted_fields(query_tree: QueryNode) -> dict:
-    """Convert query tree to legacy extracted_fields format for test compatibility"""
-    if not query_tree:
-        return {}
-    
-    result = {query_tree.entity_name: query_tree.fields.copy()}
-    for child in query_tree.children.values():
-        result.update(tree_to_extracted_fields(child))
-    return result
-
-
 @pytest.fixture(scope="session")
 def test_schema():
     """Load the test schema from ex_schema.json"""
@@ -195,12 +176,22 @@ class TestValidationWithTestQueries:
         assert result.is_valid is True
         assert len(result.errors) == 0
         
-        # Check that fields were extracted correctly
+        # Check that fields were extracted correctly by digging into QueryNode structure
         assert result.query_tree is not None
-        entities = get_entities_from_tree(result.query_tree)
-        assert "subject" in entities
-        assert "studies" in entities
-        assert "samples" in entities
+        
+        # Root should be subject
+        root = result.query_tree
+        assert root.entity_name == "subject"
+        
+        # Check for studies child
+        assert "studies" in root.children
+        studies_node = root.children["studies"]
+        assert studies_node.entity_name == "studies"
+        
+        # Check for samples child  
+        assert "samples" in root.children
+        samples_node = root.children["samples"]
+        assert samples_node.entity_name == "samples"
     
     def test_passing_query_2(self, schema_extract, test_queries):
         """Test that passing_test_2.graphql validates successfully"""
@@ -210,13 +201,27 @@ class TestValidationWithTestQueries:
         assert result.is_valid is True
         assert len(result.errors) == 0
         
-        # Check nested relationship validation
+        # Check nested relationship validation by walking the tree
         assert result.query_tree is not None
-        entities = get_entities_from_tree(result.query_tree)
-        assert "subject" in entities
-        assert "samples" in entities
-        assert "aliquots" in entities
-        assert "aligned_reads_files" in entities
+        
+        # Root should be subject
+        root = result.query_tree
+        assert root.entity_name == "subject"
+        
+        # Should have samples as child
+        assert "samples" in root.children
+        samples_node = root.children["samples"]
+        assert samples_node.entity_name == "samples"
+        
+        # Samples should have aliquots as child
+        assert "aliquots" in samples_node.children
+        aliquots_node = samples_node.children["aliquots"]
+        assert aliquots_node.entity_name == "aliquots"
+        
+        # Aliquots should have aligned_reads_files as child
+        assert "aligned_reads_files" in aliquots_node.children
+        aligned_reads_files_node = aliquots_node.children["aligned_reads_files"]
+        assert aligned_reads_files_node.entity_name == "aligned_reads_files"
     
     def test_passing_query_3(self, schema_extract, test_queries):
         """Test that passing_test_3.graphql validates successfully"""
@@ -228,10 +233,20 @@ class TestValidationWithTestQueries:
         
         # Check that aligned_reads_file relationships are validated
         assert result.query_tree is not None
-        entities = get_entities_from_tree(result.query_tree)
-        assert "aligned_reads_file" in entities
-        assert "subjects" in entities
-        assert "aliquots" in entities
+        
+        # Root should be aligned_reads_file
+        root = result.query_tree
+        assert root.entity_name == "aligned_reads_file"
+        
+        # Should have subjects as child
+        assert "subjects" in root.children
+        subjects_node = root.children["subjects"]
+        assert subjects_node.entity_name == "subjects"
+        
+        # Should have aliquots as child
+        assert "aliquots" in root.children
+        aliquots_node = root.children["aliquots"]
+        assert aliquots_node.entity_name == "aliquots"
     
     def test_failing_query_1_syntax_error(self, schema_extract, test_queries):
         """Test that failing_test_1.graphql fails due to syntax error"""
@@ -456,11 +471,32 @@ class TestComplexScenarios:
         assert result.is_valid is True
         assert len(result.errors) == 0
         
-        # All entities should be in query tree
+        # Check all entities are present by walking the tree
         assert result.query_tree is not None
-        entities = get_entities_from_tree(result.query_tree)
-        expected_entities = {"subject", "studies", "samples", "aliquots", "aligned_reads_files"}
-        assert entities == expected_entities
+        
+        # Root is subject
+        root = result.query_tree
+        assert root.entity_name == "subject"
+        
+        # Check studies child
+        assert "studies" in root.children
+        studies_node = root.children["studies"]
+        assert studies_node.entity_name == "studies"
+        
+        # Check samples child
+        assert "samples" in root.children
+        samples_node = root.children["samples"]
+        assert samples_node.entity_name == "samples"
+        
+        # Check aliquots child under samples
+        assert "aliquots" in samples_node.children
+        aliquots_node = samples_node.children["aliquots"]
+        assert aliquots_node.entity_name == "aliquots"
+        
+        # Check aligned_reads_files child under aliquots
+        assert "aligned_reads_files" in aliquots_node.children
+        aligned_reads_files_node = aliquots_node.children["aligned_reads_files"]
+        assert aligned_reads_files_node.entity_name == "aligned_reads_files"
     
     def test_mixed_valid_invalid_fields(self, schema_extract):
         """Test query with mix of valid and invalid fields"""
