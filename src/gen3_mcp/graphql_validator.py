@@ -94,7 +94,7 @@ def suggest_similar_strings(target: str, candidates: Set[str], threshold: float 
     suggestions.sort(key=lambda x: x[1], reverse=True)
     return [s[0] for s in suggestions[:3]]  # Top 3 suggestions
 
-def validate_graphql_query(query: str, schema: SchemaExtract) -> ValidationResult:
+def validate_graphql(query: str, schema: SchemaExtract) -> ValidationResult:
     """
     Validate a GraphQL query against the minimal schema
     

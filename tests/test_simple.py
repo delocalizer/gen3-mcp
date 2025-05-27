@@ -47,7 +47,6 @@ def test_imports():
         Gen3MCPError,
         Gen3Service,
         QueryService,
-        extract_query_fields,
         validate_graphql,
     )
 
@@ -57,7 +56,6 @@ def test_imports():
     assert Gen3Service is not None
     assert QueryService is not None
     assert Gen3MCPError is not None
-    assert extract_query_fields is not None
     assert validate_graphql is not None
 
 

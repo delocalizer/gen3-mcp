@@ -6,7 +6,7 @@ from typing import Any
 from .client import Gen3Client
 from .config import Gen3Config
 from .data import Gen3Service
-from .graphql_validator import validate_graphql_query
+from .graphql_validator import validate_graphql
 from .schema_extract import SchemaExtract
 
 logger = logging.getLogger("gen3-mcp.query")
@@ -86,7 +86,7 @@ class QueryService:
         logger.info("Validating GraphQL query")
         
         schema_extract = await self._get_schema_extract()
-        result = validate_graphql_query(query, schema_extract)
+        result = validate_graphql(query, schema_extract)
         
         # Convert to expected MCP response format
         response = {
