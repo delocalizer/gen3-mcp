@@ -49,19 +49,9 @@ class Gen3Config(BaseSettings):
 
     @computed_field
     @property
-    def schema_base_url(self) -> str:
-        """URL for schema dictionary"""
-        return f"{self.base_url}/api/v0/submission/_dictionary"
-
-    @computed_field
-    @property
     def schema_url(self) -> str:
-        """URL for complete schema dictionary"""
-        return f"{self.schema_base_url}/_all"
-
-    def entity_schema_url(self, entity_name: str) -> str:
-        """URL for specific entity schema"""
-        return f"{self.schema_base_url}/{entity_name}"
+        """URL for schema dictionary"""
+        return f"{self.base_url}/api/v0/submission/_dictionary/_all"
 
     def __repr__(self) -> str:
         """String representation of the configuration"""

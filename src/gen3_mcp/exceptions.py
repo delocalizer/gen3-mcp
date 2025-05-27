@@ -17,9 +17,3 @@ class Gen3SchemaError(Gen3MCPError):
     """Schema-related errors"""
 
     pass
-
-
-class QueryValidationError(Gen3MCPError):
-    """Query validation errors"""
-
-    pass

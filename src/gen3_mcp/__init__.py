@@ -11,12 +11,11 @@ from .exceptions import (
     Gen3ClientError,
     Gen3MCPError,
     Gen3SchemaError,
-    QueryValidationError,
 )
-from .graphql_parser import extract_query_fields, validate_graphql
+from .graphql_validator import validate_graphql
 from .query import QueryService
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 __all__ = [
     "__version__",
@@ -28,7 +27,5 @@ __all__ = [
     "Gen3MCPError",
     "Gen3ClientError",
     "Gen3SchemaError",
-    "QueryValidationError",
-    "extract_query_fields",
     "validate_graphql",
 ]

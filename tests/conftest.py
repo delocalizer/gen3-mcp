@@ -1,5 +1,7 @@
 """Pytest configuration and shared fixtures"""
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -8,6 +10,13 @@ from gen3_mcp.config import Gen3Config
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
+
+
+def load_test_schema():
+    """Load the test schema from ex_schema.json"""
+    schema_path = Path(__file__).parent / "ex_schema.json"
+    with open(schema_path) as f:
+        return json.load(f)
 
 
 @pytest.fixture(autouse=True)
@@ -37,64 +46,15 @@ def config():
     )
 
 
-# Define the test schema data
-FULL_SCHEMA = {
-    "subject": {
-        "properties": {
-            "id": {"type": "string"},
-            "submitter_id": {"type": "string"},
-            "type": {"type": "string"},
-            "gender": {"type": "string", "enum": ["Male", "Female", "Unknown"]},
-            "age_at_enrollment": {"type": "integer"},
-            "race": {"type": "string"},
-            "ethnicity": {"type": "string"},
-        },
-        "links": [
-            {
-                "subgroup": [
-                    {
-                        "name": "studies",
-                        "target_type": "study",
-                        "multiplicity": "many_to_many",
-                    }
-                ]
-            }
-        ],
-        "required": ["submitter_id", "type"],
-        "description": "The collection of all data related to a specific subject",
-        "category": "administrative",
-    },
-    "sample": {
-        "properties": {
-            "id": {"type": "string"},
-            "submitter_id": {"type": "string"},
-            "type": {"type": "string"},
-            "sample_type": {"type": "string"},
-            "anatomic_site": {"type": "string"},
-        },
-        "required": ["submitter_id", "type"],
-        "category": "biospecimen",
-    },
-}
-
-SUBJECT_SCHEMA = FULL_SCHEMA["subject"]
-SAMPLE_SCHEMA = FULL_SCHEMA["sample"]
+# Load the schema from ex_schema.json
+FULL_SCHEMA = load_test_schema()
 
 
 def mock_get_json_side_effect(url, **kwargs):
-    """Mock side effect that returns different responses based on URL"""
+    """Mock side effect that may return different responses based on URL"""
     if url.endswith("/_all"):
         # Full schema request
         return FULL_SCHEMA
-    elif url.endswith("/subject"):
-        # Single entity schema request
-        return SUBJECT_SCHEMA
-    elif url.endswith("/sample"):
-        # Single entity schema request
-        return SAMPLE_SCHEMA
-    else:
-        # Unknown entity
-        return None
 
 
 @pytest.fixture
@@ -107,15 +67,18 @@ def mock_client():
     # Configure mock to return different responses based on URL
     client.get_json.side_effect = mock_get_json_side_effect
 
-    # Mock GraphQL responses
+    # Mock GraphQL responses with realistic data
     client.post_json.return_value = {
         "data": {
             "subject": [
                 {
-                    "id": "123",
-                    "submitter_id": "test_subject",
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "submitter_id": "test_subject_001",
                     "type": "subject",
                     "gender": "Female",
+                    "age_at_enrollment": 45,
+                    "race": "White",
+                    "ethnicity": "Not Hispanic or Latino",
                 }
             ]
         }
@@ -129,56 +92,105 @@ def create_test_services():
     mock_gen3_service = AsyncMock()
     mock_query_service = AsyncMock()
 
+    # Load schema to get realistic data
+    schema = load_test_schema()
+    entity_names = list(schema.keys())
+
+    # Categorize entities based on their actual category property
+    entities_by_category = {}
+    for entity_name, entity_schema in schema.items():
+        category = entity_schema.get("category", "unknown")
+        if category not in entities_by_category:
+            entities_by_category[category] = []
+        entities_by_category[category].append(entity_name)
+
     # Set up mock returns for common service calls
     mock_gen3_service.get_schema_summary.return_value = {
-        "total_entities": 2,
-        "entity_names": ["subject", "sample"],
-        "entities_by_category": {"clinical": ["subject"], "biospecimen": ["sample"]},
+        "total_entities": len(entity_names),
+        "entity_names": entity_names,
+        "entities_by_category": entities_by_category,
     }
 
-    mock_gen3_service.get_full_schema.return_value = {
-        "subject": {"properties": {"id": {"type": "string"}}},
-        "sample": {"properties": {"id": {"type": "string"}}},
-    }
+    mock_gen3_service.get_schema_full.return_value = schema
 
-    mock_gen3_service.get_entity_schema.return_value = {
-        "properties": {"id": {"type": "string"}, "gender": {"enum": ["Male", "Female"]}}
-    }
+    # Use realistic entity schema based on the actual schema
+    def get_entity_schema_side_effect(entity_name):
+        return schema.get(entity_name, {})
 
-    mock_gen3_service.get_entity_names.return_value = ["subject", "sample"]
+    mock_gen3_service.get_entity_schema.side_effect = get_entity_schema_side_effect
+
+    mock_gen3_service.get_entity_names.return_value = entity_names
 
     mock_gen3_service.get_detailed_entities.return_value = {
-        "total_entities": 2,
-        "entities": {"subject": {"title": "Subject"}, "sample": {"title": "Sample"}},
+        "total_entities": len(entity_names),
+        "entities": {
+            name: {"title": schema[name].get("title", name.replace("_", " ").title())}
+            for name in entity_names
+        },
     }
 
     mock_gen3_service.get_sample_records.return_value = {
         "entity": "subject",
-        "sample_records": [{"id": "1", "gender": "Male"}],
+        "sample_records": [
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "submitter_id": "subject_001",
+                "gender": "Female",
+                "age_at_enrollment": 45,
+                "race": "White",
+                "ethnicity": "Not Hispanic or Latino",
+            }
+        ],
     }
 
+    # Use realistic enum values from the actual schema
+    subject_gender_enum = schema["subject"]["properties"]["gender"]["enum"]
     mock_gen3_service.explore_entity_data.return_value = {
         "entity": "subject",
         "schema_info": {"title": "Subject"},
-        "enum_fields": [{"field": "gender", "enum_values": ["Male", "Female"]}],
+        "enum_fields": [{"field": "gender", "enum_values": subject_gender_enum}],
+    }
+
+    mock_gen3_service.get_entity_context.return_value = {
+        "entity_name": "subject",
+        "exists": True,
+        "schema_summary": {
+            "title": "Subject",
+            "description": "The collection of all data related to a specific subject",
+            "category": "administrative",
+            "total_properties": 7,
+            "required_fields": ["submitter_id", "type"],
+        },
+        "hierarchical_position": {
+            "parents": [],
+            "children": [{"entity": "sample", "backref_field": "samples"}],
+            "parent_count": 0,
+            "child_count": 1,
+        },
+        "graphql_fields": {
+            "backref_fields": ["samples"],
+            "available_as_backref": ["subjects"],
+            "direct_fields": ["id", "submitter_id", "gender"],
+            "system_fields": ["id", "submitter_id", "type"],
+        },
+        "query_patterns": {
+            "basic_query": "{ subject(first: 10) { id submitter_id type } }",
+            "with_relationships": [],
+            "usage_examples": ["Use subject as starting point"],
+        },
+        "data_flow_position": {"position": "root", "description": "Top-level entity"},
     }
 
     mock_query_service.field_sample.return_value = {
         "entity": "subject",
         "field": "gender",
-        "values": {"Male": 5, "Female": 3},
+        "values": {"Female": 5, "Male": 3, "Not Reported": 1, "Unknown": 1},
     }
 
     mock_query_service.validate_query_fields.return_value = {
         "valid": True,
         "extracted_fields": {"subject": ["id"]},
         "validation_results": {},
-    }
-
-    mock_query_service.suggest_similar_fields.return_value = {
-        "field_name": "gander",
-        "entity_name": "subject",
-        "suggestions": [{"name": "gender", "similarity": 0.8}],
     }
 
     mock_query_service.generate_query_template.return_value = {
@@ -188,7 +200,14 @@ def create_test_services():
     }
 
     mock_query_service.execute_graphql.return_value = {
-        "data": {"subject": [{"id": "1"}]}
+        "data": {
+            "subject": [
+                {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "submitter_id": "subject_001",
+                }
+            ]
+        }
     }
 
     return mock_gen3_service, mock_query_service

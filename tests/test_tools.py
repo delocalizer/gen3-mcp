@@ -1,7 +1,5 @@
 """Tests for MCP tools functionality"""
 
-import sys
-
 import pytest
 
 
@@ -17,8 +15,9 @@ class TestSchemaTools:
         # In real usage, this would be called through MCP framework
         result = await mock_gen3_service.get_schema_summary()
 
-        assert result["total_entities"] == 2
+        assert result["total_entities"] == 5
         assert "subject" in result["entity_names"]
+        assert "aligned_reads_file" in result["entity_names"]
         mock_gen3_service.get_schema_summary.assert_called_once()
 
     @pytest.mark.asyncio
@@ -26,11 +25,12 @@ class TestSchemaTools:
         """Test schema_full tool calls service method directly"""
         mock_gen3_service = mcp_test_setup["mock_gen3_service"]
 
-        result = await mock_gen3_service.get_full_schema()
+        result = await mock_gen3_service.get_schema_full()
 
         assert "subject" in result
         assert "sample" in result
-        mock_gen3_service.get_full_schema.assert_called_once()
+        assert "aligned_reads_file" in result
+        mock_gen3_service.get_schema_full.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_schema_entity(self, mcp_test_setup):
@@ -53,7 +53,15 @@ class TestSchemaTools:
         result = {"entities": entities}
 
         assert "entities" in result
-        assert result["entities"] == ["subject", "sample"]
+        entity_list = result["entities"]
+        expected_entities = {
+            "subject",
+            "sample",
+            "study",
+            "aliquot",
+            "aligned_reads_file",
+        }
+        assert set(entity_list) == expected_entities
         mock_gen3_service.get_entity_names.assert_called_once()
 
     @pytest.mark.asyncio
@@ -65,8 +73,107 @@ class TestSchemaTools:
 
         assert "total_entities" in result
         assert "entities" in result
-        assert result["total_entities"] == 2
+        assert result["total_entities"] == 5
         mock_gen3_service.get_detailed_entities.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_schema_entity_context(self, mcp_test_setup):
+        """Test schema_entity_context tool calls service method directly"""
+        mock_gen3_service = mcp_test_setup["mock_gen3_service"]
+
+        # Set up mock return for get_entity_context
+        mock_gen3_service.get_entity_context.return_value = {
+            "entity_name": "subject",
+            "exists": True,
+            "schema_summary": {
+                "title": "Subject",
+                "description": "The collection of all data related to a specific subject",
+                "category": "administrative",
+                "total_properties": 7,
+                "required_fields": ["submitter_id", "type"],
+            },
+            "hierarchical_position": {
+                "parents": [
+                    {
+                        "entity": "study",
+                        "relationship": "member_of",
+                        "backref_field": "subjects",
+                    }
+                ],
+                "children": [
+                    {
+                        "entity": "sample",
+                        "relationship": "related_to",
+                        "backref_field": "samples",
+                    }
+                ],
+                "parent_count": 1,
+                "child_count": 1,
+            },
+            "graphql_fields": {
+                "backref_fields": ["samples"],
+                "available_as_backref": ["subjects"],
+                "direct_fields": ["id", "submitter_id", "gender", "age_at_enrollment"],
+                "system_fields": [
+                    "id",
+                    "submitter_id",
+                    "type",
+                    "created_datetime",
+                    "updated_datetime",
+                ],
+            },
+            "query_patterns": {
+                "basic_query": "{ subject(first: 10) { id submitter_id type } }",
+                "with_relationships": [
+                    {
+                        "description": "Get subject with linked sample data",
+                        "query": "{ subject(first: 5) { id submitter_id samples { id submitter_id } } }",
+                        "target_entity": "sample",
+                    }
+                ],
+                "usage_examples": [
+                    "Use subject as starting point for data exploration",
+                    "Query subject fields: id, submitter_id, type",
+                    "Access linked data via: samples",
+                ],
+            },
+            "data_flow_position": {
+                "position": "intermediate",
+                "parent_count": 1,
+                "child_count": 1,
+                "description": "Intermediate entity in the data hierarchy - connects other entities",
+            },
+        }
+
+        result = await mock_gen3_service.get_entity_context("subject")
+
+        assert result["entity_name"] == "subject"
+        assert result["exists"] is True
+        assert "schema_summary" in result
+        assert "hierarchical_position" in result
+        assert "graphql_fields" in result
+        assert "query_patterns" in result
+        assert "data_flow_position" in result
+
+        # Check that hierarchical position contains expected structure
+        hierarchical_position = result["hierarchical_position"]
+        assert hierarchical_position["parent_count"] == 1
+        assert hierarchical_position["child_count"] == 1
+        assert len(hierarchical_position["parents"]) == 1
+        assert len(hierarchical_position["children"]) == 1
+
+        # Check GraphQL fields structure
+        graphql_fields = result["graphql_fields"]
+        assert "samples" in graphql_fields["backref_fields"]
+        assert "subjects" in graphql_fields["available_as_backref"]
+
+        # Check query patterns contain useful examples
+        query_patterns = result["query_patterns"]
+        assert "subject" in query_patterns["basic_query"]
+        assert len(query_patterns["with_relationships"]) > 0
+        assert len(query_patterns["usage_examples"]) > 0
+
+        mock_gen3_service.get_entity_context.assert_called_once_with("subject")
 
 
 class TestDataTools:
@@ -101,16 +208,12 @@ class TestDataTools:
         """Test data_field_values tool calls service method directly"""
         mock_query_service = mcp_test_setup["mock_query_service"]
 
-        result = await mock_query_service.field_sample(
-            "subject", "gender", 20
-        )
+        result = await mock_query_service.field_sample("subject", "gender", 20)
 
         assert result["entity"] == "subject"
         assert result["field"] == "gender"
         assert "values" in result
-        mock_query_service.field_sample.assert_called_once_with(
-            "subject", "gender", 20
-        )
+        mock_query_service.field_sample.assert_called_once_with("subject", "gender", 20)
 
     @pytest.mark.asyncio
     async def test_data_explore_entity_data(self, mcp_test_setup):
@@ -139,20 +242,6 @@ class TestValidationTools:
         assert result["valid"] is True
         assert "extracted_fields" in result
         mock_query_service.validate_query_fields.assert_called_once_with(query)
-
-    @pytest.mark.asyncio
-    async def test_validation_suggest_fields(self, mcp_test_setup):
-        """Test validation_suggest_fields tool calls service method directly"""
-        mock_query_service = mcp_test_setup["mock_query_service"]
-
-        result = await mock_query_service.suggest_similar_fields("gander", "subject")
-
-        assert result["field_name"] == "gander"
-        assert result["entity_name"] == "subject"
-        assert len(result["suggestions"]) > 0
-        mock_query_service.suggest_similar_fields.assert_called_once_with(
-            "gander", "subject"
-        )
 
     @pytest.mark.asyncio
     async def test_validation_query_template(self, mcp_test_setup):
@@ -225,19 +314,6 @@ class TestToolIntegration:
 
         assert mock_query_service.validate_query_fields.called
         assert mock_query_service.execute_graphql.called
-
-    def test_tools_no_longer_import_wrapper_modules(self):
-        """Test that tools don't import from removed wrapper modules"""
-        # Import main to trigger tool definitions
-        from gen3_mcp import main
-
-        # Verify wrapper modules are not imported
-        assert "gen3_mcp.tools" not in sys.modules
-        assert "gen3_mcp.resources" not in sys.modules
-
-        # Verify we can create MCP server without wrapper modules
-        mcp = main.create_mcp_server()
-        assert mcp is not None
 
 
 if __name__ == "__main__":

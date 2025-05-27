@@ -30,34 +30,6 @@ class Gen3Client:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._cleanup()
 
-    async def _initialize(self):
-        """Initialize HTTP client and auth manager"""
-        if self._initialized:
-            return
-
-        self._http_client = httpx.AsyncClient(
-            headers={"User-Agent": USER_AGENT},
-            timeout=self.config.timeout_seconds,
-            follow_redirects=True,
-        )
-
-        self._auth_manager = AuthManager(self.config, self._http_client)
-
-        # Get initial token
-        await self._auth_manager.ensure_valid_token()
-        self._initialized = True
-
-        logger.info(f"Gen3 client initialized for {self.config.base_url}")
-
-    async def _cleanup(self):
-        """Clean up resources"""
-        if self._http_client:
-            await self._http_client.aclose()
-            self._http_client = None
-        self._auth_manager = None
-        self._initialized = False
-        logger.debug("Gen3 client cleaned up")
-
     async def get_json(
         self, url: str, authenticated: bool = True, **kwargs
     ) -> dict[str, Any] | None:
@@ -100,3 +72,31 @@ class Gen3Client:
         except Exception as e:
             logger.error(f"POST {url} failed: {e}")
             return None
+
+    async def _initialize(self):
+        """Initialize HTTP client and auth manager"""
+        if self._initialized:
+            return
+
+        self._http_client = httpx.AsyncClient(
+            headers={"User-Agent": USER_AGENT},
+            timeout=self.config.timeout_seconds,
+            follow_redirects=True,
+        )
+
+        self._auth_manager = AuthManager(self.config, self._http_client)
+
+        # Get initial token
+        await self._auth_manager.ensure_valid_token()
+        self._initialized = True
+
+        logger.info(f"Gen3 client initialized for {self.config.base_url}")
+
+    async def _cleanup(self):
+        """Clean up resources"""
+        if self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
+        self._auth_manager = None
+        self._initialized = False
+        logger.debug("Gen3 client cleaned up")

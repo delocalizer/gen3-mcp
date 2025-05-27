@@ -1,0 +1,130 @@
+{
+  "entity_name": "subject",
+  "exists": true,
+  "schema_summary": {
+    "title": "Subject",
+    "description": "The collection of all data related to a specific subject in the context of a specific experiment.",
+    "category": "administrative",
+    "total_properties": 34,
+    "required_fields": [
+      "submitter_id",
+      "type",
+      "studies"
+    ]
+  },
+  "hierarchical_position": {
+    "parents": [
+      {
+        "entity": "study",
+        "relationship": "member_of",
+        "multiplicity": "many_to_many",
+        "required": true,
+        "backref_field": "subjects",
+        "link_name": "studies"
+      }
+    ],
+    "children": [
+      {
+        "entity": "aligned_reads_file",
+        "relationship": "data_from",
+        "multiplicity": "many_to_one",
+        "required": false,
+        "backref_field": "aligned_reads_files",
+        "link_name": "subjects"
+      },
+      {
+        "entity": "sample",
+        "relationship": "related_to",
+        "multiplicity": "many_to_one",
+        "required": true,
+        "backref_field": "samples",
+        "link_name": "subjects"
+      }
+    ],
+    "parent_count": 1,
+    "child_count": 2
+  },
+  "graphql_fields": {
+    "backref_fields": [
+      "subjects"
+    ],
+    "available_as_backref": [
+      "aligned_reads_files",
+      "samples"
+    ],
+    "direct_fields": [
+      "accession",
+      "age_at_enrollment",
+      "age_at_enrollment_gt89",
+      "age_at_immigration",
+      "birth_year",
+      "collaboration_id",
+      "comments",
+      "created_datetime",
+      "days_to_birth",
+      "days_to_immigration",
+      "days_to_lost_to_followup",
+      "death_year",
+      "ethnicity",
+      "ethnicity_other",
+      "experimental_group",
+      "gender",
+      "handedness",
+      "id",
+      "index_date",
+      "index_event_status",
+      "lost_to_followup",
+      "place_of_birth",
+      "primary_site",
+      "project_id",
+      "race",
+      "race_other",
+      "species",
+      "state",
+      "studies",
+      "subject_ids",
+      "submitter_id",
+      "type",
+      "updated_datetime",
+      "visit_id"
+    ],
+    "system_fields": [
+      "id",
+      "submitter_id",
+      "type",
+      "created_datetime",
+      "updated_datetime"
+    ]
+  },
+  "query_patterns": {
+    "basic_query": "{\n    subject(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
+    "with_relationships": [
+      {
+        "description": "Get subject with linked study data",
+        "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n    }\n}",
+        "target_entity": "study"
+      },
+      {
+        "description": "Get subject with linked aligned_reads_file data",
+        "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}",
+        "target_entity": "aligned_reads_file"
+      },
+      {
+        "description": "Get subject with linked sample data",
+        "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}",
+        "target_entity": "sample"
+      }
+    ],
+    "usage_examples": [
+      "Use subject as starting point for data exploration",
+      "Query subject fields: id, submitter_id, type",
+      "Access linked data via: studies, aligned_reads_files, samples"
+    ]
+  },
+  "data_flow_position": {
+    "position": "intermediate",
+    "parent_count": 1,
+    "child_count": 2,
+    "description": "Intermediate entity in the data hierarchy - connects other entities"
+  }
+}

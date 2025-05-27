@@ -9,6 +9,7 @@ from .client import Gen3Client
 from .config import Gen3Config, setup_logging
 from .data import Gen3Service
 from .query import QueryService
+from .resources import register_resources
 
 logger = logging.getLogger("gen3-mcp.main")
 
@@ -61,126 +62,39 @@ def create_mcp_server() -> FastMCP:
     """Create and configure the MCP server"""
     mcp = FastMCP("gen3")
 
-    # Register tools
+    # Register resources
+    register_resources(mcp, _config)
 
-    # Schema operations
+    # ===== SCHEMA DISCOVERY TOOLS =====
+
     @mcp.tool()
     async def schema_summary() -> dict:
-        """Get schema summary"""
+        """Get schema summary - an overview of all entities in the data commons,
+        and the relationships and links between them.
+        """
         gen3_service = await get_gen3_service()
         return await gen3_service.get_schema_summary()
 
     @mcp.tool()
-    async def schema_full() -> dict:
-        """Get complete schema"""
-        gen3_service = await get_gen3_service()
-        return await gen3_service.get_full_schema()
-
-    @mcp.tool()
-    async def schema_entity(entity_name: str) -> dict:
-        """Get schema for specific entity
+    async def schema_entity_context(entity_name: str) -> dict:
+        """Get detailed entity context - field names, relationships to ancestor
+        entities, backrefs that define inverse relationships, example queries,
+        and more.
 
         Args:
-            entity_name: Name of the entity to get schema for
+            entity_name: Name of the entity to get context for
         """
         gen3_service = await get_gen3_service()
-        return await gen3_service.get_entity_schema(entity_name)
+        return await gen3_service.get_entity_context(entity_name)
 
-    @mcp.tool()
-    async def schema_entities() -> dict:
-        """Get list of all entities"""
-        gen3_service = await get_gen3_service()
-        entities = await gen3_service.get_entity_names()
-        return {"entities": entities}
-
-    @mcp.tool()
-    async def schema_describe_entities() -> dict:
-        """Get detailed entity list with relationships"""
-        gen3_service = await get_gen3_service()
-        return await gen3_service.get_detailed_entities()
-
-    # Data operations
-    @mcp.tool()
-    async def data_explore(
-        entity_name: str, limit: int = 5, field_count: int = 10
-    ) -> dict:
-        """Explore entity data with intelligent field selection
-
-        Args:
-            entity_name: Name of the entity to explore
-            limit: Maximum number of records to return (default: 5)
-            field_count: Maximum number of fields to include (default: 10)
-        """
-        gen3_service = await get_gen3_service()
-        # Get sample records
-        result = await gen3_service.get_sample_records(entity_name, limit)
-        result["entity"] = entity_name
-        return result
-
-    @mcp.tool()
-    async def data_sample_records(entity_name: str, limit: int = 5) -> dict:
-        """Get sample records for entity
-
-        Args:
-            entity_name: Name of the entity to sample
-            limit: Maximum number of records to return (default: 5)
-        """
-        gen3_service = await get_gen3_service()
-        return await gen3_service.get_sample_records(entity_name, limit)
-
-    @mcp.tool()
-    async def data_field_values(
-        entity_name: str, field_name: str, limit: int = 20
-    ) -> dict:
-        """Get field value distribution
-
-        Args:
-            entity_name: Name of the entity
-            field_name: Name of the field to analyze
-            limit: Maximum number of values to return (default: 20)
-        """
-        query_service = await get_query_service()
-        return await query_service.field_sample(
-            entity_name, field_name, limit
-        )
-
-    @mcp.tool()
-    async def data_explore_entity_data(entity_name: str) -> dict:
-        """Comprehensive entity exploration
-
-        Args:
-            entity_name: Name of the entity to explore comprehensively
-        """
-        gen3_service = await get_gen3_service()
-        return await gen3_service.explore_entity_data(entity_name)
-
-    # Validation operations
-    @mcp.tool()
-    async def validate_query(query: str) -> dict:
-        """Validate GraphQL query
-
-        Args:
-            query: GraphQL query string to validate
-        """
-        query_service = await get_query_service()
-        return await query_service.validate_query_fields(query)
-
-    @mcp.tool()
-    async def suggest_fields(field_name: str, entity_name: str) -> dict:
-        """Get field suggestions
-
-        Args:
-            field_name: Name of the field to find suggestions for
-            entity_name: Name of the entity to search within
-        """
-        query_service = await get_query_service()
-        return await query_service.suggest_similar_fields(field_name, entity_name)
+    # ===== GRAPHQL QUERY TOOLS =====
 
     @mcp.tool()
     async def query_template(
         entity_name: str, include_relationships: bool = True, max_fields: int = 20
     ) -> dict:
-        """Generate safe query template
+        """Generate safe query template - create GraphQL query template with
+        validated fields (recommended starting point)
 
         Args:
             entity_name: Name of the entity to generate template for
@@ -188,99 +102,55 @@ def create_mcp_server() -> FastMCP:
             max_fields: Maximum number of fields to include (default: 20)
         """
         query_service = await get_query_service()
-        return await query_service.generate_query_template(
+        result = await query_service.generate_query_template(
             entity_name, include_relationships, max_fields
         )
 
-    # GraphQL execution
+        # Add workflow guidance in response
+        if result.get("exists"):
+            result["next_step"] = (
+                "Use validate_query() to check any modifications, then execute_graphql() to run the query"
+            )
+
+        return result
+
+    @mcp.tool()
+    async def validate_query(query: str) -> dict:
+        """Validate GraphQL query - check syntax and field names against schema
+        before execution (use before execute_graphql)
+
+        Args:
+            query: GraphQL query string to validate
+        """
+        query_service = await get_query_service()
+        result = await query_service.validate_query(query)
+
+        return result
+
     @mcp.tool()
     async def execute_graphql(query: str) -> dict:
-        """Execute GraphQL query against the Gen3 data commons
+        """Execute GraphQL query against the Gen3 data commons - run validated
+        GraphQL query (tip: use validate_query first to check syntax)
 
         Args:
             query: GraphQL query string
         """
         query_service = await get_query_service()
         result = await query_service.execute_graphql(query)
+
         if result is None:
-            return {"error": "Query execution failed"}
+            return {
+                "error": "Query execution failed",
+                "suggestion": "Try validate_query() to check syntax or query_template() to generate a safe template",
+            }
+
+        # Check for GraphQL errors and provide guidance
+        if result.get("errors"):
+            result["suggestion"] = (
+                "Query returned GraphQL errors. Use validate_query() to check field names and syntax."
+            )
+
         return result
-
-    # Register resources
-    @mcp.resource("gen3://info")
-    def info_resource() -> str:
-        """Basic information about the Gen3 data commons instance"""
-        config = _config if _config else Gen3Config()
-        return f"""Gen3 Data Commons MCP Server
-
-Endpoint: {config.base_url}
-Log Level: {config.log_level}
-
-Available APIs:
-- Schema: {config.schema_url}
-- GraphQL: {config.graphql_url}
-- Auth: {config.auth_url}
-
-Use the tools below to fetch live data from these endpoints."""
-
-    @mcp.resource("gen3://endpoints")
-    def endpoints_resource() -> dict[str, str]:
-        """Available API endpoints for the Gen3 data commons"""
-        config = _config if _config else Gen3Config()
-        return {
-            "base_url": config.base_url,
-            "schema": config.schema_url,
-            "graphql": config.graphql_url,
-            "auth": config.auth_url,
-        }
-
-    @mcp.resource("gen3://validation")
-    def validation_resource() -> str:
-        """Guide for using the GraphQL query validation tools"""
-        return """Gen3 GraphQL Query Validation Tools
-
-These tools help prevent field name hallucinations when working with Gen3 GraphQL queries:
-
-1. validation_validate_query(query="...")
-   - Validates all field names in a GraphQL query against the actual schema
-   - Returns detailed errors and suggestions for invalid fields
-   - Use before executing queries to catch mistakes early
-
-2. validation_suggest_fields(field_name="...", entity_name="...")
-   - Finds similar field names when you use an invalid field
-   - Uses string similarity and pattern matching
-   - Suggests alternative entity names if entity doesn't exist
-
-3. validation_query_template(entity_name="...")
-   - Generates safe query templates with guaranteed valid fields
-   - Includes basic fields, important properties, and relationship examples
-   - Use as starting point for building queries
-
-Recommended Workflow:
-1. Start with validation_query_template(entity_name="subject")
-2. Modify the template as needed
-3. Use validation_validate_query(query="...") to check your changes
-4. If validation fails, use validation_suggest_fields(...) to fix errors
-5. Execute the validated query with execute_graphql(query="...")
-
-Example:
-```
-# Get a template
-template = validation_query_template(entity_name="subject")
-
-# Modify it
-query = "{ subject { id gender invalid_field } }"
-
-# Validate
-validation = validation_validate_query(query=query)
-
-# Fix errors using suggestions
-if not validation["valid"]:
-    suggestions = validation_suggest_fields(field_name="invalid_field",
-                                          entity_name="subject")
-```
-
-This approach significantly reduces GraphQL query errors and field name hallucinations."""
 
     return mcp
 

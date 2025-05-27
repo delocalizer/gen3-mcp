@@ -1,0 +1,17 @@
+{
+    subject(first: 5) {
+        id
+        submitter_id
+        gender
+        race
+        ethnicity
+        age_at_enrollment
+        studies {
+            id
+            submitter_id
+            study_name       # unknown field
+            study_description
+            data_description
+        }
+    }
+}
