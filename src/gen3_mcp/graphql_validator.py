@@ -9,15 +9,14 @@ from typing import Dict, List, Set, Any, Optional, Tuple
 from graphql import parse, FieldNode, Visitor, visit
 from graphql.error import GraphQLSyntaxError
 
-# Import the minimal schema structures from the previous artifact
-from schema_extract import SchemaExtract, EntitySchema, Relationship
+from .schema_extract import SchemaExtract, EntitySchema, Relationship
 
 @dataclass
 class ValidationError:
     """Represents a validation error"""
     entity: str
     field: str
-    error_type: str  # "unknown_entity", "unknown_field", "unknown_relationship"
+    error_type: str  # "syntax error", "unknown_entity", "unknown_field"
     message: str
     suggestions: List[str] = None
 
@@ -54,7 +53,7 @@ class GraphQLFieldExtractor(Visitor):
         if node.selection_set and self.entity_stack:
             self.entity_stack.pop()
 
-def extract_fields_from_query(query: str) -> Dict[str, List[str]]:
+def extract_fields(query: str) -> Dict[str, List[str]]:
     """
     Extract entity and field information from GraphQL query
     
@@ -108,7 +107,7 @@ def validate_graphql_query(query: str, schema: SchemaExtract) -> ValidationResul
     """
     # First check GraphQL syntax
     try:
-        extracted_fields = extract_fields_from_query(query)
+        extracted_fields = extract_fields(query)
     except GraphQLSyntaxError as e:
         return ValidationResult(
             is_valid=False,
@@ -220,156 +219,3 @@ def _find_parent_relationship(
                     return potential_parent, rel
     
     return None, None
-
-def test_complex_nested_query():
-    """Test the validator with a complex nested query: subject -> samples -> aliquots -> aligned_reads_files"""
-    
-    # Create a more comprehensive schema for this test
-    schema = SchemaExtract.from_full_schema({
-        "subject": {
-            "properties": {
-                "gender": {"type": "string"},
-                "race": {"type": "string"}, 
-                "ethnicity": {"type": "string"},
-                "age_at_enrollment": {"type": "integer"}
-            },
-            "links": [
-                {
-                    "name": "studies",
-                    "target_type": "study",
-                    "backref": "subjects"
-                }
-            ]
-        },
-        "study": {
-            "properties": {
-                "study_description": {"type": "string"},
-                "data_description": {"type": "string"}
-            },
-            "links": []
-        },
-        "sample": {
-            "properties": {
-                "sample_type": {"type": "string"},
-                "anatomic_site": {"type": "string"},
-                "composition": {"type": "string"},
-                "days_to_collection": {"type": "integer"},
-                "sample_volume": {"type": "number"}
-            },
-            "links": [
-                {
-                    "name": "subjects", 
-                    "target_type": "subject",
-                    "backref": "samples"
-                }
-            ]
-        },
-        "aliquot": {
-            "properties": {
-                "aliquot_quantity": {"type": "number"},
-                "concentration": {"type": "number"}
-            },
-            "links": [
-                {
-                    "name": "samples",
-                    "target_type": "sample",
-                    "backref": "aliquots"
-                }
-            ]
-        },
-        "aligned_reads_file": {
-            "properties": {
-                "file_name": {"type": "string"},
-                "file_size": {"type": "integer"},
-                "data_format": {"type": "string"}
-            },
-            "links": [
-                {
-                    "name": "subjects",
-                    "target_type": "subject", 
-                    "backref": "aligned_reads_files",
-                    "subgroup": [
-                        {
-                            "name": "aliquots",
-                            "target_type": "aliquot",
-                            "backref": "aligned_reads_files"
-                        },
-                        {
-                            "name": "samples", 
-                            "target_type": "sample",
-                            "backref": "aligned_reads_files"
-                        }
-                    ]
-                }
-            ]
-        }
-    })
-    
-    # The complex nested query
-    complex_query = """
-    {
-      subject(first: 5) {
-        id
-        submitter_id
-        gender
-        race
-        ethnicity
-        age_at_enrollment
-        studies {
-          id
-          submitter_id
-          study_description
-          data_description
-        }
-        samples {
-          id
-          submitter_id
-          sample_type
-          anatomic_site
-          composition
-          days_to_collection
-          sample_volume
-          aliquots {
-            aligned_reads_files {
-              submitter_id
-            }
-          }
-        }
-      }
-    }
-    """
-    
-    result = validate_graphql_query(complex_query, schema)
-    
-    print(f"\nComplex nested query validation: {'PASS' if result.is_valid else 'FAIL'}")
-    print(f"Extracted fields: {result.extracted_fields}")
-    
-    if not result.is_valid:
-        print("Validation errors:")
-        for error in result.errors:
-            print(f"  - {error.message}")
-            if error.suggestions:
-                print(f"    Suggestions: {', '.join(error.suggestions)}")
-    else:
-        print("✓ Query successfully validated!")
-        print("✓ All nested relationships recognized")
-        print("✓ All field names validated")
-    
-    return result
-
-# Test both working and complex nested queries
-def test_all_validation_scenarios():
-    """Test multiple validation scenarios"""
-    print("=== GRAPHQL VALIDATION TEST SUITE ===")
-    
-    # Test 1: Working query
-    test_validation_with_working_query()
-    
-    # Test 2: Failing query 
-    test_validation_with_failing_query()
-    
-    # Test 3: Complex nested query
-    test_complex_nested_query()
-
-if __name__ == "__main__":
-    test_all_validation_scenarios()

@@ -44,8 +44,8 @@ class SchemaExtract:
                     if "type" in prop_def or "enum" in prop_def:
                         fields.add(prop_name)
             
-            # Add standard GraphQL fields always available
-            fields.update(["id", "submitter_id", "type", "created_datetime", "updated_datetime"])
+            # Add standard fields always available
+            fields.update(["id", "submitter_id", "type"])
             
             # Extract relationships from links
             relationships = {}
@@ -97,36 +97,9 @@ class SchemaExtract:
                         backref=rel.name
                     )
 
-# Example usage:
+# useful sometimes
 def extract_from_file(schema_file_path: str) -> SchemaExtract:
     """Return schema extract read from full schema in a JSON file"""
     with open(schema_file_path, 'r') as f:
         full_schema = json.load(f)
     return SchemaExtract.from_full_schema(full_schema)
-
-# For our test case, this would produce:
-# {
-#   "subject": EntitySchema(
-#       name="subject",
-#       fields={"id", "submitter_id", "type", "gender", "race", "ethnicity", "age_at_enrollment", ...},
-#       relationships={
-#           "studies": Relationship(name="studies", target_type="study", backref="subjects"),
-#           "samples": Relationship(name="samples", target_type="sample", backref="subjects")  # from backref
-#       }
-#   ),
-#   "sample": EntitySchema(
-#       name="sample", 
-#       fields={"id", "submitter_id", "sample_type", "anatomic_site", "composition", ...},
-#       relationships={
-#           "subjects": Relationship(name="subjects", target_type="subject", backref="samples")
-#       }
-#   ),
-#   "study": EntitySchema(
-#       name="study",
-#       fields={"id", "submitter_id", "study_description", "data_description", ...},
-#       relationships={
-#           "projects": Relationship(name="projects", target_type="project", backref="studies"),
-#           "subjects": Relationship(name="subjects", target_type="subject", backref="studies")  # from backref
-#       }
-#   )
-# }

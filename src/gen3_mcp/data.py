@@ -93,109 +93,35 @@ class Gen3Service:
 
     async def get_schema_summary(self) -> dict[str, Any]:
         """
-        Generate schema summary (entity structure and description)
-
-        This contains all the entity structure of full schema, but not entity
-        properties. It is typically 10-30 times smaller.
+        Generate schema summary using SchemaExtract
         """
+        from .schema_extract import SchemaExtract
+        
         cache_key = "schema_summary"
 
         if self._is_cache_valid(cache_key):
             logger.debug("Using cached schema summary")
             return self._cache[cache_key]
-
+        
         full_schema = await self.get_schema_full()
-
-        entities = {}
-        all_links = []
-
-        for entity_name, entity_data in full_schema.items():
-            if isinstance(entity_data, dict):
-                # Extract link information
-                links = entity_data.get("links", [])
-                processed_links = []
-
-                for link in links:
-                    if isinstance(link, dict):
-                        # Handle subgroup links (common in Gen3)
-                        if "subgroup" in link:
-                            for sublink in link.get("subgroup", []):
-                                if isinstance(sublink, dict):
-                                    link_info = {
-                                        "target_entity": sublink.get("target_type"),
-                                        "relationship": sublink.get(
-                                            "label", "related_to"
-                                        ),
-                                        "multiplicity": sublink.get(
-                                            "multiplicity", "unknown"
-                                        ),
-                                        "required": sublink.get("required", False),
-                                        "backref": sublink.get("backref"),
-                                    }
-                                    processed_links.append(link_info)
-                                    all_links.append(
-                                        {
-                                            "from": entity_name,
-                                            "to": sublink.get("target_type"),
-                                            "relationship": sublink.get(
-                                                "label", "related_to"
-                                            ),
-                                            "multiplicity": sublink.get(
-                                                "multiplicity", "unknown"
-                                            ),
-                                        }
-                                    )
-                        else:
-                            # Direct link
-                            link_info = {
-                                "target_entity": link.get("target_type"),
-                                "relationship": link.get("label", "related_to"),
-                                "multiplicity": link.get("multiplicity", "unknown"),
-                                "required": link.get("required", False),
-                                "backref": link.get("backref"),
-                            }
-                            processed_links.append(link_info)
-                            all_links.append(
-                                {
-                                    "from": entity_name,
-                                    "to": link.get("target_type"),
-                                    "relationship": link.get("label", "related_to"),
-                                    "multiplicity": link.get("multiplicity", "unknown"),
-                                }
-                            )
-
-                entities[entity_name] = {
-                    "title": entity_data.get("title", ""),
-                    "description": entity_data.get("description", ""),
-                    "category": entity_data.get("category", ""),
-                    "properties_count": len(entity_data.get("properties", {})),
-                    "links": processed_links,
-                    "links_count": len(processed_links),
-                }
-
-        # Build relationship summary
-        relationship_summary = {}
-        for link in all_links:
-            rel_type = link["relationship"]
-            if rel_type not in relationship_summary:
-                relationship_summary[rel_type] = []
-            relationship_summary[rel_type].append(f"{link['from']} -> {link['to']}")
-
-        # Find entities by category
-        entities_by_category = {}
-        for entity_name, entity_info in entities.items():
-            category = entity_info["category"] or "uncategorized"
-            if category not in entities_by_category:
-                entities_by_category[category] = []
-            entities_by_category[category].append(entity_name)
-
+        schema_extract = SchemaExtract.from_full_schema(full_schema)
+        
         summary = {
-            "total_entities": len(entities),
-            "entities": entities,
-            "entities_by_category": entities_by_category,
-            "relationship_summary": relationship_summary,
+            "total_entities": len(schema_extract.entities),
+            "entities": {
+                name: {
+                    "fields_count": len(entity.fields),
+                    "relationships_count": len(entity.relationships),
+                    "fields": list(entity.fields),
+                    "relationships": {
+                        rel_name: rel.target_type 
+                        for rel_name, rel in entity.relationships.items()
+                    }
+                }
+                for name, entity in schema_extract.entities.items()
+            }
         }
-
+        
         self._update_cache(cache_key, summary)
         return summary
 
