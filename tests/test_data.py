@@ -25,10 +25,11 @@ async def test_optimal_field_selection(mock_client, config):
     """Test intelligent field selection"""
     service = Gen3Service(mock_client, config)
 
-    # Get the subject schema from our mock data
-    from tests.conftest import SUBJECT_SCHEMA
+    # Get the subject schema from the loaded schema
+    schema = await service.get_schema_full()
+    subject_schema = schema["subject"]
 
-    fields = service._select_optimal_fields(SUBJECT_SCHEMA, 10)
+    fields = service._select_optimal_fields(subject_schema, 10)
 
     assert "id" in fields
     assert "submitter_id" in fields
@@ -346,8 +347,6 @@ async def test_query_patterns_complex_hierarchy_validation(mock_client, config):
     if patterns["with_relationships"]:
         for pattern in patterns["with_relationships"]:
             query = pattern["query"]
-            with open('dump.txt', 'at') as fh:
-                fh.write(basic_query)
             validation_result = validate_graphql(query, schema_extract)
 
             # Should be valid even for entities not in our limited test schema

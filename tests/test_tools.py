@@ -19,6 +19,7 @@ class TestSchemaTools:
 
         assert result["total_entities"] == 5
         assert "subject" in result["entity_names"]
+        assert "aligned_reads_file" in result["entity_names"]
         mock_gen3_service.get_schema_summary.assert_called_once()
 
     @pytest.mark.asyncio
@@ -30,6 +31,7 @@ class TestSchemaTools:
 
         assert "subject" in result
         assert "sample" in result
+        assert "aligned_reads_file" in result
         mock_gen3_service.get_schema_full.assert_called_once()
 
     @pytest.mark.asyncio
@@ -53,7 +55,15 @@ class TestSchemaTools:
         result = {"entities": entities}
 
         assert "entities" in result
-        assert result["entities"] == ["subject", "sample", "study", "aliquot", "aligned_reads_file"]
+        entity_list = result["entities"]
+        expected_entities = {
+            "subject",
+            "sample",
+            "study",
+            "aliquot",
+            "aligned_reads_file",
+        }
+        assert set(entity_list) == expected_entities
         mock_gen3_service.get_entity_names.assert_called_once()
 
     @pytest.mark.asyncio

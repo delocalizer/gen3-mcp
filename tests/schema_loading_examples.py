@@ -209,6 +209,8 @@ def test_compare_loading_approaches():
         assert "subject" in schema
         assert "sample" in schema
         assert "study" in schema
+        assert "aliquot" in schema
+        assert "aligned_reads_file" in schema
 
         # Verify realistic properties exist
         assert "age_at_enrollment" in schema["subject"]["properties"]
