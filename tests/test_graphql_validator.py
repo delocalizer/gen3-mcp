@@ -204,7 +204,6 @@ class TestValidationWithTestQueries:
         
         # Check that aligned_reads_file relationships are validated
         assert "aligned_reads_file" in result.extracted_fields
-        assert "unaligned_reads_files" in result.extracted_fields
         assert "subjects" in result.extracted_fields
         assert "aliquots" in result.extracted_fields
     

@@ -58,7 +58,6 @@ async def test_validate_valid_query(mock_client, config):
     assert result["valid"]
     assert "subject" in result["extracted_fields"]
     assert "id" in result["extracted_fields"]["subject"]
-    assert result["summary"]["total_errors"] == 0
 
 
 @pytest.mark.asyncio

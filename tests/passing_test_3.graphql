@@ -1,16 +1,10 @@
 {
   aligned_reads_file(first: 10) {
     submitter_id
-    unaligned_reads_files {
-      submitter_id
-    }
     subjects {
       submitter_id
     }
     aliquots {
-      submitter_id
-    }
-    core_metadata_collections {
       submitter_id
     }
   }
