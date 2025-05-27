@@ -1,4 +1,819 @@
 {
+  "aligned_reads_file": {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "additionalProperties": false,
+    "category": "data_file",
+    "description": "Data file containing aligned reads.",
+    "id": "aligned_reads_file",
+    "links": [
+      {
+        "exclusive": false,
+        "required": true,
+        "subgroup": [
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
+            "multiplicity": "many_to_one",
+            "name": "core_metadata_collections",
+            "required": false,
+            "target_type": "core_metadata_collection"
+          },
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
+            "multiplicity": "many_to_many",
+            "name": "unaligned_reads_files",
+            "required": false,
+            "target_type": "unaligned_reads_file"
+          },
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
+            "multiplicity": "many_to_many",
+            "name": "aliquots",
+            "required": false,
+            "target_type": "aliquot"
+          },
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
+            "multiplicity": "many_to_many",
+            "name": "read_groups",
+            "required": false,
+            "target_type": "read_group"
+          },
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
+            "multiplicity": "many_to_one",
+            "name": "subjects",
+            "required": false,
+            "target_type": "subject"
+          }
+        ]
+      }
+    ],
+    "namespace": "https://gen3.datacommons.io/",
+    "nodeTerms": null,
+    "program": "*",
+    "project": "*",
+    "properties": {
+      "alignment_workflow": {
+        "description": "Indicate the alignment workflow or pipeline used for alignment of unaligned reads.",
+        "type": "string"
+      },
+      "aliquots": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "minItems": 1,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                  "term": {
+                    "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                    "termDef": {
+                      "cde_id": "C54100",
+                      "cde_version": null,
+                      "source": "NCIt",
+                      "term": "Universally Unique Identifier",
+                      "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                    }
+                  },
+                  "type": "string"
+                },
+                "submitter_id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": true,
+            "properties": {
+              "id": {
+                "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                "term": {
+                  "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                  "termDef": {
+                    "cde_id": "C54100",
+                    "cde_version": null,
+                    "source": "NCIt",
+                    "term": "Universally Unique Identifier",
+                    "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                  }
+                },
+                "type": "string"
+              },
+              "submitter_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "associated_ids": {
+        "description": "A list of UUIDs or submitter_ids associated with this file.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "core_metadata_collections": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "maxItems": 1,
+              "minItems": 1,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                  "term": {
+                    "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                    "termDef": {
+                      "cde_id": "C54100",
+                      "cde_version": null,
+                      "source": "NCIt",
+                      "term": "Universally Unique Identifier",
+                      "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                    }
+                  },
+                  "type": "string"
+                },
+                "submitter_id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": true,
+            "properties": {
+              "id": {
+                "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                "term": {
+                  "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                  "termDef": {
+                    "cde_id": "C54100",
+                    "cde_version": null,
+                    "source": "NCIt",
+                    "term": "Universally Unique Identifier",
+                    "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                  }
+                },
+                "type": "string"
+              },
+              "submitter_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "created_datetime": {
+        "oneOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "term": {
+          "description": "A combination of date and time of day in the form [-]CCYY-MM-DDThh:mm:ss[Z|(+|-)hh:mm]\n"
+        }
+      },
+      "data_category": {
+        "term": {
+          "description": "Broad categorization of the contents of the data file.\n"
+        },
+        "type": "string"
+      },
+      "data_format": {
+        "description": "The format of the data file. For example, \"BAM\".",
+        "type": "string"
+      },
+      "data_type": {
+        "description": "The type of data file. For example, \"Aligned Reads\".",
+        "type": "string"
+      },
+      "experimental_strategy": {
+        "term": {
+          "description": "The sequencing strategy used to generate the data file.\n"
+        },
+        "type": "string"
+      },
+      "file_name": {
+        "term": {
+          "description": "The name (or part of a name) of a file (of any type).\n"
+        },
+        "type": "string"
+      },
+      "file_size": {
+        "term": {
+          "description": "The size of the data file (object) in bytes.\n"
+        },
+        "type": "integer"
+      },
+      "id": {
+        "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+        "systemAlias": "node_id",
+        "term": {
+          "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+          "termDef": {
+            "cde_id": "C54100",
+            "cde_version": null,
+            "source": "NCIt",
+            "term": "Universally Unique Identifier",
+            "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+          }
+        },
+        "type": "string"
+      },
+      "md5sum": {
+        "pattern": "^[a-f0-9]{32}$",
+        "term": {
+          "description": "The 128-bit hash value expressed as a 32 digit hexadecimal number used as a file's digital fingerprint.\n"
+        },
+        "type": "string"
+      },
+      "molecular_tagging_workflow": {
+        "description": "A description of the specific bioinformatics workflow or pipeline used for molecular tagging of sequenced reads.",
+        "type": "string"
+      },
+      "object_id": {
+        "description": "The GUID of the object in the index service.",
+        "type": "string"
+      },
+      "project_id": {
+        "term": {
+          "description": "Unique ID for any specific defined piece of work that is undertaken or attempted to meet a single requirement.\n"
+        },
+        "type": "string"
+      },
+      "read_groups": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "minItems": 1,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                  "term": {
+                    "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                    "termDef": {
+                      "cde_id": "C54100",
+                      "cde_version": null,
+                      "source": "NCIt",
+                      "term": "Universally Unique Identifier",
+                      "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                    }
+                  },
+                  "type": "string"
+                },
+                "submitter_id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": true,
+            "properties": {
+              "id": {
+                "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                "term": {
+                  "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                  "termDef": {
+                    "cde_id": "C54100",
+                    "cde_version": null,
+                    "source": "NCIt",
+                    "term": "Universally Unique Identifier",
+                    "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                  }
+                },
+                "type": "string"
+              },
+              "submitter_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "state": {
+        "default": "validated",
+        "downloadable": [
+          "uploaded",
+          "md5summed",
+          "validating",
+          "validated",
+          "error",
+          "invalid",
+          "released"
+        ],
+        "oneOf": [
+          {
+            "enum": [
+              "uploading",
+              "uploaded",
+              "md5summing",
+              "md5summed",
+              "validating",
+              "error",
+              "invalid",
+              "suppressed",
+              "redacted",
+              "live"
+            ]
+          },
+          {
+            "enum": [
+              "validated",
+              "submitted",
+              "released"
+            ]
+          }
+        ],
+        "public": [
+          "live"
+        ],
+        "term": {
+          "description": "The current state of the object.\n"
+        }
+      },
+      "storage_urls": {
+        "description": "A list of URLs where the file is stored in the cloud.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "subject_ids": {
+        "description": "A list of one or more subject submitter_ids associated with this data.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "subjects": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "maxItems": 1,
+              "minItems": 1,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                  "term": {
+                    "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                    "termDef": {
+                      "cde_id": "C54100",
+                      "cde_version": null,
+                      "source": "NCIt",
+                      "term": "Universally Unique Identifier",
+                      "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                    }
+                  },
+                  "type": "string"
+                },
+                "submitter_id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": true,
+            "properties": {
+              "id": {
+                "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                "term": {
+                  "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                  "termDef": {
+                    "cde_id": "C54100",
+                    "cde_version": null,
+                    "source": "NCIt",
+                    "term": "Universally Unique Identifier",
+                    "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                  }
+                },
+                "type": "string"
+              },
+              "submitter_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "submitter_id": {
+        "description": "A human-readable, unique identifier for a record in the metadata database. It can be used in place of the UUID for identifying or recalling a record (e.g., in data queries or uploads/exports).",
+        "type": "string"
+      },
+      "type": {
+        "description": "The node_id of the node in the data model; the name of the node used in queries and API requests (e.g., \"aligned_reads_file\" for the \"Aligned Reads File\" node).",
+        "type": "string"
+      },
+      "unaligned_reads_files": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "minItems": 1,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                  "term": {
+                    "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                    "termDef": {
+                      "cde_id": "C54100",
+                      "cde_version": null,
+                      "source": "NCIt",
+                      "term": "Universally Unique Identifier",
+                      "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                    }
+                  },
+                  "type": "string"
+                },
+                "submitter_id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": true,
+            "properties": {
+              "id": {
+                "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                "term": {
+                  "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                  "termDef": {
+                    "cde_id": "C54100",
+                    "cde_version": null,
+                    "source": "NCIt",
+                    "term": "Universally Unique Identifier",
+                    "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                  }
+                },
+                "type": "string"
+              },
+              "submitter_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "updated_datetime": {
+        "oneOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "term": {
+          "description": "A combination of date and time of day in the form [-]CCYY-MM-DDThh:mm:ss[Z|(+|-)hh:mm]\n"
+        }
+      },
+      "visit_id": {
+        "description": "The submitter_id of a subject's visit in the study.",
+        "type": "string"
+      },
+      "workflow_end_datetime": {
+        "description": "The datetime the workflow ended.",
+        "type": "string"
+      },
+      "workflow_link": {
+        "description": "A hyperlink or storage location for the workflow used.",
+        "type": "string"
+      },
+      "workflow_start_datetime": {
+        "description": "The datetime the workflow started.",
+        "type": "string"
+      },
+      "workflow_type": {
+        "term": {
+          "description": "Generic name for the workflow used to analyze a data set.\n"
+        },
+        "type": "string"
+      },
+      "workflow_version": {
+        "description": "The version number of the workflow.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "submitter_id",
+      "type",
+      "file_name",
+      "file_size",
+      "data_format",
+      "data_type",
+      "data_category",
+      "md5sum"
+    ],
+    "title": "Aligned Reads File",
+    "type": "object"
+  },
+  "aliquot": {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "additionalProperties": false,
+    "category": "biospecimen",
+    "description": "A portion of the original sample.",
+    "id": "aliquot",
+    "links": [
+      {
+        "backref": "aliquots",
+        "label": "derived_from",
+        "multiplicity": "many_to_many",
+        "name": "samples",
+        "required": true,
+        "target_type": "sample"
+      }
+    ],
+    "namespace": "https://gen3.datacommons.io/",
+    "nodeTerms": null,
+    "program": "*",
+    "project": "*",
+    "properties": {
+      "a260_a280_ratio": {
+        "description": "Ratio 260 and 280 nm",
+        "type": "number"
+      },
+      "aliquot_container": {
+        "description": "The device in which the final aliquot is held.",
+        "type": "string"
+      },
+      "aliquot_volume": {
+        "description": "The initial volume of the aliquot.",
+        "type": "number"
+      },
+      "aliquot_weight": {
+        "description": "The initial weight of the aliquot.",
+        "type": "number"
+      },
+      "analyte_qc_class": {
+        "description": "Term that best describes the analyte's QC Class.",
+        "type": "string"
+      },
+      "analyte_qc_status": {
+        "description": "Analyte QC Status",
+        "type": "string"
+      },
+      "analyte_type": {
+        "description": "Any aspect of an aliquot used in an analysis or assay to characterize the sample. These aspects range from molecules, such as DNA and RNA, that can be extracted from the aliquot to general descriptions of the aliquot's components, such as cell count and morphology (e.g., DNA, RNA, Leukocytes).",
+        "type": "string"
+      },
+      "clinical_or_contrived": {
+        "description": "Is the aliquot clinical or contrived?",
+        "type": "string"
+      },
+      "concentration": {
+        "description": "Concentration of the analyte in the aliquot.",
+        "type": "number"
+      },
+      "concentration_units": {
+        "description": "The units used for the analyte's concentration in the aliquot.",
+        "type": "string"
+      },
+      "contrivance_method": {
+        "description": "The name or general description of the contrivance(s) added to the biological aliquot. Alternatively, if you have provided a contrivance protocol, enter its file_name here.",
+        "type": "string"
+      },
+      "created_datetime": {
+        "oneOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "term": {
+          "description": "A combination of date and time of day in the form [-]CCYY-MM-DDThh:mm:ss[Z|(+|-)hh:mm]\n"
+        }
+      },
+      "days_to_aliquoting": {
+        "description": "The amount of time, in days, between the date used for index and the time the aliquot was separated from the whole sample.",
+        "type": "integer"
+      },
+      "days_to_assay": {
+        "description": "The amount of time, in days, between the date used for index and the assay used to address this analyte.",
+        "type": "integer"
+      },
+      "id": {
+        "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+        "systemAlias": "node_id",
+        "term": {
+          "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+          "termDef": {
+            "cde_id": "C54100",
+            "cde_version": null,
+            "source": "NCIt",
+            "term": "Universally Unique Identifier",
+            "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+          }
+        },
+        "type": "string"
+      },
+      "isolation_method": {
+        "description": "The name or general description of the method used to isolate the analyte. Alternatively, if you have provided a protocol, put the file_name here.",
+        "type": "string"
+      },
+      "label_name": {
+        "description": "The name of the label used in preparation of the analyte for analysis (e.g., Biotin).",
+        "type": "string"
+      },
+      "label_protocol": {
+        "description": "The protocol used to label the analyte (please either provide link to protocol/file or describe in free text).",
+        "type": "string"
+      },
+      "preservation_method": {
+        "term": {
+          "description": "Text term that represents the method used to preserve the sample.\n",
+          "termDef": {
+            "cde_id": 5432521,
+            "cde_version": 1.0,
+            "source": "caDSR",
+            "term": "Tissue Sample Preservation Method Type",
+            "term_url": "https://cdebrowser.nci.nih.gov/CDEBrowser/search?elementDetails=9&FirstTimer=0&PageId=ElementDetailsGroup&publicId=5432521&version=1.0"
+          }
+        },
+        "type": "string"
+      },
+      "project_id": {
+        "term": {
+          "description": "Unique ID for any specific defined piece of work that is undertaken or attempted to meet a single requirement.\n"
+        },
+        "type": "string"
+      },
+      "samples": {
+        "anyOf": [
+          {
+            "items": {
+              "additionalProperties": true,
+              "minItems": 1,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                  "term": {
+                    "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                    "termDef": {
+                      "cde_id": "C54100",
+                      "cde_version": null,
+                      "source": "NCIt",
+                      "term": "Universally Unique Identifier",
+                      "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                    }
+                  },
+                  "type": "string"
+                },
+                "submitter_id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": true,
+            "properties": {
+              "id": {
+                "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                "term": {
+                  "description": "A 128-bit identifier. Depending on the mechanism used to generate it, it is either guaranteed to be different from all other UUIDs/GUIDs generated until 3400 AD or extremely likely to be different. Its relatively small size lends itself well to sorting, ordering, and hashing of all sorts, storing in databases, simple allocation, and ease of programming in general.\n",
+                  "termDef": {
+                    "cde_id": "C54100",
+                    "cde_version": null,
+                    "source": "NCIt",
+                    "term": "Universally Unique Identifier",
+                    "term_url": "https://ncit.nci.nih.gov/ncitbrowser/ConceptReport.jsp?dictionary=NCI_Thesaurus&version=16.02d&ns=NCI_Thesaurus&code=C54100"
+                  }
+                },
+                "type": "string"
+              },
+              "submitter_id": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "state": {
+        "default": "validated",
+        "downloadable": [
+          "uploaded",
+          "md5summed",
+          "validating",
+          "validated",
+          "error",
+          "invalid",
+          "released"
+        ],
+        "oneOf": [
+          {
+            "enum": [
+              "uploading",
+              "uploaded",
+              "md5summing",
+              "md5summed",
+              "validating",
+              "error",
+              "invalid",
+              "suppressed",
+              "redacted",
+              "live"
+            ]
+          },
+          {
+            "enum": [
+              "validated",
+              "submitted",
+              "released"
+            ]
+          }
+        ],
+        "public": [
+          "live"
+        ],
+        "term": {
+          "description": "The current state of the object.\n"
+        }
+      },
+      "storage_temperature": {
+        "description": "The temperature, in centigrade, at which the aliquot was preserved and/or stored.",
+        "type": "number"
+      },
+      "subject_ids": {
+        "description": "A list of one or more subject submitter_ids associated with this data.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "submitter_id": {
+        "description": "A human-readable, unique identifier for a record in the metadata database. It can be used in place of the UUID for identifying or recalling a record (e.g., in data queries or uploads/exports).",
+        "type": "string"
+      },
+      "type": {
+        "description": "The node_id of the node in the data model; the name of the node used in queries and API requests (e.g., \"aligned_reads_file\" for the \"Aligned Reads File\" node).",
+        "type": "string"
+      },
+      "updated_datetime": {
+        "oneOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "term": {
+          "description": "A combination of date and time of day in the form [-]CCYY-MM-DDThh:mm:ss[Z|(+|-)hh:mm]\n"
+        }
+      },
+      "visit_id": {
+        "description": "The submitter_id of a subject's visit in the study.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "submitter_id",
+      "type",
+      "samples"
+    ],
+    "title": "Aliquot",
+    "type": "object"
+  },
   "sample": {
     "$schema": "http://json-schema.org/draft-04/schema#",
     "additionalProperties": false,

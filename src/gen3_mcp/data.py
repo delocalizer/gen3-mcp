@@ -98,6 +98,12 @@ class Gen3Service:
         This contains all the entity structure of full schema, but not entity
         properties. It is typically 10-30 times smaller.
         """
+        cache_key = "schema_summary"
+
+        if self._is_cache_valid(cache_key):
+            logger.debug("Using cached schema summary")
+            return self._cache[cache_key]
+
         full_schema = await self.get_schema_full()
 
         entities = {}
@@ -183,12 +189,15 @@ class Gen3Service:
                 entities_by_category[category] = []
             entities_by_category[category].append(entity_name)
 
-        return {
+        summary = {
             "total_entities": len(entities),
             "entities": entities,
             "entities_by_category": entities_by_category,
             "relationship_summary": relationship_summary,
         }
+
+        self._update_cache(cache_key, summary)
+        return summary
 
     async def get_entity_context(self, entity_name: str) -> dict[str, Any]:
         """
@@ -196,19 +205,25 @@ class Gen3Service:
 
         Returns:
         - Entity schema details
-        - Entities that link TO this entity (parents/upstream)
-        - Entities that this entity links TO (children/downstream)
+        - Entities that link TO this entity (children/downstream)
+        - Entities that this entity links TO (parents/upstream)
         - Backref names for GraphQL queries
         - Common query patterns
         """
+        cache_key = f"{entity_name}_context"
+
+        if self._is_cache_valid(cache_key):
+            logger.debug(f"Using cached {entity_name} context")
+            return self._cache[cache_key]
+
         full_schema = await self.get_schema_full()
         try:
             schema = full_schema[entity_name]
         except KeyError as ke:
             raise Gen3SchemaError from ke
 
-        # Find entities this entity links TO (children/downstream)
-        children = []
+        # Find entities this entity links TO (parents/upstream)
+        parents = []
         backref_fields = []
 
         links = schema.get("links", [])
@@ -226,7 +241,7 @@ class Gen3Service:
                                 "backref_field": sublink.get("backref"),
                                 "link_name": sublink.get("name"),
                             }
-                            children.append(child_info)
+                            parents.append(child_info)
                             if sublink.get("backref"):
                                 backref_fields.append(sublink.get("backref"))
                 else:
@@ -239,12 +254,12 @@ class Gen3Service:
                         "backref_field": link.get("backref"),
                         "link_name": link.get("name"),
                     }
-                    children.append(child_info)
+                    parents.append(child_info)
                     if link.get("backref"):
                         backref_fields.append(link.get("backref"))
 
-        # Find entities that link TO this entity (parents/upstream)
-        parents = []
+        # Find entities that link TO this entity (children/downstream)
+        children = []
         available_as_backref = []
 
         for other_entity_name, other_schema in full_schema.items():
@@ -271,7 +286,7 @@ class Gen3Service:
                                     "backref_field": sublink.get("backref"),
                                     "link_name": sublink.get("name"),
                                 }
-                                parents.append(parent_info)
+                                children.append(parent_info)
                                 if sublink.get("backref"):
                                     available_as_backref.append(sublink.get("backref"))
                     else:
@@ -285,14 +300,14 @@ class Gen3Service:
                                 "backref_field": link.get("backref"),
                                 "link_name": link.get("name"),
                             }
-                            parents.append(parent_info)
+                            children.append(parent_info)
                             if link.get("backref"):
                                 available_as_backref.append(link.get("backref"))
 
         # Generate common query patterns
         query_patterns = self._generate_query_patterns(entity_name, parents, children)
 
-        return {
+        context = {
             "entity_name": entity_name,
             "exists": True,
             "schema_summary": {
@@ -327,6 +342,29 @@ class Gen3Service:
             "query_patterns": query_patterns,
             "data_flow_position": self._determine_data_flow_position(parents, children),
         }
+
+        self._update_cache(cache_key, context)
+        return context
+
+    async def get_entity_fields(self, entity_name: str) -> set:
+        """Get all the direct fields (properties) on an entity"""
+        cache_key = f"{entity_name}_direct_fields"
+
+        if self._is_cache_valid(cache_key):
+            logger.debug(f"Using cached {entity_name} fields")
+            return self._cache[cache_key]
+
+        full_schema = await self.get_schema_full()
+        try:
+            schema = full_schema[entity_name]
+        except KeyError as ke:
+            raise Gen3SchemaError from ke
+
+        fields = set(
+            field_name for field_name, field in schema.get('properties', {}).items()
+        )
+        self._update_cache(cache_key, fields)
+        return fields
 
     def clear_cache(self):
         """Clear all cached data"""

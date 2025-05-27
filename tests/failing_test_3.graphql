@@ -1,0 +1,11 @@
+{
+  expression_file(first: 5) {
+    id
+    submitter_id
+    # ! expression_file does not link to sample except via aliquot
+    samples { 
+      id
+      submitter_id
+    }
+  }
+}
