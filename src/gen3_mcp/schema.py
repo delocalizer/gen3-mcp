@@ -252,6 +252,9 @@ class SchemaService:
                 ),  # Entities this one links to
                 "parent_count": len(parents),
                 "child_count": len(children),
+                "position_description": self._get_position_description(
+                    parents, children
+                ),
             },
             "graphql_fields": {
                 "backref_fields": sorted(
@@ -270,7 +273,6 @@ class SchemaService:
                 ],
             },
             "query_patterns": query_patterns,
-            "data_flow_position": self._determine_data_flow_position(parents, children),
         }
 
         self._update_cache(cache_key, context)
@@ -374,29 +376,27 @@ class SchemaService:
 
         return patterns
 
-    def _determine_data_flow_position(
+    def _get_position_description(
         self, parents: list, children: list
     ) -> dict[str, Any]:
         """Determine the entity's position in the typical data flow"""
         # Determine position
         position = "intermediate"
+        description = (
+            "Intermediate entity in the data hierarchy - connects other entities"
+        )
         if not parents:
             position = "root"
+            description = (
+                "Top-level entity (no parents) - likely administrative or entry point"
+            )
         elif not children:
             position = "leaf"
+            description = (
+                "End-point entity (no children) - likely data files or final results"
+            )
 
         return {
             "position": position,
-            "parent_count": len(parents),
-            "child_count": len(children),
-            "description": self._get_position_description(position),
+            "description": description,
         }
-
-    def _get_position_description(self, position: str) -> str:
-        """Get a human-readable description of the entity's position"""
-        descriptions = {
-            "root": "Top-level entity (no parents) - likely administrative or entry point",
-            "leaf": "End-point entity (no children) - likely data files or final results",
-            "intermediate": "Intermediate entity in the data hierarchy - connects other entities",
-        }
-        return descriptions.get(position, "Unknown position")

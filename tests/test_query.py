@@ -2,8 +2,8 @@
 
 import pytest
 
-from gen3_mcp.schema import SchemaService
 from gen3_mcp.query import QueryService
+from gen3_mcp.schema import SchemaService
 
 
 @pytest.mark.asyncio

@@ -45,7 +45,6 @@ async def test_get_entity_context_valid_entity(mock_client, config):
     assert "hierarchical_position" in result
     assert "graphql_fields" in result
     assert "query_patterns" in result
-    assert "data_flow_position" in result
 
     # Check schema summary
     schema_summary = result["schema_summary"]
@@ -60,6 +59,7 @@ async def test_get_entity_context_valid_entity(mock_client, config):
     assert "children" in hierarchical_position
     assert "parent_count" in hierarchical_position
     assert "child_count" in hierarchical_position
+    assert "position_description" in hierarchical_position
     assert isinstance(hierarchical_position["parents"], list)
     assert isinstance(hierarchical_position["children"], list)
 
@@ -79,11 +79,11 @@ async def test_get_entity_context_valid_entity(mock_client, config):
     assert "usage_examples" in query_patterns
     assert "subject" in query_patterns["basic_query"]
 
-    # Check data flow position
-    data_flow_position = result["data_flow_position"]
-    assert "position" in data_flow_position
-    assert "description" in data_flow_position
-    assert data_flow_position["position"] in ["root", "leaf", "intermediate"]
+    # Check position description
+    position_description = hierarchical_position["position_description"]
+    assert "position" in position_description
+    assert "description" in position_description
+    assert position_description["position"] in ["root", "leaf", "intermediate"]
 
 
 @pytest.mark.asyncio
@@ -163,21 +163,21 @@ async def test_generate_query_patterns(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_determine_data_flow_position(mock_client, config):
+async def test_get_position_description(mock_client, config):
     """Test data flow position determination"""
     service = SchemaService(mock_client, config)
 
     # Test root entity (no parents)
-    root_position = service._determine_data_flow_position([], [{"entity": "sample"}])
+    root_position = service._get_position_description([], [{"entity": "sample"}])
     assert root_position["position"] == "root"
     assert "description" in root_position
 
     # Test leaf entity (no children)
-    leaf_position = service._determine_data_flow_position([{"entity": "subject"}], [])
+    leaf_position = service._get_position_description([{"entity": "subject"}], [])
     assert leaf_position["position"] == "leaf"
 
     # Test intermediate entity
-    intermediate_position = service._determine_data_flow_position(
+    intermediate_position = service._get_position_description(
         [{"entity": "study"}], [{"entity": "sample"}]
     )
     assert intermediate_position["position"] == "intermediate"

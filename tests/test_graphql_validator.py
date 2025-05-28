@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-from graphql import GraphQLSyntaxError
 
 from gen3_mcp.graphql_validator import validate_graphql
 from gen3_mcp.schema_extract import SchemaExtract

@@ -45,8 +45,8 @@ def test_imports():
         Gen3Client,
         Gen3Config,
         Gen3MCPError,
-        SchemaService,
         QueryService,
+        SchemaService,
     )
 
     # Should not raise any import errors

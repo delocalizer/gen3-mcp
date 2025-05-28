@@ -7,9 +7,9 @@ from mcp.server.fastmcp import FastMCP
 
 from .client import Gen3Client
 from .config import Gen3Config, setup_logging
-from .schema import SchemaService
 from .query import QueryService
 from .resources import register_resources
+from .schema import SchemaService
 
 logger = logging.getLogger("gen3-mcp.main")
 

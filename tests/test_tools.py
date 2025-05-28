@@ -137,7 +137,7 @@ class TestSchemaTools:
                     "Access linked data via: samples",
                 ],
             },
-            "data_flow_position": {
+            "position_type": {
                 "position": "intermediate",
                 "parent_count": 1,
                 "child_count": 1,
@@ -153,7 +153,7 @@ class TestSchemaTools:
         assert "hierarchical_position" in result
         assert "graphql_fields" in result
         assert "query_patterns" in result
-        assert "data_flow_position" in result
+        assert "position_type" in result
 
         # Check that hierarchical position contains expected structure
         hierarchical_position = result["hierarchical_position"]

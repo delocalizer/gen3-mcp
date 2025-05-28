@@ -178,7 +178,7 @@ def create_test_services():
             "with_relationships": [],
             "usage_examples": ["Use subject as starting point"],
         },
-        "data_flow_position": {"position": "root", "description": "Top-level entity"},
+        "position_type": {"position": "root", "description": "Top-level entity"},
     }
 
     mock_query_service.field_sample.return_value = {

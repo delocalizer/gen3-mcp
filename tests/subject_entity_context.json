@@ -42,7 +42,11 @@
       }
     ],
     "parent_count": 1,
-    "child_count": 2
+    "child_count": 2,
+    "position_description": {
+      "position": "intermediate",
+      "description": "Intermediate entity in the data hierarchy - connects other entities"
+    }
   },
   "graphql_fields": {
     "backref_fields": [
@@ -120,11 +124,5 @@
       "Query subject fields: id, submitter_id, type",
       "Access linked data via: studies, aligned_reads_files, samples"
     ]
-  },
-  "data_flow_position": {
-    "position": "intermediate",
-    "parent_count": 1,
-    "child_count": 2,
-    "description": "Intermediate entity in the data hierarchy - connects other entities"
   }
 }
