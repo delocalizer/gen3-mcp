@@ -42,7 +42,7 @@ async def test_get_entity_context_valid_entity(mock_client, config):
     assert result["entity_name"] == "subject"
     assert result["exists"] is True
     assert "schema_summary" in result
-    assert "hierarchical_position" in result
+    assert "relationships" in result
     assert "graphql_fields" in result
     assert "query_patterns" in result
 
@@ -54,18 +54,17 @@ async def test_get_entity_context_valid_entity(mock_client, config):
     assert "total_properties" in schema_summary
 
     # Check hierarchical position
-    hierarchical_position = result["hierarchical_position"]
-    assert "parents" in hierarchical_position
-    assert "children" in hierarchical_position
-    assert "parent_count" in hierarchical_position
-    assert "child_count" in hierarchical_position
-    assert "position_description" in hierarchical_position
-    assert isinstance(hierarchical_position["parents"], list)
-    assert isinstance(hierarchical_position["children"], list)
+    relationships = result["relationships"]
+    assert "parents" in relationships
+    assert "children" in relationships
+    assert "parent_count" in relationships
+    assert "child_count" in relationships
+    assert "position_description" in relationships
+    assert isinstance(relationships["parents"], list)
+    assert isinstance(relationships["children"], list)
 
     # Check GraphQL fields
     graphql_fields = result["graphql_fields"]
-    assert "backref_fields" in graphql_fields
     assert "available_as_backref" in graphql_fields
     assert "direct_fields" in graphql_fields
     assert "system_fields" in graphql_fields
@@ -80,7 +79,7 @@ async def test_get_entity_context_valid_entity(mock_client, config):
     assert "subject" in query_patterns["basic_query"]
 
     # Check position description
-    position_description = hierarchical_position["position_description"]
+    position_description = relationships["position_description"]
     assert "position" in position_description
     assert "description" in position_description
     assert position_description["position"] in ["root", "leaf", "intermediate"]
@@ -94,19 +93,18 @@ async def test_get_entity_context_relationships(mock_client, config):
     result = await service.get_entity_context("subject")
 
     # Subject should have children (samples) based on our mock schema
-    hierarchical_position = result["hierarchical_position"]
-    assert hierarchical_position["child_count"] > 0
+    relationships = result["relationships"]
+    assert relationships["child_count"] > 0
 
     # Check that children are properly structured
-    children = hierarchical_position["children"]
+    children = relationships["children"]
     assert len(children) > 0
 
     for child in children:
         assert "entity" in child
         assert "relationship" in child
         assert "multiplicity" in child
-        assert "required" in child
-        assert "backref_field" in child
+        assert "link_name" in child
 
 
 @pytest.mark.asyncio
@@ -115,6 +113,8 @@ async def test_get_entity_context_details(mock_client, config, reference_context
     service = SchemaService(mock_client, config)
 
     result = await service.get_entity_context("subject")
+
+    print(json.dumps(result))
 
     # reference_context is farily  large; inspect file by eye for details
     TestCase().assertDictEqual(result, reference_context)
@@ -237,8 +237,7 @@ async def test_query_patterns_relationship_query_validation(mock_client, config)
 
     # Mock hierarchical data with children that have backref_fields
     children = [
-        {"entity": "sample", "relationship": "related_to", "backref_field": "samples"},
-        {"entity": "study", "relationship": "member_of", "backref_field": "studies"},
+        {"entity": "sample", "relationship": "related_to", "link_name": "samples"},
     ]
 
     # Generate query patterns

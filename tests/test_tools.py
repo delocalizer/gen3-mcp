@@ -92,7 +92,7 @@ class TestSchemaTools:
                 "total_properties": 7,
                 "required_fields": ["submitter_id", "type"],
             },
-            "hierarchical_position": {
+            "relationships": {
                 "parents": [
                     {
                         "entity": "study",
@@ -150,17 +150,17 @@ class TestSchemaTools:
         assert result["entity_name"] == "subject"
         assert result["exists"] is True
         assert "schema_summary" in result
-        assert "hierarchical_position" in result
+        assert "relationships" in result
         assert "graphql_fields" in result
         assert "query_patterns" in result
         assert "position_type" in result
 
         # Check that hierarchical position contains expected structure
-        hierarchical_position = result["hierarchical_position"]
-        assert hierarchical_position["parent_count"] == 1
-        assert hierarchical_position["child_count"] == 1
-        assert len(hierarchical_position["parents"]) == 1
-        assert len(hierarchical_position["children"]) == 1
+        relationships = result["relationships"]
+        assert relationships["parent_count"] == 1
+        assert relationships["child_count"] == 1
+        assert len(relationships["parents"]) == 1
+        assert len(relationships["children"]) == 1
 
         # Check GraphQL fields structure
         graphql_fields = result["graphql_fields"]

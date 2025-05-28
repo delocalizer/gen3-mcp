@@ -143,92 +143,47 @@ class SchemaService:
             return self._cache[cache_key]
 
         full_schema = await self.get_schema_full()
-        try:
-            schema = full_schema[entity_name]
-        except KeyError as ke:
-            raise Gen3SchemaError from ke
+        entity_schema = full_schema[entity_name]
 
-        # Find entities this entity links TO (parents/upstream)
+        # entities this entity links TO (parents/upstream)
         parents = []
-        backref_fields = []
-
-        links = schema.get("links", [])
-        for link in links:
-            if isinstance(link, dict):
-                # Handle subgroup links (common in Gen3)
-                if "subgroup" in link:
-                    for sublink in link.get("subgroup", []):
-                        if isinstance(sublink, dict):
-                            child_info = {
-                                "entity": sublink.get("target_type"),
-                                "relationship": sublink.get("label", "related_to"),
-                                "multiplicity": sublink.get("multiplicity", "unknown"),
-                                "required": sublink.get("required", False),
-                                "backref_field": sublink.get("backref"),
-                                "link_name": sublink.get("name"),
-                            }
-                            parents.append(child_info)
-                            if sublink.get("backref"):
-                                backref_fields.append(sublink.get("backref"))
-                else:
-                    # Direct link
-                    child_info = {
-                        "entity": link.get("target_type"),
-                        "relationship": link.get("label", "related_to"),
-                        "multiplicity": link.get("multiplicity", "unknown"),
-                        "required": link.get("required", False),
-                        "backref_field": link.get("backref"),
-                        "link_name": link.get("name"),
-                    }
-                    parents.append(child_info)
-                    if link.get("backref"):
-                        backref_fields.append(link.get("backref"))
-
-        # Find entities that link TO this entity (children/downstream)
+        # entities that link TO this entity (children/downstream)
         children = []
         available_as_backref = []
 
-        for other_entity_name, other_schema in full_schema.items():
-            if not isinstance(other_schema, dict):
-                continue
+        for other_entity_name, schema in full_schema.items():
+            links = [link for link in schema.get("links", []) if "subgroup" not in link]
+            # Handle subgroup links (common in Gen3)
+            links.extend(
+                [
+                    sublink
+                    for link in schema.get("links",[])
+                    for sublink in link.get("subgroup", [])
+                ]
+            )
 
-            other_links = other_schema.get("links", [])
-            for link in other_links:
-                if isinstance(link, dict):
-                    # Handle subgroup links
-                    if "subgroup" in link:
-                        for sublink in link.get("subgroup", []):
-                            if (
-                                isinstance(sublink, dict)
-                                and sublink.get("target_type") == entity_name
-                            ):
-                                parent_info = {
-                                    "entity": other_entity_name,
-                                    "relationship": sublink.get("label", "related_to"),
-                                    "multiplicity": sublink.get(
-                                        "multiplicity", "unknown"
-                                    ),
-                                    "required": sublink.get("required", False),
-                                    "backref_field": sublink.get("backref"),
-                                    "link_name": sublink.get("name"),
-                                }
-                                children.append(parent_info)
-                                if sublink.get("backref"):
-                                    available_as_backref.append(sublink.get("backref"))
-                    else:
-                        # Direct link
-                        if link.get("target_type") == entity_name:
-                            parent_info = {
-                                "entity": other_entity_name,
-                                "relationship": link.get("label", "related_to"),
-                                "multiplicity": link.get("multiplicity", "unknown"),
-                                "required": link.get("required", False),
-                                "backref_field": link.get("backref"),
-                                "link_name": link.get("name"),
-                            }
-                            children.append(parent_info)
-                            if link.get("backref"):
-                                available_as_backref.append(link.get("backref"))
+            for link in links:
+                # this entity links to ours (child)
+                if link["target_type"] == entity_name:
+                    children.append(
+                        {
+                            "entity": other_entity_name,
+                            "link_name": link["backref"],
+                            "relationship": link["label"],
+                            "multiplicity": link["multiplicity"],
+                        }
+                    )
+                    available_as_backref.append(link["backref"])
+                # this is our entity; links are to parents
+                elif other_entity_name == entity_name:
+                    parents.append(
+                        {
+                            "entity": link["target_type"],
+                            "link_name": link["name"],
+                            "relationship": link["label"],
+                            "multiplicity": link["multiplicity"],
+                        }
+                    )
 
         # Generate common query patterns
         query_patterns = self._generate_query_patterns(entity_name, parents, children)
@@ -237,13 +192,13 @@ class SchemaService:
             "entity_name": entity_name,
             "exists": True,
             "schema_summary": {
-                "title": schema.get("title", ""),
-                "description": schema.get("description", ""),
-                "category": schema.get("category", ""),
-                "total_properties": len(schema.get("properties", {})),
-                "required_fields": schema.get("required", []),
+                "title": entity_schema.get("title", ""),
+                "description": entity_schema.get("description", ""),
+                "category": entity_schema.get("category", ""),
+                "total_properties": len(entity_schema.get("properties", {})),
+                "required_fields": entity_schema.get("required", []),
             },
-            "hierarchical_position": {
+            "relationships": {
                 "parents": sorted(
                     parents, key=lambda x: x["entity"]
                 ),  # Entities that link to this one
@@ -257,13 +212,10 @@ class SchemaService:
                 ),
             },
             "graphql_fields": {
-                "backref_fields": sorted(
-                    set(backref_fields)
-                ),  # Fields available when linking FROM this entity
                 "available_as_backref": sorted(
                     set(available_as_backref)
                 ),  # This entity available as backref field
-                "direct_fields": sorted(schema.get("properties", {}).keys()),
+                "direct_fields": sorted(entity_schema.get("properties", {}).keys()),
                 "system_fields": [
                     "id",
                     "submitter_id",
@@ -334,12 +286,12 @@ class SchemaService:
         # 2. Generate patterns for child relationships (entities that link TO this entity)
         if children:
             for child in children[:2]:  # Limit to 2 examples
-                if child.get("backref_field"):
+                if child.get("link_name"):
                     example = f"""{{
     {entity_name}(first: 5) {{
         id
         submitter_id
-        {child['backref_field']} {{
+        {child['link_name']} {{
             id
             submitter_id
         }}
@@ -364,9 +316,7 @@ class SchemaService:
             parent_fields = [p.get("link_name") for p in parents if p.get("link_name")]
             relationship_fields.extend(parent_fields)
         if children:
-            child_fields = [
-                c.get("backref_field") for c in children if c.get("backref_field")
-            ]
+            child_fields = [c.get("link_name") for c in children if c.get("link_name")]
             relationship_fields.extend(child_fields)
 
         if relationship_fields:

@@ -161,7 +161,7 @@ def create_test_services():
             "total_properties": 7,
             "required_fields": ["submitter_id", "type"],
         },
-        "hierarchical_position": {
+        "relationships": {
             "parents": [],
             "children": [{"entity": "sample", "backref_field": "samples"}],
             "parent_count": 0,

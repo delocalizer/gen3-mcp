@@ -12,33 +12,27 @@
       "studies"
     ]
   },
-  "hierarchical_position": {
+  "relationships": {
     "parents": [
       {
         "entity": "study",
+        "link_name": "studies",
         "relationship": "member_of",
-        "multiplicity": "many_to_many",
-        "required": true,
-        "backref_field": "subjects",
-        "link_name": "studies"
+        "multiplicity": "many_to_many"
       }
     ],
     "children": [
       {
         "entity": "aligned_reads_file",
+        "link_name": "aligned_reads_files",
         "relationship": "data_from",
-        "multiplicity": "many_to_one",
-        "required": false,
-        "backref_field": "aligned_reads_files",
-        "link_name": "subjects"
+        "multiplicity": "many_to_one"
       },
       {
         "entity": "sample",
+        "link_name": "samples",
         "relationship": "related_to",
-        "multiplicity": "many_to_one",
-        "required": true,
-        "backref_field": "samples",
-        "link_name": "subjects"
+        "multiplicity": "many_to_one"
       }
     ],
     "parent_count": 1,
@@ -49,9 +43,6 @@
     }
   },
   "graphql_fields": {
-    "backref_fields": [
-      "subjects"
-    ],
     "available_as_backref": [
       "aligned_reads_files",
       "samples"
