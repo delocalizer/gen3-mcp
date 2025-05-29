@@ -1,13 +1,16 @@
-# Data structure extracted from full Gen3 schema for GraphQL validation
+"""Data structure extracted from full Gen3 schema for GraphQL validation."""
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger("gen3-mcp.schema_extract")
 
 
 @dataclass
 class Relationship:
-    """A relationship between entities"""
+    """A relationship between entities."""
 
     name: str  # The field name used in GraphQL (e.g., "studies")
     target_type: str  # The target entity type (e.g., "study")
@@ -16,7 +19,7 @@ class Relationship:
 
 @dataclass
 class EntitySchema:
-    """Minimal entity schema for GraphQL validation"""
+    """Minimal entity schema for GraphQL validation."""
 
     name: str  # Entity name (e.g., "subject")
     fields: set[str]  # All valid scalar fields
@@ -24,30 +27,45 @@ class EntitySchema:
 
 
 class SchemaExtract:
-    """Minimal schema structure for efficient GraphQL validation"""
+    """Minimal schema structure for efficient GraphQL validation."""
 
     # Simple static cache for schema extract (once per execution)
     _cached_extract: "SchemaExtract" = None
 
     def __init__(self):
+        """Initialize SchemaExtract."""
         self.entities: dict[str, EntitySchema] = {}
 
     @classmethod
-    def clear_cache(cls):
-        """Clear the cached schema extract (useful for testing)"""
+    def clear_cache(cls) -> None:
+        """Clear the cached schema extract (useful for testing)."""
         cls._cached_extract = None
 
     @classmethod
     def from_full_schema(cls, full_schema: dict[str, Any]) -> "SchemaExtract":
-        """Extract minimal validation schema from full Gen3 schema"""
+        """Extract minimal validation schema from full Gen3 schema.
+
+        Args:
+            full_schema: Full Gen3 schema dict.
+
+        Returns:
+            SchemaExtract instance with minimal schema for validation.
+        """
         # Return cached version if available
         if cls._cached_extract is not None:
+            logger.debug("Using cached schema extract")
             return cls._cached_extract
+
+        logger.debug("Creating new schema extract")
 
         # Create new extract
         extract = cls()
 
         for entity_name, entity_def in full_schema.items():
+            # Skip special keys
+            if entity_name.startswith("_"):
+                continue
+
             # Extract scalar fields from properties
             fields = set()
             properties = entity_def.get("properties", {})
@@ -80,14 +98,13 @@ class SchemaExtract:
 
                 # Process subgroup relationships
                 subgroup = link.get("subgroup", [])
-                if subgroup:
-                    for sublink in subgroup:
-                        if sublink.get("name") and sublink.get("target_type"):
-                            relationships[sublink["name"]] = Relationship(
-                                name=sublink["name"],
-                                target_type=sublink["target_type"],
-                                backref=sublink.get("backref", ""),
-                            )
+                for sublink in subgroup:
+                    if sublink.get("name") and sublink.get("target_type"):
+                        relationships[sublink["name"]] = Relationship(
+                            name=sublink["name"],
+                            target_type=sublink["target_type"],
+                            backref=sublink.get("backref", ""),
+                        )
 
             extract.entities[entity_name] = EntitySchema(
                 name=entity_name, fields=fields, relationships=relationships
@@ -98,12 +115,19 @@ class SchemaExtract:
 
         # Cache the result
         cls._cached_extract = extract
+        logger.info(f"Schema extract created with {len(extract.entities)} entities")
 
         return extract
 
     @classmethod
-    def _add_backref_relationships(cls, extract: "SchemaExtract"):
-        """Add backref relationships to entities"""
+    def _add_backref_relationships(cls, extract: "SchemaExtract") -> None:
+        """Add backref relationships to entities.
+
+        Args:
+            extract: SchemaExtract to add backrefs to.
+        """
+        logger.debug("Adding backref relationships")
+
         # For each entity's relationships, add the backref to the target entity
         for entity_name, entity in extract.entities.items():
             for rel in entity.relationships.values():
@@ -115,9 +139,22 @@ class SchemaExtract:
                     )
 
 
-# useful sometimes
 def extract_from_file(schema_file_path: str) -> SchemaExtract:
-    """Return schema extract read from full schema in a JSON file"""
+    """Return schema extract read from full schema in a JSON file.
+
+    Args:
+        schema_file_path: Path to JSON file containing full Gen3 schema.
+
+    Returns:
+        SchemaExtract instance.
+
+    Raises:
+        FileNotFoundError: If schema file not found.
+        json.JSONDecodeError: If schema file contains invalid JSON.
+    """
+    logger.debug(f"Extracting schema from file: {schema_file_path}")
+
     with open(schema_file_path) as f:
         full_schema = json.load(f)
+
     return SchemaExtract.from_full_schema(full_schema)

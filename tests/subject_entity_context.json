@@ -95,17 +95,17 @@
     "basic_query": "{\n    subject(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
     "with_relationships": [
       {
-        "description": "Get subject with linked study data",
+        "description": "Get subject with linked parent study data",
         "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n    }\n}",
         "target_entity": "study"
       },
       {
-        "description": "Get subject with linked aligned_reads_file data",
+        "description": "Get subject with linked child aligned_reads_file data",
         "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}",
         "target_entity": "aligned_reads_file"
       },
       {
-        "description": "Get subject with linked sample data",
+        "description": "Get subject with linked child sample data",
         "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}",
         "target_entity": "sample"
       }
