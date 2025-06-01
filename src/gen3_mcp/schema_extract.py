@@ -61,6 +61,7 @@ class SchemaSummary:
     description: str  # Entity description from schema
     category: str  # Entity category from schema
     required_fields: list[str]  # Required fields from schema
+    enum_fields: list[str]  # Fields that have enum constraints
     field_count: int  # Number of fields
     parent_count: int  # Number of parent relationships
     child_count: int  # Number of child relationships
@@ -227,11 +228,15 @@ def _create_schema_summary(
     # Determine position description
     position_desc = _get_position_description(parent_count, child_count)
 
+    # Extract enum fields
+    enum_fields = _extract_enum_fields(entity_def)
+
     return SchemaSummary(
         title=entity_def.get("title", ""),
         description=entity_def.get("description", ""),
         category=entity_def.get("category", ""),
         required_fields=entity_def.get("required", []),
+        enum_fields=enum_fields,
         field_count=len(entity.fields),
         parent_count=parent_count,
         child_count=child_count,
@@ -370,6 +375,27 @@ def _get_position_description(parent_count: int, child_count: int) -> dict[str, 
             "position": "intermediate",
             "description": "Intermediate entity in the data hierarchy - connects other entities",
         }
+
+
+def _extract_enum_fields(entity_def: dict[str, Any]) -> list[str]:
+    """Extract field names that have enum constraints from entity definition.
+
+    Args:
+        entity_def: The entity definition from the full schema.
+
+    Returns:
+        List of field names that have enum constraints.
+    """
+    enum_fields = []
+    properties = entity_def.get("properties", {})
+    
+    for field_name, field_def in properties.items():
+        # Only check if field has direct 'enum' property
+        # Ignore complex validation structures like oneOf with enums
+        if field_def.get("enum"):
+            enum_fields.append(field_name)
+    
+    return sorted(enum_fields)
 
 
 def extract_from_file(schema_file_path: str) -> SchemaExtract:
