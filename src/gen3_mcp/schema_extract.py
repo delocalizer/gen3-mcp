@@ -1,4 +1,8 @@
-"""Data structure extracted from full Gen3 schema for GraphQL validation."""
+"""
+Extract from full Gen3 schema. The two main purposes are to:
+1. make relationships explicit to facilitate GraphQL query validation.
+2. add schema annotations for consumption as context by MCP tools.
+"""
 
 import json
 import logging
@@ -34,16 +38,33 @@ class Relationship:
 
 
 @dataclass
+class SchemaSummary:
+    """Schema summary information for an entity."""
+
+    title: str  # Entity title from schema
+    description: str  # Entity description from schema
+    category: str  # Entity category from schema
+    required_fields: list[str]  # Required fields from schema
+    field_count: int  # Number of fields
+    parent_count: int  # Number of parent relationships
+    child_count: int  # Number of child relationships
+    position_description: dict[
+        str, str
+    ]  # Hierarchical position info with "position" and "description" keys
+
+
+@dataclass
 class EntitySchema:
-    """Minimal entity schema for GraphQL validation."""
+    """Annotated entity schema for GraphQL validation."""
 
     name: str  # Entity name (e.g., "subject")
     fields: set[str]  # All valid scalar fields
     relationships: dict[str, Relationship]  # Field name -> Relationship
+    schema_summary: SchemaSummary | None = None  # Schema summary information
 
 
 class SchemaExtract:
-    """Minimal schema structure for efficient GraphQL validation."""
+    """Annotated schema structure for efficient GraphQL validation."""
 
     # Simple static cache for schema extract (once per execution)
     _cached_extract: "SchemaExtract" = None
@@ -67,13 +88,13 @@ class SchemaExtract:
 
     @classmethod
     def from_full_schema(cls, full_schema: dict[str, Any]) -> "SchemaExtract":
-        """Extract minimal validation schema from full Gen3 schema.
+        """Extract annotated validation schema from full Gen3 schema.
 
         Args:
             full_schema: Full Gen3 schema dict.
 
         Returns:
-            SchemaExtract instance with minimal schema for validation.
+            SchemaExtract instance.
         """
         # Return cached version if available
         if cls._cached_extract is not None:
@@ -152,11 +173,80 @@ class SchemaExtract:
                 continue
             source.relationships[rel.name] = rel
 
+        # Add schema summary information and create final entities
+        for entity_name, entity in extract.entities.items():
+            entity_def = full_schema.get(entity_name)
+            if entity_def:
+                schema_summary = _create_schema_summary(entity, entity_def)
+                entity.schema_summary = schema_summary
+
         # Cache the result
         cls._cached_extract = extract
         logger.info(f"Schema extract created with {len(extract.entities)} entities")
 
         return extract
+
+
+def _create_schema_summary(
+    entity: EntitySchema, entity_def: dict[str, Any]
+) -> SchemaSummary:
+    """Create schema summary information for an entity.
+
+    Args:
+        entity: The EntitySchema instance.
+        entity_def: The entity definition from the full schema.
+
+    Returns:
+        SchemaSummary instance with all summary information.
+    """
+    # Count parent and child relationships
+    parent_count = sum(
+        1 for rel in entity.relationships.values() if rel.link_type == RelType.CHILD_OF
+    )
+    child_count = sum(
+        1 for rel in entity.relationships.values() if rel.link_type == RelType.PARENT_OF
+    )
+
+    # Determine position description
+    position_desc = _get_position_description(parent_count, child_count)
+
+    return SchemaSummary(
+        title=entity_def.get("title", ""),
+        description=entity_def.get("description", ""),
+        category=entity_def.get("category", ""),
+        required_fields=entity_def.get("required", []),
+        field_count=len(entity.fields),
+        parent_count=parent_count,
+        child_count=child_count,
+        position_description=position_desc,
+    )
+
+
+def _get_position_description(parent_count: int, child_count: int) -> dict[str, str]:
+    """Determine the entity's position in the typical data flow.
+
+    Args:
+        parent_count: Number of parent relationships.
+        child_count: Number of child relationships.
+
+    Returns:
+        Dict with "position" and "description" keys.
+    """
+    if parent_count == 0:
+        return {
+            "position": "root",
+            "description": "Top-level entity (no parents) - likely administrative or entry point",
+        }
+    elif child_count == 0:
+        return {
+            "position": "leaf",
+            "description": "End-point entity (no children) - likely data files or final results",
+        }
+    else:
+        return {
+            "position": "intermediate",
+            "description": "Intermediate entity in the data hierarchy - connects other entities",
+        }
 
 
 def extract_from_file(schema_file_path: str) -> SchemaExtract:

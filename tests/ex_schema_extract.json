@@ -46,6 +46,28 @@
         "link_multiplicity": "many_to_one",
         "link_label": "data_from"
       }
+    },
+    "schema_summary": {
+      "title": "Aligned Reads File",
+      "description": "Data file containing aligned reads.",
+      "category": "data_file",
+      "required_fields": [
+        "submitter_id",
+        "type",
+        "file_name",
+        "file_size",
+        "data_format",
+        "data_type",
+        "data_category",
+        "md5sum"
+      ],
+      "field_count": 26,
+      "parent_count": 2,
+      "child_count": 0,
+      "position_description": {
+        "position": "leaf",
+        "description": "End-point entity (no children) - likely data files or final results"
+      }
     }
   },
   "aliquot": {
@@ -95,6 +117,23 @@
         "link_type": "child_of",
         "link_multiplicity": "many_to_many",
         "link_label": "derived_from"
+      }
+    },
+    "schema_summary": {
+      "title": "Aliquot",
+      "description": "A portion of the original sample.",
+      "category": "biospecimen",
+      "required_fields": [
+        "submitter_id",
+        "type",
+        "samples"
+      ],
+      "field_count": 27,
+      "parent_count": 1,
+      "child_count": 1,
+      "position_description": {
+        "position": "intermediate",
+        "description": "Intermediate entity in the data hierarchy - connects other entities"
       }
     }
   },
@@ -152,6 +191,23 @@
         "link_multiplicity": "many_to_one",
         "link_label": "related_to"
       }
+    },
+    "schema_summary": {
+      "title": "Sample",
+      "description": "Any material sample taken from a biological entity for testing, diagnostic, propagation, treatment or research purposes, including a sample obtained from a living organism or taken from the biological object after halting of all its life functions. Biospecimen can contain one or more components including but not limited to cellular molecules, cells, tissues, organs, body fluids, embryos, and body excretory products. In the case of contrived samples, it describes any material obtained from a normal donor.",
+      "category": "biospecimen",
+      "required_fields": [
+        "submitter_id",
+        "type",
+        "subjects"
+      ],
+      "field_count": 33,
+      "parent_count": 1,
+      "child_count": 1,
+      "position_description": {
+        "position": "intermediate",
+        "description": "Intermediate entity in the data hierarchy - connects other entities"
+      }
     }
   },
   "study": {
@@ -181,6 +237,25 @@
         "link_type": "parent_of",
         "link_multiplicity": "many_to_many",
         "link_label": null
+      }
+    },
+    "schema_summary": {
+      "title": "Study",
+      "description": "A coordinated set of actions and observations designed to generate data, with the ultimate goal of discovery or hypothesis testing.",
+      "category": "administrative",
+      "required_fields": [
+        "submitter_id",
+        "type",
+        "data_description",
+        "study_description",
+        "projects"
+      ],
+      "field_count": 15,
+      "parent_count": 0,
+      "child_count": 1,
+      "position_description": {
+        "position": "root",
+        "description": "Top-level entity (no parents) - likely administrative or entry point"
       }
     }
   },
@@ -245,6 +320,23 @@
         "link_type": "child_of",
         "link_multiplicity": "many_to_many",
         "link_label": "member_of"
+      }
+    },
+    "schema_summary": {
+      "title": "Subject",
+      "description": "The collection of all data related to a specific subject in the context of a specific experiment.",
+      "category": "administrative",
+      "required_fields": [
+        "submitter_id",
+        "type",
+        "studies"
+      ],
+      "field_count": 33,
+      "parent_count": 1,
+      "child_count": 2,
+      "position_description": {
+        "position": "intermediate",
+        "description": "Intermediate entity in the data hierarchy - connects other entities"
       }
     }
   }
