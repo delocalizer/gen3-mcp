@@ -5,7 +5,6 @@ Takes a GraphQL query and minimal schema structure to validate field names and r
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from graphql import FieldNode, Visitor, parse, visit
 from graphql.error import GraphQLSyntaxError
@@ -13,6 +12,15 @@ from graphql.error import GraphQLSyntaxError
 from .schema_extract import EntitySchema, SchemaExtract
 
 logger = logging.getLogger("gen3-mcp.graphql_validator")
+
+
+@dataclass
+class EntityPath:
+    """Represents a path to an entity in the GraphQL query."""
+
+    entity_name: str
+    path: list[str]  # Full path from root to this entity
+    fields: list[str]  # Scalar fields for this entity
 
 
 @dataclass
@@ -27,31 +35,11 @@ class ValidationError:
 
 
 @dataclass
-class QueryNode:
-    """Represents a node in the validated GraphQL query tree."""
-
-    entity_name: str  # The name used in the query ("samples")
-    resolved_entity: str  # The schema entity it resolves to ("sample")
-    fields: list[str]  # Scalar fields selected
-    children: dict[str, "QueryNode"]  # Nested selections
-
-
-@dataclass
 class ValidationResult:
     """Result of GraphQL query validation."""
 
     is_valid: bool
     errors: list[ValidationError]
-    query_tree: Optional["QueryNode"]  # Hierarchical query structure
-
-
-@dataclass
-class EntityPath:
-    """Represents a path to an entity in the GraphQL query."""
-
-    entity_name: str
-    path: list[str]  # Full path from root to this entity
-    fields: list[str]  # Scalar fields for this entity
 
 
 class GraphQLFieldExtractor(Visitor):
@@ -130,126 +118,21 @@ def validate_graphql(query: str, schema: SchemaExtract) -> ValidationResult:
                     suggestions=[],
                 )
             ],
-            query_tree=None,
         )
 
     errors = []
 
     # Validate each entity path
     for entity_path in extractor.entity_paths.values():
+        # NOTE this collects all errors; a more efficient but less informative
+        # approach is to start at the shortest path and bail at the first error
         path_errors = _validate_entity_path(entity_path, schema)
         errors.extend(path_errors)
-
-    # Build query tree from validated paths
-    query_tree = (
-        _build_query_tree(extractor.entity_paths, schema)
-        if extractor.entity_paths
-        else None
-    )
 
     is_valid = len(errors) == 0
     logger.info(f"Validation complete - valid: {is_valid}, errors: {len(errors)}")
 
-    return ValidationResult(is_valid=is_valid, errors=errors, query_tree=query_tree)
-
-
-def _build_query_tree(
-    entity_paths: dict[str, EntityPath], schema: SchemaExtract
-) -> QueryNode | None:
-    """Build a hierarchical query tree from entity paths.
-
-    Args:
-        entity_paths: Dict of entity paths extracted from query.
-        schema: SchemaExtract for entity resolution.
-
-    Returns:
-        Root QueryNode or None if no root found.
-    """
-    if not entity_paths:
-        return None
-
-    # Find the root entity (path length 1)
-    root_path = next((ep for ep in entity_paths.values() if len(ep.path) == 1), None)
-
-    if not root_path:
-        return None
-
-    def build_node(current_path: list[str]) -> QueryNode:
-        # Find matching entity_path
-        matching_path = next(
-            (ep for ep in entity_paths.values() if ep.path == current_path), None
-        )
-
-        if not matching_path:
-            # Create minimal node if path not found
-            entity_name = current_path[-1]
-            return QueryNode(
-                entity_name=entity_name,
-                resolved_entity=entity_name,
-                fields=[],
-                children={},
-            )
-
-        # Determine resolved entity type
-        resolved_entity = _resolve_entity_type(current_path, schema)
-
-        # Build children for paths that extend this one
-        children = {}
-        current_path_str = "/".join(current_path)
-
-        for entity_path in entity_paths.values():
-            path_str = "/".join(entity_path.path)
-            # If this path extends current path by exactly one level
-            if (
-                path_str.startswith(current_path_str + "/")
-                and len(entity_path.path) == len(current_path) + 1
-            ):
-                child_name = entity_path.path[-1]
-                children[child_name] = build_node(entity_path.path)
-
-        return QueryNode(
-            entity_name=matching_path.entity_name,
-            resolved_entity=resolved_entity,
-            fields=matching_path.fields.copy(),
-            children=children,
-        )
-
-    return build_node(root_path.path)
-
-
-def _resolve_entity_type(path: list[str], schema: SchemaExtract) -> str:
-    """Resolve what schema entity type a path resolves to.
-
-    Args:
-        path: Entity path to resolve.
-        schema: SchemaExtract containing entity definitions.
-
-    Returns:
-        Resolved entity name.
-    """
-    if not path:
-        return "unknown"
-
-    # Start with root entity
-    if path[0] not in schema.entities:
-        return path[-1]  # Fallback to entity name
-
-    current_schema = schema.entities[path[0]]
-
-    # Walk through relationships
-    for i in range(1, len(path)):
-        relationship_name = path[i]
-        if relationship_name in current_schema.relationships:
-            relationship = current_schema.relationships[relationship_name]
-            target_schema = schema.entities.get(relationship.target_type)
-            if target_schema:
-                current_schema = target_schema
-            else:
-                return path[-1]  # Fallback
-        else:
-            return path[-1]  # Fallback
-
-    return current_schema.name
+    return ValidationResult(is_valid=is_valid, errors=errors)
 
 
 def _suggest_similar_strings(
@@ -276,37 +159,6 @@ def _suggest_similar_strings(
     # Sort by similarity (descending) and return just the strings
     suggestions.sort(key=lambda x: x[1], reverse=True)
     return [s[0] for s in suggestions[:3]]
-
-
-def _validate_direct_entity_fields(
-    entity_schema: EntitySchema, field_names: list[str]
-) -> list[ValidationError]:
-    """Validate fields against a specific entity schema.
-
-    Args:
-        entity_schema: Entity schema to validate against.
-        field_names: List of field names to validate.
-
-    Returns:
-        List of validation errors.
-    """
-    errors = []
-    all_valid_fields = entity_schema.fields | set(entity_schema.relationships.keys())
-
-    for field_name in field_names:
-        if field_name not in all_valid_fields:
-            suggestions = _suggest_similar_strings(field_name, all_valid_fields)
-            errors.append(
-                ValidationError(
-                    entity=entity_schema.name,
-                    field=field_name,
-                    error_type="unknown_field",
-                    message=f"Field '{field_name}' does not exist in entity '{entity_schema.name}'",
-                    suggestions=suggestions,
-                )
-            )
-
-    return errors
 
 
 def _validate_entity_path(
@@ -355,21 +207,8 @@ def _validate_entity_path(
             # Check if this is a valid relationship from parent
             if entity_name in current_entity_schema.relationships:
                 relationship = current_entity_schema.relationships[entity_name]
-                target_entity_schema = schema.entities.get(relationship.target_type)
-
-                if target_entity_schema:
-                    current_entity_schema = target_entity_schema
-                else:
-                    errors.append(
-                        ValidationError(
-                            entity=entity_name,
-                            field="",
-                            error_type="unknown_entity",
-                            message=f"Target entity '{relationship.target_type}' for relationship '{entity_name}' does not exist",
-                            suggestions=[],
-                        )
-                    )
-                    current_entity_schema = None
+                # by construction, each relationship.target_type is a valid key
+                current_entity_schema = schema.entities[relationship.target_type]
             else:
                 # Relationship not found
                 relationship_suggestions = _suggest_similar_strings(
@@ -392,5 +231,36 @@ def _validate_entity_path(
             current_entity_schema, entity_path.fields
         )
         errors.extend(field_errors)
+
+    return errors
+
+
+def _validate_direct_entity_fields(
+    entity_schema: EntitySchema, field_names: list[str]
+) -> list[ValidationError]:
+    """Validate fields against a specific entity schema.
+
+    Args:
+        entity_schema: Entity schema to validate against.
+        field_names: List of field names to validate.
+
+    Returns:
+        List of validation errors.
+    """
+    errors = []
+    all_valid_fields = entity_schema.fields | set(entity_schema.relationships.keys())
+
+    for field_name in field_names:
+        if field_name not in all_valid_fields:
+            suggestions = _suggest_similar_strings(field_name, all_valid_fields)
+            errors.append(
+                ValidationError(
+                    entity=entity_schema.name,
+                    field=field_name,
+                    error_type="unknown_field",
+                    message=f"Field '{field_name}' does not exist in entity '{entity_schema.name}'",
+                    suggestions=suggestions,
+                )
+            )
 
     return errors

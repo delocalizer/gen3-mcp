@@ -13,10 +13,34 @@
           {
             "backref": "aligned_reads_files",
             "label": "data_from",
+            "multiplicity": "many_to_one",
+            "name": "core_metadata_collections",
+            "required": false,
+            "target_type": "core_metadata_collection"
+          },
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
+            "multiplicity": "many_to_many",
+            "name": "unaligned_reads_files",
+            "required": false,
+            "target_type": "unaligned_reads_file"
+          },
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
             "multiplicity": "many_to_many",
             "name": "aliquots",
             "required": false,
             "target_type": "aliquot"
+          },
+          {
+            "backref": "aligned_reads_files",
+            "label": "data_from",
+            "multiplicity": "many_to_many",
+            "name": "read_groups",
+            "required": false,
+            "target_type": "read_group"
           },
           {
             "backref": "aligned_reads_files",

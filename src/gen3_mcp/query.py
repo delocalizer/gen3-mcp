@@ -75,7 +75,7 @@ class QueryService:
                     )
                 elif "type" in lower_msg:
                     suggestions.append(
-                        "Check entity names with schema_summary() or schema_entity_context()"
+                        "Check entity names with annotated_schema_structure()"
                     )
 
             if suggestions:
@@ -129,10 +129,12 @@ class QueryService:
             entity = schema_extract.entities[entity_name]
 
             # Build template fields
-            basic_fields = ["id", "submitter_id", "type"]
-            entity_fields = [f for f in list(entity.fields) if f not in basic_fields][
-                : max_fields - 3
-            ]
+            required = entity.schema_summary.required_fields
+            relations = list(entity.relationships)
+            basic_fields = ["id"] + [f for f in required if f not in relations]
+            entity_fields = [
+                f for f in entity.schema_summary.enum_fields if f not in basic_fields
+            ][: max_fields - len(basic_fields)]
             template_fields = basic_fields + entity_fields
 
             # Generate the template
@@ -140,18 +142,14 @@ class QueryService:
             template_lines.extend(f"    {field}" for field in template_fields)
 
             # Add relationship examples
-            relationship_fields = []
             if include_relationships:
-                for rel_name, rel in list(entity.relationships.items())[:3]:
-                    relationship_fields.append(
-                        {"name": rel_name, "target_type": rel.target_type}
-                    )
+                for rel_name, _rel in list(entity.relationships.items())[:5]:
                     template_lines.extend(
                         [
-                            f"    # {rel_name} {{",
-                            "    #     id",
-                            "    #     submitter_id",
-                            "    # }",
+                            f"    {rel_name} {{",
+                            "        id",
+                            "        submitter_id",
+                            "    }",
                         ]
                     )
 
@@ -167,10 +165,6 @@ class QueryService:
                 "entity_name": entity_name,
                 "exists": True,
                 "template": full_template,
-                "basic_fields": basic_fields,
-                "entity_fields": entity_fields,
-                "relationship_fields": relationship_fields,
-                "total_fields": len(template_fields),
             }
 
         except Exception as e:
@@ -200,7 +194,6 @@ class QueryService:
         # Convert to expected MCP response format
         response = {
             "valid": result.is_valid,
-            "query_tree": result.query_tree,
             "errors": [
                 {
                     "entity": err.entity,
@@ -218,8 +211,7 @@ class QueryService:
             response["next_steps"] = {
                 "suggestions": [
                     "Fix the validation errors using the suggestions above",
-                    "Use schema_entity_context() to see available fields and relationships for an entity",
-                    "Use schema_summary() to see available entities",
+                    "Use annotated_schema_structure() to see available entities and fields",
                 ],
                 "workflow": [
                     "1. Fix the validation errors using the suggestions above",

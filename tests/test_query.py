@@ -30,6 +30,33 @@ async def test_generate_query_template(mock_client, config):
 
     assert template["exists"]
     assert template["template"] is not None
-    assert "id" in template["basic_fields"]
-    assert "submitter_id" in template["basic_fields"]
-    assert len(template["relationship_fields"]) > 0
+    assert (
+        template["template"]
+        == """{
+    subject(first: 10) {
+        id
+        submitter_id
+        type
+        age_at_enrollment_gt89
+        ethnicity
+        gender
+        handedness
+        index_date
+        index_event_status
+        lost_to_followup
+        race
+        aligned_reads_files {
+            id
+            submitter_id
+        }
+        samples {
+            id
+            submitter_id
+        }
+        studies {
+            id
+            submitter_id
+        }
+    }
+}"""
+    )

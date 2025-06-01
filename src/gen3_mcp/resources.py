@@ -61,17 +61,12 @@ def get_tools_by_category_resource() -> dict[str, Any]:
     """
     return {
         "schema_discovery": {
-            "description": "Understand the data model and available entities",
+            "description": "Understand the detailed data model, and example query patterns",
             "tools": [
                 {
-                    "name": "schema_summary",
-                    "purpose": "Get overview of all entities and categories",
-                    "when_to_use": "Starting exploration, understanding data structure",
-                },
-                {
-                    "name": "schema_entity_context",
-                    "purpose": "Entity context with hierarchical position and GraphQL field names",
-                    "when_to_use": "Understanding entity relationships and how to query linked data",
+                    "name": "annotated_schema_structure",
+                    "purpose": "Get complete schema with all entities, relationships, and query patterns",
+                    "when_to_use": "Starting exploration, understanding data structure, and getting entity-specific context for constructing new queries",
                 },
             ],
         },
@@ -81,12 +76,12 @@ def get_tools_by_category_resource() -> dict[str, Any]:
                 {
                     "name": "query_template",
                     "purpose": "Generate safe query starting templates",
-                    "when_to_use": "ALWAYS start here for new queries",
+                    "when_to_use": "Start here for new queries",
                 },
                 {
                     "name": "validate_query",
                     "purpose": "Check query syntax and field names",
-                    "when_to_use": "Before executing any modified query",
+                    "when_to_use": "ALWAYS use before executing any modified query",
                 },
             ],
         },
@@ -102,8 +97,7 @@ def get_tools_by_category_resource() -> dict[str, Any]:
         },
         "workflow_guidance": {
             "discovery_workflow": [
-                "1. schema_summary() - overview",
-                "2. schema_entity_context(entity_name) - hierarchical context",
+                "1. annotated_schema_structure() - complete schema with all entity details and relationships",
             ],
             "query_workflow": [
                 "1. query_template(entity_name) - safe starting point",
@@ -123,29 +117,32 @@ def get_workflow_resource() -> str:
     return """Gen3 Data Commons Exploration Workflow
 
 == DISCOVERY PHASE ==
-1. schema_summary() - Get overview of all entities and categories
-2. schema_entity_context(entity_name=<entity>) - Get hierarchical context and GraphQL field names
-   Use an entity name from step 1, often starting with core entities like study participants
+1. annotated_schema_structure() - Get complete schema with all entities, relationships,
+   and query patterns. This includes hierarchical context and GraphQL fields for all entities.
+   TIP: use the patterns in <entity>.query_patterns.complex_queries as example GraphQL queries
+   to start data exploration
 
 == DATA DISCOVERY - QUERY BUILDING PHASE ==
-3. query_template(entity_name=<entity>) - Generate safe starting template
-   (alternative: look at query_patterns in the data returned by schema_entity_context)
-4. Modify the template as needed for your use case
-5. validate_query(query="...") - Check syntax and field names
+2. query_template(entity_name=<entity>) - Generate safe starting template
+3. Modify the template as needed for your use case
+4. validate_query(query="...") - ALWAYS Check syntax and field names before execution
    (on failure, take note of suggestions in the response)
-6. execute_graphql(query="...") - Run your validated query
+5. execute_graphql(query="...") - Run your validated query
 
 == KEY PRINCIPLES ==
-- Use schema_summary to understand relationships and discover entity names
-- Always start with templates rather than writing queries from scratch
-- Validate before executing to catch field name errors
+- Use annotated_schema_structure to understand relationships, discover entity names,
+  and learn example query patterns for each entity
+- The count of relationships in each annotated_schema_structure entity is a direct
+  measure of how connected that entity is
+- Use query_template as the basis for constructing queries rather than
+  writing queries from scratch
+- ALWAYS validate queries before executing to catch field name errors
 - Use suggestions to fix invalid entity and field names
-- Entity and field names vary by commons - always discover them first
 
 == COMMONS-AGNOSTIC APPROACH ==
-- Start with schema_summary() to see what entities exist in your specific commons
-- Common entity patterns: studies, participants/subjects, samples, files
-- Use schema_entity_context() to see available fields and relationships for any entity
+- Entity and field names vary by commons - always discover them first
+- Start with annotated_schema_structure() to see what entities exist in your specific
+  commons, and what available fields and relations they have
 
 This workflow prevents field name hallucinations and reduces query failures."""
 

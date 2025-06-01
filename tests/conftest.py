@@ -94,109 +94,27 @@ def create_test_services():
 
     # Load schema to get realistic data
     schema = load_test_schema()
-    entity_names = list(schema.keys())
-
-    # Categorize entities based on their actual category property
-    entities_by_category = {}
-    for entity_name, entity_schema in schema.items():
-        category = entity_schema.get("category", "unknown")
-        if category not in entities_by_category:
-            entities_by_category[category] = []
-        entities_by_category[category].append(entity_name)
-
-    # Set up mock returns for common service calls
-    mock_gen3_service.get_schema_summary.return_value = {
-        "total_entities": len(entity_names),
-        "entity_names": entity_names,
-        "entities_by_category": entities_by_category,
-    }
 
     mock_gen3_service.get_schema_full.return_value = schema
 
-    # Use realistic entity schema based on the actual schema
-    def get_entity_schema_side_effect(entity_name):
-        return schema.get(entity_name, {})
-
-    mock_gen3_service.get_entity_schema.side_effect = get_entity_schema_side_effect
-
-    mock_gen3_service.get_entity_names.return_value = entity_names
-
-    mock_gen3_service.get_detailed_entities.return_value = {
-        "total_entities": len(entity_names),
-        "entities": {
-            name: {"title": schema[name].get("title", name.replace("_", " ").title())}
-            for name in entity_names
-        },
-    }
-
-    mock_gen3_service.get_sample_records.return_value = {
-        "entity": "subject",
-        "sample_records": [
-            {
-                "id": "123e4567-e89b-12d3-a456-426614174000",
-                "submitter_id": "subject_001",
-                "gender": "Female",
-                "age_at_enrollment": 45,
-                "race": "White",
-                "ethnicity": "Not Hispanic or Latino",
-            }
-        ],
-    }
-
-    # Use realistic enum values from the actual schema
-    subject_gender_enum = schema["subject"]["properties"]["gender"]["enum"]
-    mock_gen3_service.explore_entity_data.return_value = {
-        "entity": "subject",
-        "schema_info": {"title": "Subject"},
-        "enum_fields": [{"field": "gender", "enum_values": subject_gender_enum}],
-    }
-
-    mock_gen3_service.get_entity_context.return_value = {
-        "entity_name": "subject",
-        "exists": True,
-        "schema_summary": {
-            "title": "Subject",
-            "description": "The collection of all data related to a specific subject",
-            "category": "administrative",
-            "total_properties": 7,
-            "required_fields": ["submitter_id", "type"],
-        },
-        "relationships": {
-            "parents": [],
-            "children": [{"entity": "sample", "backref_field": "samples"}],
-            "parent_count": 0,
-            "child_count": 1,
-        },
-        "graphql_fields": {
-            "backref_fields": ["samples"],
-            "available_as_backref": ["subjects"],
-            "direct_fields": ["id", "submitter_id", "gender"],
-            "system_fields": ["id", "submitter_id", "type"],
-        },
-        "query_patterns": {
-            "basic_query": "{ subject(first: 10) { id submitter_id type } }",
-            "with_relationships": [],
-            "usage_examples": ["Use subject as starting point"],
-        },
-        "position_type": {"position": "root", "description": "Top-level entity"},
-    }
-
-    mock_query_service.field_sample.return_value = {
-        "entity": "subject",
-        "field": "gender",
-        "values": {"Female": 5, "Male": 3, "Not Reported": 1, "Unknown": 1},
-    }
-
-    mock_query_service.validate_query_fields.return_value = {
-        "valid": True,
-        "extracted_fields": {"subject": ["id"]},
-        "validation_results": {},
-    }
-
+    # QueryService has 3 methods: generate_query_template, validate_query, execute_graphql
     mock_query_service.generate_query_template.return_value = {
         "entity_name": "subject",
         "exists": True,
         "template": "{ subject { id submitter_id } }",
+        "basic_fields": ["id", "submitter_id", "type"],
+        "entity_fields": ["gender", "age_at_enrollment"],
+        "relationship_fields": [],
+        "total_fields": 5,
+    }
+
+    mock_query_service.validate_query.return_value = {
+        "valid": True,
+        "errors": [],
+        "next_steps": {
+            "ready_to_execute": True,
+            "suggestion": "Query is valid! Use execute_graphql() to run it.",
+        },
     }
 
     mock_query_service.execute_graphql.return_value = {
@@ -205,6 +123,8 @@ def create_test_services():
                 {
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "submitter_id": "subject_001",
+                    "gender": "Female",
+                    "age_at_enrollment": 45,
                 }
             ]
         }
