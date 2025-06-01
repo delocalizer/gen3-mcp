@@ -4,6 +4,7 @@
     "fields": [
       "alignment_workflow",
       "associated_ids",
+      "created_datetime",
       "data_category",
       "data_format",
       "data_type",
@@ -15,10 +16,12 @@
       "molecular_tagging_workflow",
       "object_id",
       "project_id",
+      "state",
       "storage_urls",
       "subject_ids",
       "submitter_id",
       "type",
+      "updated_datetime",
       "visit_id",
       "workflow_end_datetime",
       "workflow_link",
@@ -59,6 +62,7 @@
       "concentration",
       "concentration_units",
       "contrivance_method",
+      "created_datetime",
       "days_to_aliquoting",
       "days_to_assay",
       "id",
@@ -67,10 +71,12 @@
       "label_protocol",
       "preservation_method",
       "project_id",
+      "state",
       "storage_temperature",
       "subject_ids",
       "submitter_id",
       "type",
+      "updated_datetime",
       "visit_id"
     ],
     "relationships": {
@@ -100,6 +106,7 @@
       "comments",
       "composition",
       "composition_other",
+      "created_datetime",
       "days_to_collection",
       "days_to_frozen",
       "days_to_shipped",
@@ -119,11 +126,13 @@
       "sample_volume",
       "sample_weight",
       "sample_year",
+      "state",
       "storage_temperature",
       "subject_ids",
       "submitter_id",
       "time_point",
       "type",
+      "updated_datetime",
       "visit_id"
     ],
     "relationships": {
@@ -149,17 +158,20 @@
     "name": "study",
     "fields": [
       "associated_study",
+      "created_datetime",
       "data_description",
       "id",
       "longitudinal",
       "project_id",
+      "state",
       "study_description",
       "study_design",
       "study_objective",
       "study_setup",
       "study_url",
       "submitter_id",
-      "type"
+      "type",
+      "updated_datetime"
     ],
     "relationships": {
       "subjects": {
@@ -182,6 +194,7 @@
       "birth_year",
       "collaboration_id",
       "comments",
+      "created_datetime",
       "days_to_birth",
       "days_to_immigration",
       "days_to_lost_to_followup",
@@ -201,9 +214,11 @@
       "race",
       "race_other",
       "species",
+      "state",
       "subject_ids",
       "submitter_id",
       "type",
+      "updated_datetime",
       "visit_id"
     ],
     "relationships": {

@@ -91,22 +91,6 @@ class SchemaExtract:
             if entity_name.startswith("_"):
                 continue
 
-            # Extract scalar fields from properties
-            fields = set()
-            properties = entity_def.get("properties", {})
-
-            for prop_name, prop_def in properties.items():
-                if isinstance(prop_def, dict):
-                    # Simple heuristic: if it has 'anyOf' with object refs, it's a parent relationship - handled in links
-                    if "anyOf" in prop_def:
-                        continue
-                    # If it's a simple type, it's a scalar field
-                    if "type" in prop_def or "enum" in prop_def:
-                        fields.add(prop_name)
-
-            # Add standard fields always available
-            fields.update(["id", "submitter_id", "type"])
-
             # Extract relationships from links
             links = [
                 link for link in entity_def.get("links", []) if "subgroup" not in link
@@ -144,6 +128,11 @@ class SchemaExtract:
                             link_multiplicity=invert_multiplicity(link["multiplicity"]),
                         )
                     )
+
+            # Extract scalar fields from properties
+            fields = set(entity_def.get("properties", {})) - {
+                link["name"] for link in links
+            }
 
             extract.entities[entity_name] = EntitySchema(
                 name=entity_name, fields=fields, relationships={}
