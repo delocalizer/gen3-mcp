@@ -72,7 +72,7 @@
     },
     "query_patterns": {
       "basic_query": "{\n    aligned_reads_file(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "with_relationships": [
+      "complex_queries": [
         {
           "description": "Get aligned_reads_file with linked parent aliquot data",
           "query": "{\n    aligned_reads_file(first: 5) {\n        id\n        submitter_id\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}"
@@ -153,7 +153,7 @@
     },
     "query_patterns": {
       "basic_query": "{\n    aliquot(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "with_relationships": [
+      "complex_queries": [
         {
           "description": "Get aliquot with linked parent sample data",
           "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}"
@@ -249,7 +249,7 @@
     },
     "query_patterns": {
       "basic_query": "{\n    sample(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "with_relationships": [
+      "complex_queries": [
         {
           "description": "Get sample with linked parent subject data",
           "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
@@ -321,7 +321,7 @@
     },
     "query_patterns": {
       "basic_query": "{\n    study(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "with_relationships": [
+      "complex_queries": [
         {
           "description": "Get study with linked child subject data",
           "query": "{\n    study(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
@@ -421,7 +421,7 @@
     },
     "query_patterns": {
       "basic_query": "{\n    subject(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "with_relationships": [
+      "complex_queries": [
         {
           "description": "Get subject with linked parent study data",
           "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n    }\n}"

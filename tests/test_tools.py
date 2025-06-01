@@ -20,8 +20,8 @@ class TestSchemaTools:
     """Test schema-related MCP tools"""
 
     @pytest.mark.asyncio
-    async def test_schema_summary_tool(self, mcp_test_setup):
-        """Test schema_summary tool returns complete SchemaExtract format"""
+    async def test_annotated_schema_structure_tool(self, mcp_test_setup):
+        """Test annotated_schema_structure tool returns complete SchemaExtract format"""
         mock_gen3_service = mcp_test_setup["mock_gen3_service"]
 
         # Load test schema for the mock
@@ -31,7 +31,7 @@ class TestSchemaTools:
 
         mock_gen3_service.get_schema_full.return_value = test_schema
 
-        # Test the schema_summary tool logic
+        # Test the annotated_schema_structure tool logic
         full_schema = await mock_gen3_service.get_schema_full()
         schema_extract = SchemaExtract.from_full_schema(full_schema)
         result = json.loads(repr(schema_extract))
@@ -90,7 +90,7 @@ class TestSchemaTools:
             query_patterns = entity_data["query_patterns"]
             expected_pattern_fields = [
                 "basic_query",
-                "with_relationships",
+                "complex_queries",
             ]
             for field in expected_pattern_fields:
                 assert (
@@ -106,7 +106,7 @@ class TestSchemaTools:
             # Check that relationship queries exist for entities with relationships
             if entity_data["relationships"]:
                 assert (
-                    len(query_patterns["with_relationships"]) > 0
+                    len(query_patterns["complex_queries"]) > 0
                 ), f"Entity {entity_name} has relationships but no relationship queries"
 
         # Verify that the service method was called

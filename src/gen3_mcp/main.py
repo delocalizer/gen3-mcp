@@ -37,16 +37,16 @@ def create_mcp_server() -> FastMCP:
     # ===== SCHEMA DISCOVERY TOOLS =====
 
     @mcp.tool()
-    async def schema_summary() -> dict:
+    async def annotated_schema_structure() -> dict:
         """Get complete schema information - all entities with fields, relationships,
         query patterns, and hierarchical context in one comprehensive response.
         """
-        logger.debug("schema_summary called")
+        logger.debug("annotated_schema_structure called")
         gen3_service = await get_gen3_service()
         full_schema = await gen3_service.get_schema_full()
         schema_extract = SchemaExtract.from_full_schema(full_schema)
         result = json.loads(repr(schema_extract))
-        logger.info(f"schema_summary completed with {len(result)} entities")
+        logger.info(f"annotated_schema_structure completed with {len(result)} entities")
         return result
 
     # ===== GRAPHQL QUERY TOOLS =====

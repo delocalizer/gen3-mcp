@@ -50,7 +50,7 @@ class QueryPatterns:
     """GraphQL query patterns and examples for an entity."""
 
     basic_query: str  # Basic query with core fields
-    with_relationships: list[RelationshipQueryExample]  # Relationship query examples
+    complex_queries: list[RelationshipQueryExample]  # Relationship query examples
 
 
 @dataclass
@@ -346,7 +346,7 @@ def _create_query_patterns(entity: EntitySchema) -> QueryPatterns:
 
     return QueryPatterns(
         basic_query=basic_query,
-        with_relationships=relationship_examples
+        complex_queries=relationship_examples
     )
 
 
