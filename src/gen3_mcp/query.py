@@ -127,9 +127,10 @@ class QueryService:
             entity = schema_extract.entities[entity_name]
 
             # Build template fields
-            basic_fields = ["id", "submitter_id", "type"]
-            entity_fields = [f for f in list(entity.fields) if f not in basic_fields][
-                : max_fields - 3
+            enums = entity.schema_summary.enum_fields
+            basic_fields = ["id"] + entity.schema_summary.required_fields
+            entity_fields = [f for f in entity.schema_summary.enum_fields if f not in basic_fields][
+                : max_fields - len(basic_fields)
             ]
             template_fields = basic_fields + entity_fields
 
@@ -146,10 +147,10 @@ class QueryService:
                     )
                     template_lines.extend(
                         [
-                            f"    # {rel_name} {{",
-                            "    #     id",
-                            "    #     submitter_id",
-                            "    # }",
+                            f"    {rel_name} {{",
+                            "        id",
+                            "        submitter_id",
+                            "    }",
                         ]
                     )
 
