@@ -206,11 +206,6 @@ class SchemaExtract:
         cls._cached_extract = extract
         logger.info(f"Schema extract created with {len(extract.entities)} entities")
 
-        from pprint import pprint
-
-        pprint("++DEBUG EXTRACT++")
-        pprint(extract)
-
         return extract
 
 

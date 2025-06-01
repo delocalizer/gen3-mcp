@@ -1,6 +1,7 @@
 """Main MCP server implementation."""
 
 import asyncio
+import json
 import logging
 
 from mcp.server.fastmcp import FastMCP
@@ -10,6 +11,7 @@ from .config import Gen3Config, setup_logging
 from .query import QueryService
 from .resources import register_resources
 from .schema import SchemaService
+from .schema_extract import SchemaExtract
 
 logger = logging.getLogger("gen3-mcp.main")
 
@@ -36,28 +38,15 @@ def create_mcp_server() -> FastMCP:
 
     @mcp.tool()
     async def schema_summary() -> dict:
-        """Get schema summary - an overview of all entities in the data commons,
-        and the relationships and links between them.
+        """Get complete schema information - all entities with fields, relationships,
+        query patterns, and hierarchical context in one comprehensive response.
         """
         logger.debug("schema_summary called")
         gen3_service = await get_gen3_service()
-        result = await gen3_service.get_schema_summary()
-        logger.info("schema_summary completed")
-        return result
-
-    @mcp.tool()
-    async def schema_entity_context(entity_name: str) -> dict:
-        """Get detailed entity context - field names, relationships to ancestor
-        entities, backrefs that define inverse relationships, example queries,
-        and more.
-
-        Args:
-            entity_name: Name of the entity to get context for
-        """
-        logger.debug(f"schema_entity_context called for entity: {entity_name}")
-        gen3_service = await get_gen3_service()
-        result = await gen3_service.get_entity_context(entity_name)
-        logger.info(f"schema_entity_context completed for entity: {entity_name}")
+        full_schema = await gen3_service.get_schema_full()
+        schema_extract = SchemaExtract.from_full_schema(full_schema)
+        result = json.loads(repr(schema_extract))
+        logger.info(f"schema_summary completed with {len(result)} entities")
         return result
 
     # ===== GRAPHQL QUERY TOOLS =====

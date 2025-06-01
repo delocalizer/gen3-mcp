@@ -8,17 +8,66 @@ class TestSchemaTools:
 
     @pytest.mark.asyncio
     async def test_schema_summary(self, mcp_test_setup):
-        """Test schema_summary tool calls service method directly"""
+        """Test schema_summary tool returns complete SchemaExtract format"""
         mock_gen3_service = mcp_test_setup["mock_gen3_service"]
-
-        # Simulate calling the schema_summary tool
-        # In real usage, this would be called through MCP framework
-        result = await mock_gen3_service.get_schema_summary()
-
-        assert result["total_entities"] == 5
-        assert "subject" in result["entity_names"]
-        assert "aligned_reads_file" in result["entity_names"]
-        mock_gen3_service.get_schema_summary.assert_called_once()
+        
+        # Mock the get_schema_full method to return our test schema
+        from pathlib import Path
+        import json
+        
+        test_schema_path = Path(__file__).parent / "ex_schema.json"
+        with open(test_schema_path) as f:
+            test_schema = json.load(f)
+        
+        mock_gen3_service.get_schema_full.return_value = test_schema
+        
+        # Test the new schema_summary implementation
+        # In the actual tool, this would be:
+        # full_schema = await gen3_service.get_schema_full()
+        # schema_extract = SchemaExtract.from_full_schema(full_schema) 
+        # result = json.loads(repr(schema_extract))
+        
+        from gen3_mcp.schema_extract import SchemaExtract
+        
+        full_schema = await mock_gen3_service.get_schema_full()
+        schema_extract = SchemaExtract.from_full_schema(full_schema)
+        result = json.loads(repr(schema_extract))
+        
+        # Check that we get the complete format
+        assert isinstance(result, dict)
+        assert len(result) > 0
+        
+        # Check that expected entities exist
+        expected_entities = {"subject", "sample", "study", "aliquot", "aligned_reads_file"}
+        actual_entities = set(result.keys())
+        assert expected_entities.issubset(actual_entities)
+        
+        # Check that each entity has the complete structure
+        for entity_name, entity_data in result.items():
+            # Each entity should have all the comprehensive sections
+            expected_sections = ["fields", "relationships", "schema_summary", "query_patterns"]
+            for section in expected_sections:
+                assert section in entity_data, f"Entity {entity_name} missing {section}"
+            
+            # Check schema_summary structure
+            schema_summary = entity_data["schema_summary"]
+            expected_summary_fields = ["title", "description", "category", "required_fields", 
+                                     "field_count", "parent_count", "child_count", "position_description"]
+            for field in expected_summary_fields:
+                assert field in schema_summary, f"Entity {entity_name} schema_summary missing {field}"
+            
+            # Check query_patterns structure
+            query_patterns = entity_data["query_patterns"]
+            expected_pattern_fields = ["basic_query", "with_relationships", "usage_examples"]
+            for field in expected_pattern_fields:
+                assert field in query_patterns, f"Entity {entity_name} query_patterns missing {field}"
+            
+            # Check that basic query contains the entity name
+            basic_query = query_patterns["basic_query"]
+            assert entity_name in basic_query, f"Basic query for {entity_name} should contain entity name"
+        
+        # Verify that the service method was called
+        mock_gen3_service.get_schema_full.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_schema_full(self, mcp_test_setup):
