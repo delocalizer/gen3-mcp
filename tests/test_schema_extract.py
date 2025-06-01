@@ -158,7 +158,6 @@ def test_create_query_patterns(test_schema):
     # Check structure
     assert hasattr(query_patterns, "basic_query")
     assert hasattr(query_patterns, "with_relationships")
-    assert hasattr(query_patterns, "usage_examples")
 
     # Check basic query
     basic_query = query_patterns.basic_query
@@ -175,14 +174,9 @@ def test_create_query_patterns(test_schema):
     for rel_query in query_patterns.with_relationships:
         assert hasattr(rel_query, "description")
         assert hasattr(rel_query, "query")
-        assert hasattr(rel_query, "target_entity")
         assert isinstance(rel_query.description, str)
         assert isinstance(rel_query.query, str)
         assert "subject" in rel_query.query
-
-    # Check usage examples
-    assert isinstance(query_patterns.usage_examples, list)
-    assert len(query_patterns.usage_examples) > 0
 
 
 def test_get_position_description():
@@ -235,51 +229,7 @@ def test_query_patterns_relationship_query_validation(test_schema):
         if entity.query_patterns and entity.query_patterns.with_relationships:
             for rel_query in entity.query_patterns.with_relationships:
                 validation_result = validate_graphql(rel_query.query, schema_extract)
-
-                # Should be valid (but may have warnings for entities not in our test schema)
-                if not validation_result.is_valid:
-                    # Check if failures are due to unknown entities vs syntax errors
-                    syntax_errors = [
-                        e
-                        for e in validation_result.errors
-                        if getattr(e, "error_type", None) == "syntax_error"
-                    ]
-                    assert (
-                        len(syntax_errors) == 0
-                    ), f"Syntax errors in {entity_name} relationship query: {syntax_errors}"
-
-
-def test_query_patterns_complex_hierarchy_validation(test_schema):
-    """Test complex multi-level query patterns"""
-    schema_extract = SchemaExtract.from_full_schema(test_schema)
-
-    from gen3_mcp.graphql_validator import validate_graphql
-
-    # Look for complex queries (target_entity = "multi-level")
-    complex_queries_found = 0
-
-    for entity_name, entity in schema_extract.entities.items():
-        if entity.query_patterns and entity.query_patterns.with_relationships:
-            for rel_query in entity.query_patterns.with_relationships:
-                if rel_query.target_entity == "multi-level":
-                    complex_queries_found += 1
-                    validation_result = validate_graphql(
-                        rel_query.query, schema_extract
-                    )
-
-                    # Complex queries should have valid syntax even if entities are missing
-                    if not validation_result.is_valid:
-                        syntax_errors = [
-                            e
-                            for e in validation_result.errors
-                            if getattr(e, "error_type", None) == "syntax_error"
-                        ]
-                        assert (
-                            len(syntax_errors) == 0
-                        ), f"Syntax errors in complex query for {entity_name}: {syntax_errors}"
-
-    # Should have found at least some complex queries based on our schema
-    assert complex_queries_found > 0, "Expected to find complex multi-level queries"
+                assert validation_result.is_valid
 
 
 def test_schema_extract_matches_reference_format(test_schema, reference_extract):
@@ -333,7 +283,6 @@ def test_schema_extract_matches_reference_format(test_schema, reference_extract)
         expected_pattern_fields = [
             "basic_query",
             "with_relationships",
-            "usage_examples",
         ]
         for field in expected_pattern_fields:
             assert field in query_patterns, f"Missing query_patterns field: {field}"
@@ -427,7 +376,6 @@ def test_schema_extract_helper_functions(test_schema):
     assert query_patterns.basic_query
     assert "subject" in query_patterns.basic_query
     assert isinstance(query_patterns.with_relationships, list)
-    assert isinstance(query_patterns.usage_examples, list)
 
 
 def test_schema_extract_consolidation_coverage(test_schema):
@@ -457,7 +405,6 @@ def test_schema_extract_consolidation_coverage(test_schema):
         assert entity.query_patterns.basic_query
         assert entity_name in entity.query_patterns.basic_query
         assert isinstance(entity.query_patterns.with_relationships, list)
-        assert isinstance(entity.query_patterns.usage_examples, list)
 
         # Relationships and fields
         assert isinstance(entity.fields, set)

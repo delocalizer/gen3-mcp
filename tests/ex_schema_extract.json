@@ -74,19 +74,12 @@
       "with_relationships": [
         {
           "description": "Get aligned_reads_file with linked parent aliquot data",
-          "query": "{\n    aligned_reads_file(first: 5) {\n        id\n        submitter_id\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "aliquot"
+          "query": "{\n    aligned_reads_file(first: 5) {\n        id\n        submitter_id\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}"
         },
         {
           "description": "Get aligned_reads_file with linked parent subject data",
-          "query": "{\n    aligned_reads_file(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "subject"
+          "query": "{\n    aligned_reads_file(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
         }
-      ],
-      "usage_examples": [
-        "Use aligned_reads_file as starting point for data exploration",
-        "Query aligned_reads_file fields: id, submitter_id, type",
-        "Access linked data via: aliquots, subjects"
       ]
     }
   },
@@ -161,19 +154,16 @@
       "with_relationships": [
         {
           "description": "Get aliquot with linked parent sample data",
-          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "sample"
+          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}"
         },
         {
           "description": "Get aliquot with linked child aligned_reads_file data",
-          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "aligned_reads_file"
+          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
+        },
+        {
+          "description": "Get aliquot with parent sample and child aligned_reads_file data",
+          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
         }
-      ],
-      "usage_examples": [
-        "Use aliquot as starting point for data exploration",
-        "Query aliquot fields: id, submitter_id, type",
-        "Access linked data via: aligned_reads_files, samples"
       ]
     }
   },
@@ -254,24 +244,16 @@
       "with_relationships": [
         {
           "description": "Get sample with linked parent subject data",
-          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "subject"
+          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
         },
         {
           "description": "Get sample with linked child aliquot data",
-          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "aliquot"
+          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}"
         },
         {
-          "description": "Get sample with parent subject and child aliquots with their aligned_reads_files",
-          "query": "{\n    sample(first: 3) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n        aliquots {\n            id\n            submitter_id\n            aligned_reads_files {\n                id\n                submitter_id\n            }\n        }\n    }\n}",
-          "target_entity": "multi-level"
+          "description": "Get sample with parent subject and child aliquot data",
+          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}"
         }
-      ],
-      "usage_examples": [
-        "Use sample as starting point for data exploration",
-        "Query sample fields: id, submitter_id, type",
-        "Access linked data via: aliquots, subjects"
       ]
     }
   },
@@ -328,14 +310,8 @@
       "with_relationships": [
         {
           "description": "Get study with linked child subject data",
-          "query": "{\n    study(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "subject"
+          "query": "{\n    study(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
         }
-      ],
-      "usage_examples": [
-        "Use study as starting point for data exploration",
-        "Query study fields: id, submitter_id, type",
-        "Access linked data via: subjects"
       ]
     }
   },
@@ -424,29 +400,20 @@
       "with_relationships": [
         {
           "description": "Get subject with linked parent study data",
-          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "study"
+          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n    }\n}"
         },
         {
           "description": "Get subject with linked child aligned_reads_file data",
-          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "aligned_reads_file"
+          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
         },
         {
           "description": "Get subject with linked child sample data",
-          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}",
-          "target_entity": "sample"
+          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}"
         },
         {
-          "description": "Get subject with parent study and child samples with their aliquots",
-          "query": "{\n    subject(first: 3) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n        samples {\n            id\n            submitter_id\n            aliquots {\n                id\n                submitter_id\n            }\n        }\n    }\n}",
-          "target_entity": "multi-level"
+          "description": "Get subject with parent study and child aligned_reads_file data",
+          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
         }
-      ],
-      "usage_examples": [
-        "Use subject as starting point for data exploration",
-        "Query subject fields: id, submitter_id, type",
-        "Access linked data via: aligned_reads_files, samples, studies"
       ]
     }
   }

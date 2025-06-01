@@ -91,7 +91,6 @@ class TestSchemaTools:
             expected_pattern_fields = [
                 "basic_query",
                 "with_relationships",
-                "usage_examples",
             ]
             for field in expected_pattern_fields:
                 assert (
@@ -112,54 +111,6 @@ class TestSchemaTools:
 
         # Verify that the service method was called
         mock_gen3_service.get_schema_full.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_schema_summary_provides_entity_context(self, mcp_test_setup):
-        """Test that schema_summary provides all the functionality"""
-        mock_gen3_service = mcp_test_setup["mock_gen3_service"]
-
-        # Load reference entity context format
-        entity_context_path = Path(__file__).parent / "subject_entity_context.json"
-        with open(entity_context_path) as f:
-            expected_context = json.load(f)
-
-        # Load test schema
-        test_schema_path = Path(__file__).parent / "ex_schema.json"
-        with open(test_schema_path) as f:
-            test_schema = json.load(f)
-
-        mock_gen3_service.get_schema_full.return_value = test_schema
-
-        # Get schema extract (simulating the schema_summary tool)
-        full_schema = await mock_gen3_service.get_schema_full()
-        schema_extract = SchemaExtract.from_full_schema(full_schema)
-        result = json.loads(repr(schema_extract))
-
-        # Check that subject entity contains all the information
-        subject_data = result["subject"]
-
-        # Check schema_summary
-        schema_summary = subject_data["schema_summary"]
-        assert schema_summary["title"] == expected_context["schema_summary"]["title"]
-        assert (
-            schema_summary["category"] == expected_context["schema_summary"]["category"]
-        )
-
-        # Check position_description
-        position_desc = schema_summary["position_description"]
-        expected_position = expected_context["relationships"]["position_description"]
-        assert position_desc["position"] == expected_position["position"]
-
-        # Check query_patterns
-        query_patterns = subject_data["query_patterns"]
-        assert "basic_query" in query_patterns
-        assert "with_relationships" in query_patterns
-        assert "usage_examples" in query_patterns
-
-        # Verify all expected relationship types are covered
-        expected_rels = expected_context["relationships"]
-        assert schema_summary["parent_count"] == expected_rels["parent_count"]
-        assert schema_summary["child_count"] == expected_rels["child_count"]
 
 
 class TestQueryTools:
