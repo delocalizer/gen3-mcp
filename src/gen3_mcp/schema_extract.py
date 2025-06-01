@@ -38,6 +38,24 @@ class Relationship:
 
 
 @dataclass
+class RelationshipQueryExample:
+    """Example GraphQL query showing how to query a relationship."""
+
+    description: str  # Human-readable description of the query
+    query: str  # The actual GraphQL query string
+    target_entity: str  # The target entity being queried
+
+
+@dataclass
+class QueryPatterns:
+    """GraphQL query patterns and examples for an entity."""
+
+    basic_query: str  # Basic query with core fields
+    with_relationships: list[RelationshipQueryExample]  # Relationship query examples
+    usage_examples: list[str]  # Text descriptions of common usage patterns
+
+
+@dataclass
 class SchemaSummary:
     """Schema summary information for an entity."""
 
@@ -61,6 +79,7 @@ class EntitySchema:
     fields: set[str]  # All valid scalar fields
     relationships: dict[str, Relationship]  # Field name -> Relationship
     schema_summary: SchemaSummary | None = None  # Schema summary information
+    query_patterns: QueryPatterns | None = None  # GraphQL query patterns and examples
 
 
 class SchemaExtract:
@@ -173,16 +192,24 @@ class SchemaExtract:
                 continue
             source.relationships[rel.name] = rel
 
-        # Add schema summary information and create final entities
+        # Add schema summary information and query patterns
         for entity_name, entity in extract.entities.items():
             entity_def = full_schema.get(entity_name)
             if entity_def:
                 schema_summary = _create_schema_summary(entity, entity_def)
                 entity.schema_summary = schema_summary
 
+                query_patterns = _create_query_patterns(entity)
+                entity.query_patterns = query_patterns
+
         # Cache the result
         cls._cached_extract = extract
         logger.info(f"Schema extract created with {len(extract.entities)} entities")
+
+        from pprint import pprint
+
+        pprint("++DEBUG EXTRACT++")
+        pprint(extract)
 
         return extract
 
@@ -219,6 +246,171 @@ def _create_schema_summary(
         parent_count=parent_count,
         child_count=child_count,
         position_description=position_desc,
+    )
+
+
+def _create_query_patterns(entity: EntitySchema) -> QueryPatterns:
+    """Create GraphQL query patterns for an entity.
+
+    Args:
+        entity: The EntitySchema instance.
+
+    Returns:
+        QueryPatterns instance with query examples and usage guidance.
+    """
+    entity_name = entity.name
+
+    # Basic query with core fields
+    basic_query = f"""{{
+    {entity_name}(first: 10) {{
+        id
+        submitter_id
+        type
+    }}
+}}"""
+
+    # Relationship query examples
+    relationship_examples = []
+
+    # Get parent relationships (CHILD_OF means this entity links TO parents)
+    parent_rels = [
+        rel
+        for rel in entity.relationships.values()
+        if rel.link_type == RelType.CHILD_OF
+    ]
+
+    # Get child relationships (PARENT_OF means children link TO this entity)
+    child_rels = [
+        rel
+        for rel in entity.relationships.values()
+        if rel.link_type == RelType.PARENT_OF
+    ]
+
+    # Add parent relationship examples (limit to 2)
+    for rel in sorted(parent_rels, key=lambda r: r.target_type)[:2]:
+        relationship_examples.append(
+            RelationshipQueryExample(
+                description=f"Get {entity_name} with linked parent {rel.target_type} data",
+                query=f"""{{
+    {entity_name}(first: 5) {{
+        id
+        submitter_id
+        {rel.name} {{
+            id
+            submitter_id
+        }}
+    }}
+}}""",
+                target_entity=rel.target_type,
+            )
+        )
+
+    # Add child relationship examples (limit to 2)
+    for rel in sorted(child_rels, key=lambda r: r.target_type)[:2]:
+        relationship_examples.append(
+            RelationshipQueryExample(
+                description=f"Get {entity_name} with linked child {rel.target_type} data",
+                query=f"""{{
+    {entity_name}(first: 5) {{
+        id
+        submitter_id
+        {rel.name} {{
+            id
+            submitter_id
+        }}
+    }}
+}}""",
+                target_entity=rel.target_type,
+            )
+        )
+
+    # Add complex query if entity has parents, children, and grandchildren
+    if parent_rels and child_rels:
+        # Check if any children have their own children (grandchildren)
+        for child_rel in child_rels:
+            # We need to check if this child has children in the entity relationships
+            # This is a simplified check - in a full implementation, we'd need access to all entities
+            # For now, we'll create complex queries for known cases from the schema
+            if (entity_name == "subject" and child_rel.target_type == "sample") or (
+                entity_name == "sample" and child_rel.target_type == "aliquot"
+            ):
+
+                # Find a parent relationship to include
+                parent_rel = parent_rels[0]  # Take first parent
+
+                # Create complex query based on known schema structure
+                if entity_name == "subject":
+                    complex_query = f"""{{
+    {entity_name}(first: 3) {{
+        id
+        submitter_id
+        {parent_rel.name} {{
+            id
+            submitter_id
+        }}
+        samples {{
+            id
+            submitter_id
+            aliquots {{
+                id
+                submitter_id
+            }}
+        }}
+    }}
+}}"""
+                    relationship_examples.append(
+                        RelationshipQueryExample(
+                            description=f"Get {entity_name} with parent {parent_rel.target_type} and child samples with their aliquots",
+                            query=complex_query,
+                            target_entity="multi-level",
+                        )
+                    )
+
+                elif entity_name == "sample":
+                    complex_query = f"""{{
+    {entity_name}(first: 3) {{
+        id
+        submitter_id
+        {parent_rel.name} {{
+            id
+            submitter_id
+        }}
+        aliquots {{
+            id
+            submitter_id
+            aligned_reads_files {{
+                id
+                submitter_id
+            }}
+        }}
+    }}
+}}"""
+                    relationship_examples.append(
+                        RelationshipQueryExample(
+                            description=f"Get {entity_name} with parent {parent_rel.target_type} and child aliquots with their aligned_reads_files",
+                            query=complex_query,
+                            target_entity="multi-level",
+                        )
+                    )
+                break  # Only add one complex query
+
+    # Usage examples
+    usage_examples = [
+        f"Use {entity_name} as starting point for data exploration",
+        f"Query {entity_name} fields: id, submitter_id, type",
+    ]
+
+    # Add relationship fields to usage examples
+    relationship_fields = [rel.name for rel in entity.relationships.values()]
+    if relationship_fields:
+        usage_examples.append(
+            f"Access linked data via: {', '.join(sorted(relationship_fields)[:3])}"
+        )
+
+    return QueryPatterns(
+        basic_query=basic_query,
+        with_relationships=relationship_examples,
+        usage_examples=usage_examples,
     )
 
 
