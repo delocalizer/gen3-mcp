@@ -113,23 +113,6 @@ class TestValidationWithTestQueries:
         assert result.is_valid is True
         assert len(result.errors) == 0
 
-        # Check that fields were extracted correctly by digging into QueryNode structure
-        assert result.query_tree is not None
-
-        # Root should be subject
-        root = result.query_tree
-        assert root.entity_name == "subject"
-
-        # Check for studies child
-        assert "studies" in root.children
-        studies_node = root.children["studies"]
-        assert studies_node.entity_name == "studies"
-
-        # Check for samples child
-        assert "samples" in root.children
-        samples_node = root.children["samples"]
-        assert samples_node.entity_name == "samples"
-
     def test_passing_query_2(self, schema_extract, test_queries):
         """Test that passing_test_2.graphql validates successfully"""
         query = test_queries["passing_2"]
@@ -137,28 +120,6 @@ class TestValidationWithTestQueries:
 
         assert result.is_valid is True
         assert len(result.errors) == 0
-
-        # Check nested relationship validation by walking the tree
-        assert result.query_tree is not None
-
-        # Root should be subject
-        root = result.query_tree
-        assert root.entity_name == "subject"
-
-        # Should have samples as child
-        assert "samples" in root.children
-        samples_node = root.children["samples"]
-        assert samples_node.entity_name == "samples"
-
-        # Samples should have aliquots as child
-        assert "aliquots" in samples_node.children
-        aliquots_node = samples_node.children["aliquots"]
-        assert aliquots_node.entity_name == "aliquots"
-
-        # Aliquots should have aligned_reads_files as child
-        assert "aligned_reads_files" in aliquots_node.children
-        aligned_reads_files_node = aliquots_node.children["aligned_reads_files"]
-        assert aligned_reads_files_node.entity_name == "aligned_reads_files"
 
     def test_passing_query_3(self, schema_extract, test_queries):
         """Test that passing_test_3.graphql validates successfully"""
@@ -168,32 +129,16 @@ class TestValidationWithTestQueries:
         assert result.is_valid is True
         assert len(result.errors) == 0
 
-        # Check that aligned_reads_file relationships are validated
-        assert result.query_tree is not None
-
-        # Root should be aligned_reads_file
-        root = result.query_tree
-        assert root.entity_name == "aligned_reads_file"
-
-        # Should have subjects as child
-        assert "subjects" in root.children
-        subjects_node = root.children["subjects"]
-        assert subjects_node.entity_name == "subjects"
-
-        # Should have aliquots as child
-        assert "aliquots" in root.children
-        aliquots_node = root.children["aliquots"]
-        assert aliquots_node.entity_name == "aliquots"
-
     def test_failing_query_1_syntax_error(self, schema_extract, test_queries):
         """Test that failing_test_1.graphql fails due to syntax error"""
         query = test_queries["failing_1"]
         result = validate_graphql(query, schema_extract)
 
         assert result.is_valid is False
-        assert len(result.errors) > 0
-        assert result.errors[0].error_type == "syntax_error"
-        assert "syntax error" in result.errors[0].message.lower()
+        assert len(result.errors) == 1
+        error = result.errors[0]
+        assert error.error_type == "syntax_error"
+        assert "syntax error" in error.message.lower()
 
     def test_failing_query_2_unknown_field(self, schema_extract, test_queries):
         """Test that failing_test_2.graphql fails due to unknown field"""
@@ -201,34 +146,29 @@ class TestValidationWithTestQueries:
         result = validate_graphql(query, schema_extract)
 
         assert result.is_valid is False
-        assert len(result.errors) > 0
+        assert len(result.errors) == 1
 
         # Should have error about unknown field 'study_name'
-        field_errors = [
-            e
-            for e in result.errors
-            if e.error_type == "unknown_field" and e.field == "study_name"
-        ]
-        assert len(field_errors) > 0
+        error = result.errors[0]
+        assert error.error_type == "unknown_field"
+        assert error.field == "study_name"
 
         # Should provide suggestions
-        error = field_errors[0]
         assert error.suggestions is not None
         assert len(error.suggestions) > 0
 
     def test_failing_query_3_unknown_entity(self, schema_extract, test_queries):
-        """Test that failing_test_3.graphql fails due to unknown entity or invalid relationship"""
+        """Test that failing_test_3.graphql fails due to invalid relationship"""
         query = test_queries["failing_3"]
         result = validate_graphql(query, schema_extract)
 
         assert result.is_valid is False
         assert len(result.errors) > 0
 
-        # Should have error about unknown entity or invalid relationship
-        assert any(
-            error.error_type in ["unknown_entity", "unknown_field"]
-            for error in result.errors
-        )
+        # Should have error about invalid relationship
+        error = result.errors[0]
+        assert error.error_type == "unknown_entity"
+        assert error.message == "Relationship 'samples' does not exist in entity 'aligned_reads_file'"
 
 
 class TestValidationErrorHandling:
@@ -414,33 +354,6 @@ class TestComplexScenarios:
 
         assert result.is_valid is True
         assert len(result.errors) == 0
-
-        # Check all entities are present by walking the tree
-        assert result.query_tree is not None
-
-        # Root is subject
-        root = result.query_tree
-        assert root.entity_name == "subject"
-
-        # Check studies child
-        assert "studies" in root.children
-        studies_node = root.children["studies"]
-        assert studies_node.entity_name == "studies"
-
-        # Check samples child
-        assert "samples" in root.children
-        samples_node = root.children["samples"]
-        assert samples_node.entity_name == "samples"
-
-        # Check aliquots child under samples
-        assert "aliquots" in samples_node.children
-        aliquots_node = samples_node.children["aliquots"]
-        assert aliquots_node.entity_name == "aliquots"
-
-        # Check aligned_reads_files child under aliquots
-        assert "aligned_reads_files" in aliquots_node.children
-        aligned_reads_files_node = aliquots_node.children["aligned_reads_files"]
-        assert aligned_reads_files_node.entity_name == "aligned_reads_files"
 
     def test_mixed_valid_invalid_fields(self, schema_extract):
         """Test query with mix of valid and invalid fields"""

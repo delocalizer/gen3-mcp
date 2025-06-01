@@ -114,8 +114,6 @@ async def test_get_entity_context_details(mock_client, config, reference_context
 
     result = await service.get_entity_context("subject")
 
-    print(json.dumps(result))
-
     # reference_context is farily  large; inspect file by eye for details
     TestCase().assertDictEqual(result, reference_context)
 
@@ -210,18 +208,6 @@ async def test_query_patterns_basic_query_validation(mock_client, config):
     ), f"Basic query validation failed: {validation_result.errors}"
     assert len(validation_result.errors) == 0
 
-    # Verify query structure
-    assert validation_result.query_tree is not None
-    root = validation_result.query_tree
-    assert root.entity_name == "subject"
-
-    # Verify essential fields are present
-    expected_basic_fields = {"id", "submitter_id", "type"}
-    actual_fields = set(root.fields)
-    assert expected_basic_fields.issubset(
-        actual_fields
-    ), f"Missing basic fields: {expected_basic_fields - actual_fields}"
-
 
 @pytest.mark.asyncio
 async def test_query_patterns_relationship_query_validation(mock_client, config):
@@ -261,18 +247,6 @@ async def test_query_patterns_relationship_query_validation(mock_client, config)
             validation_result.is_valid is True
         ), f"Relationship query for {target_entity} failed validation: {validation_result.errors}"
         assert len(validation_result.errors) == 0
-
-        # Verify query structure - should have subject as root with relationship child
-        assert validation_result.query_tree is not None
-        root = validation_result.query_tree
-        assert root.entity_name == "subject"
-
-        # Verify the relationship is properly represented in the tree
-        # The backref_field should appear as a child in the query tree
-        child_entities = set(root.children.keys())
-        assert (
-            len(child_entities) > 0
-        ), f"Relationship query should have child entities, got: {child_entities}"
 
 
 @pytest.mark.asyncio
@@ -316,7 +290,6 @@ async def test_query_patterns_complex_hierarchy_validation(mock_client, config):
     assert (
         validation_result.is_valid is True
     ), f"Complex entity basic query failed: {validation_result.errors}"
-    assert validation_result.query_tree.entity_name == "sample"
 
     # Validate relationship queries if any exist
     if patterns["with_relationships"]:
@@ -348,10 +321,6 @@ async def test_query_patterns_complex_hierarchy_validation(mock_client, config):
                     # This is acceptable - just means our test schema doesn't have all entities
                     # but the query syntax itself should be valid
                     continue
-            else:
-                # If validation passes, verify structure
-                assert validation_result.query_tree is not None
-                assert validation_result.query_tree.entity_name == "sample"
 
     # Verify that patterns contain expected structure elements
     assert "basic_query" in patterns
