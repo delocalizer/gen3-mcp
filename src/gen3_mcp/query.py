@@ -74,9 +74,7 @@ class QueryService:
                         "Use query_template() to generate a syntactically correct starting template"
                     )
                 elif "type" in lower_msg:
-                    suggestions.append(
-                        "Check entity names with schema_summary() or schema_entity_context()"
-                    )
+                    suggestions.append("Check entity names with schema_summary()")
 
             if suggestions:
                 result["execution_guidance"] = {
@@ -217,8 +215,7 @@ class QueryService:
             response["next_steps"] = {
                 "suggestions": [
                     "Fix the validation errors using the suggestions above",
-                    "Use schema_entity_context() to see available fields and relationships for an entity",
-                    "Use schema_summary() to see available entities",
+                    "Use schema_summary() to see available entities and fields",
                 ],
                 "workflow": [
                     "1. Fix the validation errors using the suggestions above",

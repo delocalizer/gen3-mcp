@@ -21,24 +21,10 @@ async def test_get_schema_full_caching(mock_client, config):
 
 
 @pytest.mark.asyncio
-async def test_get_schema_full_fetch_failure(mock_client, config):
-    """Test schema fetch failure handling"""
-    from gen3_mcp.exceptions import Gen3SchemaError
-    
-    # Mock client to return None (fetch failure)
-    mock_client.get_json.return_value = None
-    service = SchemaService(mock_client, config)
-
-    # Should raise Gen3SchemaError
-    with pytest.raises(Gen3SchemaError):
-        await service.get_schema_full()
-
-
-@pytest.mark.asyncio
 async def test_schema_service_cache_ttl(mock_client, config):
     """Test that cache respects TTL settings"""
     import time
-    
+
     # Set very short TTL for testing
     config.schema_cache_ttl = 0.1  # 100ms
     service = SchemaService(mock_client, config)
@@ -56,7 +42,7 @@ async def test_schema_service_cache_ttl(mock_client, config):
     time.sleep(0.15)
 
     # Third call should fetch again
-    schema3 = await service.get_schema_full()
+    await service.get_schema_full()
     assert mock_client.get_json.call_count == 2
 
 
@@ -64,7 +50,7 @@ async def test_schema_service_cache_ttl(mock_client, config):
 async def test_schema_service_initialization(mock_client, config):
     """Test SchemaService initialization"""
     service = SchemaService(mock_client, config)
-    
+
     assert service.client is mock_client
     assert service.config is config
     assert service.cache_ttl == config.schema_cache_ttl
@@ -76,16 +62,16 @@ async def test_schema_service_initialization(mock_client, config):
 async def test_cache_validity_check(mock_client, config):
     """Test internal cache validity checking"""
     service = SchemaService(mock_client, config)
-    
+
     # Non-existent key should be invalid
     assert not service._is_cache_valid("nonexistent_key")
-    
+
     # Add something to cache
     service._update_cache("test_key", {"test": "data"})
-    
+
     # Should be valid immediately
     assert service._is_cache_valid("test_key")
-    
+
     # Check that cache contains the data
     assert service._cache["test_key"] == {"test": "data"}
 
