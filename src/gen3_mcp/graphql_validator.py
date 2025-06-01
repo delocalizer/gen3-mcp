@@ -15,6 +15,15 @@ logger = logging.getLogger("gen3-mcp.graphql_validator")
 
 
 @dataclass
+class EntityPath:
+    """Represents a path to an entity in the GraphQL query."""
+
+    entity_name: str
+    path: list[str]  # Full path from root to this entity
+    fields: list[str]  # Scalar fields for this entity
+
+
+@dataclass
 class ValidationError:
     """Represents a validation error."""
 
@@ -31,15 +40,6 @@ class ValidationResult:
 
     is_valid: bool
     errors: list[ValidationError]
-
-
-@dataclass
-class EntityPath:
-    """Represents a path to an entity in the GraphQL query."""
-
-    entity_name: str
-    path: list[str]  # Full path from root to this entity
-    fields: list[str]  # Scalar fields for this entity
 
 
 class GraphQLFieldExtractor(Visitor):

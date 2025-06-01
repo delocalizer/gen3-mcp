@@ -74,7 +74,9 @@ class QueryService:
                         "Use query_template() to generate a syntactically correct starting template"
                     )
                 elif "type" in lower_msg:
-                    suggestions.append("Check entity names with annotated_schema_structure()")
+                    suggestions.append(
+                        "Check entity names with annotated_schema_structure()"
+                    )
 
             if suggestions:
                 result["execution_guidance"] = {
@@ -127,11 +129,12 @@ class QueryService:
             entity = schema_extract.entities[entity_name]
 
             # Build template fields
-            enums = entity.schema_summary.enum_fields
-            basic_fields = ["id"] + entity.schema_summary.required_fields
-            entity_fields = [f for f in entity.schema_summary.enum_fields if f not in basic_fields][
-                : max_fields - len(basic_fields)
-            ]
+            required = entity.schema_summary.required_fields
+            relations = list(entity.relationships)
+            basic_fields = ["id"] + [f for f in required if f not in relations]
+            entity_fields = [
+                f for f in entity.schema_summary.enum_fields if f not in basic_fields
+            ][: max_fields - len(basic_fields)]
             template_fields = basic_fields + entity_fields
 
             # Generate the template
@@ -139,12 +142,8 @@ class QueryService:
             template_lines.extend(f"    {field}" for field in template_fields)
 
             # Add relationship examples
-            relationship_fields = []
             if include_relationships:
-                for rel_name, rel in list(entity.relationships.items())[:3]:
-                    relationship_fields.append(
-                        {"name": rel_name, "target_type": rel.target_type}
-                    )
+                for rel_name, _rel in list(entity.relationships.items())[:5]:
                     template_lines.extend(
                         [
                             f"    {rel_name} {{",
@@ -166,10 +165,6 @@ class QueryService:
                 "entity_name": entity_name,
                 "exists": True,
                 "template": full_template,
-                "basic_fields": basic_fields,
-                "entity_fields": entity_fields,
-                "relationship_fields": relationship_fields,
-                "total_fields": len(template_fields),
             }
 
         except Exception as e:

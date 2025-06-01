@@ -9,8 +9,8 @@ from gen3_mcp.schema_extract import (
     SchemaExtract,
     _create_query_patterns,
     _create_schema_summary,
-    _get_position_description,
     _extract_enum_fields,
+    _get_position_description,
 )
 
 
@@ -226,7 +226,7 @@ def test_query_patterns_relationship_query_validation(test_schema):
     from gen3_mcp.graphql_validator import validate_graphql
 
     # Test relationship queries
-    for entity_name, entity in schema_extract.entities.items():
+    for _entity_name, entity in schema_extract.entities.items():
         if entity.query_patterns and entity.query_patterns.complex_queries:
             for rel_query in entity.query_patterns.complex_queries:
                 validation_result = validate_graphql(rel_query.query, schema_extract)
@@ -423,30 +423,17 @@ def test_extract_enum_fields():
     # Test entity with various enum field types
     test_entity_def = {
         "properties": {
-            "direct_enum_field": {
-                "enum": ["value1", "value2", "value3"]
-            },
-            "regular_field": {
-                "type": "string"
-            },
+            "direct_enum_field": {"enum": ["value1", "value2", "value3"]},
+            "regular_field": {"type": "string"},
             "complex_oneof_field": {
-                "oneOf": [
-                    {"type": "null"},
-                    {"enum": ["a", "b"]},
-                    {"enum": ["c", "d"]}
-                ]
+                "oneOf": [{"type": "null"}, {"enum": ["a", "b"]}, {"enum": ["c", "d"]}]
             },
-            "oneof_without_enum": {
-                "oneOf": [
-                    {"type": "string"},
-                    {"type": "null"}
-                ]
-            }
+            "oneof_without_enum": {"oneOf": [{"type": "string"}, {"type": "null"}]},
         }
     }
-    
+
     enum_fields = _extract_enum_fields(test_entity_def)
-    
+
     # Should only extract fields with direct enum constraints
     expected = ["direct_enum_field"]
     assert enum_fields == expected
@@ -455,12 +442,12 @@ def test_extract_enum_fields():
 def test_schema_summary_includes_enum_fields(test_schema):
     """Test that schema summary includes enum_fields for entities"""
     schema_extract = SchemaExtract.from_full_schema(test_schema)
-    
+
     # Test some specific entities we know have enum fields
     sample_entity = schema_extract.entities["sample"]
     assert hasattr(sample_entity.schema_summary, "enum_fields")
     assert isinstance(sample_entity.schema_summary.enum_fields, list)
-    
+
     # Sample should have enum fields like fasting_status, laterality, etc.
     sample_enums = sample_entity.schema_summary.enum_fields
     assert "fasting_status" in sample_enums
@@ -468,7 +455,7 @@ def test_schema_summary_includes_enum_fields(test_schema):
     assert "preservation_method" in sample_enums
     # State should NOT be included as it uses oneOf validation
     assert "state" not in sample_enums
-    
+
     # Subject should have enum fields like ethnicity, gender, etc.
     subject_entity = schema_extract.entities["subject"]
     subject_enums = subject_entity.schema_summary.enum_fields
@@ -477,7 +464,7 @@ def test_schema_summary_includes_enum_fields(test_schema):
     assert "race" in subject_enums
     # State should NOT be included as it uses oneOf validation
     assert "state" not in subject_enums
-    
+
     # All enum fields should be sorted
     assert sample_enums == sorted(sample_enums)
     assert subject_enums == sorted(subject_enums)
@@ -487,38 +474,56 @@ def test_enum_fields_in_reference_format(test_schema, reference_extract):
     """Test that enum_fields match the reference format"""
     schema_extract = SchemaExtract.from_full_schema(test_schema)
     result = json.loads(repr(schema_extract))
-    
+
     # Check that enum_fields exist in the output and match reference
     for entity_name in result.keys():
         if entity_name in reference_extract:
             result_entity = result[entity_name]
             ref_entity = reference_extract[entity_name]
-            
+
             # Both should have enum_fields in schema_summary
             assert "enum_fields" in result_entity["schema_summary"]
             assert "enum_fields" in ref_entity["schema_summary"]
-            
+
             # Values should match
             result_enums = result_entity["schema_summary"]["enum_fields"]
             ref_enums = ref_entity["schema_summary"]["enum_fields"]
-            assert result_enums == ref_enums, f"Enum fields mismatch for {entity_name}: {result_enums} != {ref_enums}"
+            assert (
+                result_enums == ref_enums
+            ), f"Enum fields mismatch for {entity_name}: {result_enums} != {ref_enums}"
 
 
 def test_enum_fields_comprehensive_coverage(test_schema):
     """Test that enum_fields are correctly extracted for all entities in test schema"""
     schema_extract = SchemaExtract.from_full_schema(test_schema)
-    
+
     # Expected enum fields for each entity (based on our analysis, excluding state)
     expected_enum_fields = {
         "aligned_reads_file": [],
-        "aliquot": [], 
-        "sample": ["fasting_status", "laterality", "preservation_method", "procured_or_purchased"],
+        "aliquot": [],
+        "sample": [
+            "fasting_status",
+            "laterality",
+            "preservation_method",
+            "procured_or_purchased",
+        ],
         "study": ["study_design", "study_objective", "study_setup", "type"],
-        "subject": ["age_at_enrollment_gt89", "ethnicity", "gender", "handedness", "index_date", "index_event_status", "lost_to_followup", "race"]
+        "subject": [
+            "age_at_enrollment_gt89",
+            "ethnicity",
+            "gender",
+            "handedness",
+            "index_date",
+            "index_event_status",
+            "lost_to_followup",
+            "race",
+        ],
     }
-    
+
     for entity_name, expected_enums in expected_enum_fields.items():
         if entity_name in schema_extract.entities:
             entity = schema_extract.entities[entity_name]
             actual_enums = entity.schema_summary.enum_fields
-            assert actual_enums == expected_enums, f"Entity {entity_name}: expected {expected_enums}, got {actual_enums}"
+            assert (
+                actual_enums == expected_enums
+            ), f"Entity {entity_name}: expected {expected_enums}, got {actual_enums}"

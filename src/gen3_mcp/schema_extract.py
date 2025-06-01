@@ -205,43 +205,58 @@ class SchemaExtract:
         return extract
 
 
-def _create_schema_summary(
-    entity: EntitySchema, entity_def: dict[str, Any]
-) -> SchemaSummary:
-    """Create schema summary information for an entity.
+def custom_handler(obj: Any) -> Any:
+    """
+    Handler for things that can't be normally be serialized as JSON.
+
+    Currently supports:
+        - set: returned as sorted(list(...))
+    """
+    if isinstance(obj, set):
+        return sorted(obj)
+    raise TypeError
+
+
+def extract_from_file(schema_file_path: str) -> SchemaExtract:
+    """Return schema extract read from full schema in a JSON file.
 
     Args:
-        entity: The EntitySchema instance.
-        entity_def: The entity definition from the full schema.
+        schema_file_path: Path to JSON file containing full Gen3 schema.
 
     Returns:
-        SchemaSummary instance with all summary information.
+        SchemaExtract instance.
+
+    Raises:
+        FileNotFoundError: If schema file not found.
+        json.JSONDecodeError: If schema file contains invalid JSON.
     """
-    # Count parent and child relationships
-    parent_count = sum(
-        1 for rel in entity.relationships.values() if rel.link_type == RelType.CHILD_OF
-    )
-    child_count = sum(
-        1 for rel in entity.relationships.values() if rel.link_type == RelType.PARENT_OF
-    )
+    logger.debug(f"Extracting schema from file: {schema_file_path}")
 
-    # Determine position description
-    position_desc = _get_position_description(parent_count, child_count)
+    with open(schema_file_path) as f:
+        full_schema = json.load(f)
 
-    # Extract enum fields
-    enum_fields = _extract_enum_fields(entity_def)
+    return SchemaExtract.from_full_schema(full_schema)
 
-    return SchemaSummary(
-        title=entity_def.get("title", ""),
-        description=entity_def.get("description", ""),
-        category=entity_def.get("category", ""),
-        required_fields=entity_def.get("required", []),
-        enum_fields=enum_fields,
-        field_count=len(entity.fields),
-        parent_count=parent_count,
-        child_count=child_count,
-        position_description=position_desc,
-    )
+
+def invert_multiplicity(mult: str) -> str:
+    """
+    Return the inverse of the given relationship multiplicity. For example:
+
+    >>> invert_multiplicity("many_to_one")
+    "one_to_many"
+    >>> invert_multiplicity("many_to_many")
+    "many_to_many"
+    """
+    inverse = {
+        "one_to_many": "many_to_one",
+        "one_to_one": "one_to_one",
+        "many_to_one": "one_to_many",
+        "many_to_many": "many_to_many",
+    }
+    try:
+        return inverse[mult]
+    except KeyError as e:
+        raise ValueError(f"unrecognized cardinality: {mult}") from e
 
 
 def _create_query_patterns(entity: EntitySchema) -> QueryPatterns:
@@ -322,7 +337,7 @@ def _create_query_patterns(entity: EntitySchema) -> QueryPatterns:
         # Take the first parent and first child for the combined query
         parent_rel = parent_rels[0]
         child_rel = child_rels[0]
-        
+
         combined_query = f"""{{
     {entity_name}(first: 5) {{
         id
@@ -344,10 +359,67 @@ def _create_query_patterns(entity: EntitySchema) -> QueryPatterns:
             )
         )
 
-    return QueryPatterns(
-        basic_query=basic_query,
-        complex_queries=relationship_examples
+    return QueryPatterns(basic_query=basic_query, complex_queries=relationship_examples)
+
+
+def _create_schema_summary(
+    entity: EntitySchema, entity_def: dict[str, Any]
+) -> SchemaSummary:
+    """Create schema summary information for an entity.
+
+    Args:
+        entity: The EntitySchema instance.
+        entity_def: The entity definition from the full schema.
+
+    Returns:
+        SchemaSummary instance with all summary information.
+    """
+    # Count parent and child relationships
+    parent_count = sum(
+        1 for rel in entity.relationships.values() if rel.link_type == RelType.CHILD_OF
     )
+    child_count = sum(
+        1 for rel in entity.relationships.values() if rel.link_type == RelType.PARENT_OF
+    )
+
+    # Determine position description
+    position_desc = _get_position_description(parent_count, child_count)
+
+    # Extract enum fields
+    enum_fields = _extract_enum_fields(entity_def)
+
+    return SchemaSummary(
+        title=entity_def.get("title", ""),
+        description=entity_def.get("description", ""),
+        category=entity_def.get("category", ""),
+        required_fields=entity_def.get("required", []),
+        enum_fields=enum_fields,
+        field_count=len(entity.fields),
+        parent_count=parent_count,
+        child_count=child_count,
+        position_description=position_desc,
+    )
+
+
+def _extract_enum_fields(entity_def: dict[str, Any]) -> list[str]:
+    """Extract field names that have enum constraints from entity definition.
+
+    Args:
+        entity_def: The entity definition from the full schema.
+
+    Returns:
+        List of field names that have enum constraints.
+    """
+    enum_fields = []
+    properties = entity_def.get("properties", {})
+
+    for field_name, field_def in properties.items():
+        # Only check if field has direct 'enum' property
+        # Ignore complex validation structures like oneOf with enums
+        if field_def.get("enum"):
+            enum_fields.append(field_name)
+
+    return sorted(enum_fields)
 
 
 def _get_position_description(parent_count: int, child_count: int) -> dict[str, str]:
@@ -375,78 +447,3 @@ def _get_position_description(parent_count: int, child_count: int) -> dict[str, 
             "position": "intermediate",
             "description": "Intermediate entity in the data hierarchy - connects other entities",
         }
-
-
-def _extract_enum_fields(entity_def: dict[str, Any]) -> list[str]:
-    """Extract field names that have enum constraints from entity definition.
-
-    Args:
-        entity_def: The entity definition from the full schema.
-
-    Returns:
-        List of field names that have enum constraints.
-    """
-    enum_fields = []
-    properties = entity_def.get("properties", {})
-    
-    for field_name, field_def in properties.items():
-        # Only check if field has direct 'enum' property
-        # Ignore complex validation structures like oneOf with enums
-        if field_def.get("enum"):
-            enum_fields.append(field_name)
-    
-    return sorted(enum_fields)
-
-
-def extract_from_file(schema_file_path: str) -> SchemaExtract:
-    """Return schema extract read from full schema in a JSON file.
-
-    Args:
-        schema_file_path: Path to JSON file containing full Gen3 schema.
-
-    Returns:
-        SchemaExtract instance.
-
-    Raises:
-        FileNotFoundError: If schema file not found.
-        json.JSONDecodeError: If schema file contains invalid JSON.
-    """
-    logger.debug(f"Extracting schema from file: {schema_file_path}")
-
-    with open(schema_file_path) as f:
-        full_schema = json.load(f)
-
-    return SchemaExtract.from_full_schema(full_schema)
-
-
-def custom_handler(obj: Any) -> Any:
-    """
-    Handler for things that can't be normally be serialized as JSON.
-
-    Currently supports:
-        - set: returned as sorted(list(...))
-    """
-    if isinstance(obj, set):
-        return sorted(obj)
-    raise TypeError
-
-
-def invert_multiplicity(mult: str) -> str:
-    """
-    Return the inverse of the given relationship multiplicity. For example:
-
-    >>> invert_multiplicity("many_to_one")
-    "one_to_many"
-    >>> invert_multiplicity("many_to_many")
-    "many_to_many"
-    """
-    inverse = {
-        "one_to_many": "many_to_one",
-        "one_to_one": "one_to_one",
-        "many_to_one": "one_to_many",
-        "many_to_many": "many_to_many",
-    }
-    try:
-        return inverse[mult]
-    except KeyError as e:
-        raise ValueError(f"unrecognized cardinality: {mult}") from e

@@ -125,7 +125,7 @@ def get_workflow_resource() -> str:
 == DATA DISCOVERY - QUERY BUILDING PHASE ==
 2. query_template(entity_name=<entity>) - Generate safe starting template
 3. Modify the template as needed for your use case
-4. validate_query(query="...") - Check syntax and field names
+4. validate_query(query="...") - ALWAYS Check syntax and field names before execution
    (on failure, take note of suggestions in the response)
 5. execute_graphql(query="...") - Run your validated query
 
@@ -136,7 +136,7 @@ def get_workflow_resource() -> str:
   measure of how connected that entity is
 - Use query_template as the basis for constructing queries rather than
   writing queries from scratch
-- Validate queries before executing to catch field name errors
+- ALWAYS validate queries before executing to catch field name errors
 - Use suggestions to fix invalid entity and field names
 
 == COMMONS-AGNOSTIC APPROACH ==

@@ -14,7 +14,7 @@ from .exceptions import (
 from .query import QueryService
 from .schema import SchemaService
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     "__version__",
