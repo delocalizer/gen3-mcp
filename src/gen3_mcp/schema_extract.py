@@ -55,7 +55,9 @@ class SchemaExtract:
     def __repr__(self) -> str:
         """String representation."""
         return json.dumps(
-            {k: asdict(v) for k, v in self.entities.items()}, default=custom_handler, indent=2
+            {k: asdict(v) for k, v in self.entities.items()},
+            default=custom_handler,
+            indent=2,
         )
 
     @classmethod
@@ -149,11 +151,17 @@ class SchemaExtract:
 
         # Add the collected relationships
         for rel in relationships:
-            entity = extract.entities.get(rel.source_type)
-            if entity:
-                entity.relationships[rel.name] = rel
-            else:
+            # Links might possibly reference types not actually defined in the
+            # schema; these relationships are omitted so the result is closed.
+            source = extract.entities.get(rel.source_type)
+            target = extract.entities.get(rel.target_type)
+            if not source:
                 logger.info(f"Entity {rel.source_type} not found")
+                continue
+            elif not target:
+                logger.info(f"Entity {rel.target_type} not found")
+                continue
+            source.relationships[rel.name] = rel
 
         # Cache the result
         cls._cached_extract = extract
@@ -214,5 +222,3 @@ def invert_multiplicity(mult: str) -> str:
         return inverse[mult]
     except KeyError as e:
         raise ValueError(f"unrecognized cardinality: {mult}") from e
-
-

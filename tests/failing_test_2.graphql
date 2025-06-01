@@ -9,7 +9,7 @@
         studies {
             id
             submitter_id
-            study_name       # unknown field
+            study_name       # ! unknown field
             study_description
             data_description
         }

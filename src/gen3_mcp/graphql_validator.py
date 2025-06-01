@@ -161,37 +161,6 @@ def _suggest_similar_strings(
     return [s[0] for s in suggestions[:3]]
 
 
-def _validate_direct_entity_fields(
-    entity_schema: EntitySchema, field_names: list[str]
-) -> list[ValidationError]:
-    """Validate fields against a specific entity schema.
-
-    Args:
-        entity_schema: Entity schema to validate against.
-        field_names: List of field names to validate.
-
-    Returns:
-        List of validation errors.
-    """
-    errors = []
-    all_valid_fields = entity_schema.fields | set(entity_schema.relationships.keys())
-
-    for field_name in field_names:
-        if field_name not in all_valid_fields:
-            suggestions = _suggest_similar_strings(field_name, all_valid_fields)
-            errors.append(
-                ValidationError(
-                    entity=entity_schema.name,
-                    field=field_name,
-                    error_type="unknown_field",
-                    message=f"Field '{field_name}' does not exist in entity '{entity_schema.name}'",
-                    suggestions=suggestions,
-                )
-            )
-
-    return errors
-
-
 def _validate_entity_path(
     entity_path: EntityPath, schema: SchemaExtract
 ) -> list[ValidationError]:
@@ -238,21 +207,8 @@ def _validate_entity_path(
             # Check if this is a valid relationship from parent
             if entity_name in current_entity_schema.relationships:
                 relationship = current_entity_schema.relationships[entity_name]
-                target_entity_schema = schema.entities.get(relationship.target_type)
-
-                if target_entity_schema:
-                    current_entity_schema = target_entity_schema
-                else:
-                    errors.append(
-                        ValidationError(
-                            entity=entity_name,
-                            field="",
-                            error_type="unknown_entity",
-                            message=f"Target entity '{relationship.target_type}' for relationship '{entity_name}' does not exist",
-                            suggestions=[],
-                        )
-                    )
-                    current_entity_schema = None
+                # by construction, each relationship.target_type is a valid key
+                current_entity_schema = schema.entities[relationship.target_type]
             else:
                 # Relationship not found
                 relationship_suggestions = _suggest_similar_strings(
@@ -275,5 +231,36 @@ def _validate_entity_path(
             current_entity_schema, entity_path.fields
         )
         errors.extend(field_errors)
+
+    return errors
+
+
+def _validate_direct_entity_fields(
+    entity_schema: EntitySchema, field_names: list[str]
+) -> list[ValidationError]:
+    """Validate fields against a specific entity schema.
+
+    Args:
+        entity_schema: Entity schema to validate against.
+        field_names: List of field names to validate.
+
+    Returns:
+        List of validation errors.
+    """
+    errors = []
+    all_valid_fields = entity_schema.fields | set(entity_schema.relationships.keys())
+
+    for field_name in field_names:
+        if field_name not in all_valid_fields:
+            suggestions = _suggest_similar_strings(field_name, all_valid_fields)
+            errors.append(
+                ValidationError(
+                    entity=entity_schema.name,
+                    field=field_name,
+                    error_type="unknown_field",
+                    message=f"Field '{field_name}' does not exist in entity '{entity_schema.name}'",
+                    suggestions=suggestions,
+                )
+            )
 
     return errors

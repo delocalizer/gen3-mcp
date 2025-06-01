@@ -162,14 +162,6 @@
       "type"
     ],
     "relationships": {
-      "projects": {
-        "name": "projects",
-        "source_type": "study",
-        "target_type": "project",
-        "link_type": "child_of",
-        "link_multiplicity": "many_to_one",
-        "link_label": "performed_for"
-      },
       "subjects": {
         "name": "subjects",
         "source_type": "study",

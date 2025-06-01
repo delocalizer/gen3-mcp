@@ -31,7 +31,7 @@ def schema_extract_refstr():
     resource_path = Path(__file__).parent / "ex_schema_extract.json"
     with open(resource_path) as f:
         return f.read()
-    
+
 
 @pytest.fixture(scope="session")
 def test_queries():
@@ -97,6 +97,7 @@ class TestSchemaExtract:
         studies_rel = subject.relationships["studies"]
         assert studies_rel.target_type == "study"
         assert studies_rel.link_type == "child_of"
+        assert studies_rel.link_label == "member_of"
 
     def test_backref_relationships_added(self, schema_extract):
         """Test that backref relationships are added correctly"""
@@ -107,11 +108,38 @@ class TestSchemaExtract:
         subjects_rel = study.relationships["subjects"]
         assert subjects_rel.target_type == "subject"
         assert subjects_rel.link_type == "parent_of"
+        assert subjects_rel.link_label is None  # inferred relation unlabelled
+
+    def test_undef_entity_relationshps_omitted(self, schema_extract):
+        """Test that relationships referencing undefined entities are omitted."""
+        study = schema_extract.entities["study"]
+
+        # Project is referenced in study links but not defined in
+        # the schema so it is omitted from study relationships in
+        # the extract
+        assert "projects" not in study.relationships
+
+    def test_relationships_reference_entities(self, schema_extract):
+        """Test that all relationship sources and targets are schema entities."""
+        entities = set(schema_extract.entities)
+        sources = {
+            rel.source_type
+            for entity in schema_extract.entities.values()
+            for rel in entity.relationships.values()
+        }
+        targets = {
+            rel.target_type
+            for entity in schema_extract.entities.values()
+            for rel in entity.relationships.values()
+        }
+
+        assert sources <= entities
+        assert targets <= entities
 
     def test_extract_serialization(self, schema_extract, schema_extract_refstr):
         """Test that the extract serializes as we expect."""
         assert repr(schema_extract) == schema_extract_refstr
-        
+
 
 class TestValidationWithTestQueries:
     """Test validation using the provided test queries"""
@@ -168,7 +196,7 @@ class TestValidationWithTestQueries:
         assert error.suggestions is not None
         assert len(error.suggestions) > 0
 
-    def test_failing_query_3_unknown_entity(self, schema_extract, test_queries):
+    def test_failing_query_3_invalid_relation(self, schema_extract, test_queries):
         """Test that failing_test_3.graphql fails due to invalid relationship"""
         query = test_queries["failing_3"]
         result = validate_graphql(query, schema_extract)
@@ -179,7 +207,10 @@ class TestValidationWithTestQueries:
         # Should have error about invalid relationship
         error = result.errors[0]
         assert error.error_type == "unknown_entity"
-        assert error.message == "Relationship 'samples' does not exist in entity 'aligned_reads_file'"
+        assert (
+            error.message
+            == "Relationship 'samples' does not exist in entity 'aligned_reads_file'"
+        )
 
 
 class TestValidationErrorHandling:
