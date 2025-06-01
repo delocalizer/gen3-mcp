@@ -2,19 +2,35 @@
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger("gen3-mcp.schema_extract")
 
 
+class RelType(StrEnum):
+    CHILD_OF = "child_of"
+    PARENT_OF = "parent_of"
+
+
 @dataclass
 class Relationship:
-    """A relationship between entities."""
+    """
+    A relationship between entities. Captures info explicitly defined in
+    schema entity links, and inferred from backrefs.
+    """
 
     name: str  # The field name used in GraphQL (e.g., "studies")
+    source_type: str  # The source entity type (e.g., "subject")
     target_type: str  # The target entity type (e.g., "study")
-    backref: str  # The reverse field name (e.g., "subjects")
+    link_type: RelType  # The relationship between source and target
+    link_multiplicity: str  # The cardinality of the relation
+    # link_label is the name of the relationship between source and target,
+    # e.g. "derived_from" between aliquot and sample. It is Optional because
+    # it is explicit in the schema only for 'child_of' relationships and
+    # unlike multiplicity, can't safely be inferred for backrefs.
+    link_label: str | None = None
 
 
 @dataclass
@@ -35,6 +51,12 @@ class SchemaExtract:
     def __init__(self):
         """Initialize SchemaExtract."""
         self.entities: dict[str, EntitySchema] = {}
+
+    def __repr__(self) -> str:
+        """String representation."""
+        return json.dumps(
+            {k: asdict(v) for k, v in self.entities.items()}, default=custom_handler, indent=2
+        )
 
     @classmethod
     def clear_cache(cls) -> None:
@@ -60,6 +82,7 @@ class SchemaExtract:
 
         # Create new extract
         extract = cls()
+        relationships = []
 
         for entity_name, entity_def in full_schema.items():
             # Skip special keys
@@ -71,9 +94,8 @@ class SchemaExtract:
             properties = entity_def.get("properties", {})
 
             for prop_name, prop_def in properties.items():
-                # Skip relationship fields (they have complex object structures)
                 if isinstance(prop_def, dict):
-                    # Simple heuristic: if it has 'anyOf' with object refs, it's a relationship
+                    # Simple heuristic: if it has 'anyOf' with object refs, it's a parent relationship - handled in links
                     if "anyOf" in prop_def:
                         continue
                     # If it's a simple type, it's a scalar field
@@ -84,59 +106,60 @@ class SchemaExtract:
             fields.update(["id", "submitter_id", "type"])
 
             # Extract relationships from links
-            relationships = {}
-            links = entity_def.get("links", [])
-
-            for link in links:
-                # Process direct relationship
-                if link.get("name") and link.get("target_type"):
-                    relationships[link["name"]] = Relationship(
-                        name=link["name"],
-                        target_type=link["target_type"],
-                        backref=link.get("backref", ""),
-                    )
-
-                # Process subgroup relationships
-                subgroup = link.get("subgroup", [])
-                for sublink in subgroup:
-                    if sublink.get("name") and sublink.get("target_type"):
-                        relationships[sublink["name"]] = Relationship(
-                            name=sublink["name"],
-                            target_type=sublink["target_type"],
-                            backref=sublink.get("backref", ""),
-                        )
-
-            extract.entities[entity_name] = EntitySchema(
-                name=entity_name, fields=fields, relationships=relationships
+            links = [
+                link for link in entity_def.get("links", []) if "subgroup" not in link
+            ]
+            links.extend(
+                # Handle subgroup links (common in Gen3)
+                [
+                    sublink
+                    for link in entity_def.get("links", [])
+                    for sublink in link.get("subgroup", [])
+                ]
             )
 
-        # Add backref relationships (reverse lookups)
-        cls._add_backref_relationships(extract)
+            # Collect explicit and implied relationships
+            for link in links:
+                # All explicit schema links are 'child_of' relations.
+                relationships.append(
+                    Relationship(
+                        name=link["name"],
+                        source_type=entity_name,
+                        target_type=link["target_type"],
+                        link_type=RelType.CHILD_OF,
+                        link_label=link["label"],
+                        link_multiplicity=link["multiplicity"],
+                    )
+                )
+                # If backref exists it defines the reverse relation
+                if link.get("backref"):
+                    relationships.append(
+                        Relationship(
+                            name=link["backref"],
+                            source_type=link["target_type"],
+                            target_type=entity_name,
+                            link_type=RelType.PARENT_OF,
+                            link_multiplicity=invert_multiplicity(link["multiplicity"]),
+                        )
+                    )
+
+            extract.entities[entity_name] = EntitySchema(
+                name=entity_name, fields=fields, relationships={}
+            )
+
+        # Add the collected relationships
+        for rel in relationships:
+            entity = extract.entities.get(rel.source_type)
+            if entity:
+                entity.relationships[rel.name] = rel
+            else:
+                logger.info(f"Entity {rel.source_type} not found")
 
         # Cache the result
         cls._cached_extract = extract
         logger.info(f"Schema extract created with {len(extract.entities)} entities")
 
         return extract
-
-    @classmethod
-    def _add_backref_relationships(cls, extract: "SchemaExtract") -> None:
-        """Add backref relationships to entities.
-
-        Args:
-            extract: SchemaExtract to add backrefs to.
-        """
-        logger.debug("Adding backref relationships")
-
-        # For each entity's relationships, add the backref to the target entity
-        for entity_name, entity in extract.entities.items():
-            for rel in entity.relationships.values():
-                target_entity = extract.entities.get(rel.target_type)
-                if target_entity and rel.backref:
-                    # Add backref relationship to target entity
-                    target_entity.relationships[rel.backref] = Relationship(
-                        name=rel.backref, target_type=entity_name, backref=rel.name
-                    )
 
 
 def extract_from_file(schema_file_path: str) -> SchemaExtract:
@@ -158,3 +181,38 @@ def extract_from_file(schema_file_path: str) -> SchemaExtract:
         full_schema = json.load(f)
 
     return SchemaExtract.from_full_schema(full_schema)
+
+
+def custom_handler(obj: Any) -> Any:
+    """
+    Handler for things that can't be normally be serialized as JSON.
+
+    Currently supports:
+        - set: returned as sorted(list(...))
+    """
+    if isinstance(obj, set):
+        return sorted(obj)
+    raise TypeError
+
+
+def invert_multiplicity(mult: str) -> str:
+    """
+    Return the inverse of the given relationship multiplicity. For example:
+
+    >>> invert_multiplicity("many_to_one")
+    "one_to_many"
+    >>> invert_multiplicity("many_to_many")
+    "many_to_many"
+    """
+    inverse = {
+        "one_to_many": "many_to_one",
+        "one_to_one": "one_to_one",
+        "many_to_one": "one_to_many",
+        "many_to_many": "many_to_many",
+    }
+    try:
+        return inverse[mult]
+    except KeyError as e:
+        raise ValueError(f"unrecognized cardinality: {mult}") from e
+
+

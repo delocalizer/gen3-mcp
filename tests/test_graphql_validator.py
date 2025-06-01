@@ -27,6 +27,13 @@ def schema_extract(test_schema):
 
 
 @pytest.fixture(scope="session")
+def schema_extract_refstr():
+    resource_path = Path(__file__).parent / "ex_schema_extract.json"
+    with open(resource_path) as f:
+        return f.read()
+    
+
+@pytest.fixture(scope="session")
 def test_queries():
     """Load all test GraphQL queries"""
     test_dir = Path(__file__).parent
@@ -89,7 +96,7 @@ class TestSchemaExtract:
         assert "studies" in subject.relationships
         studies_rel = subject.relationships["studies"]
         assert studies_rel.target_type == "study"
-        assert studies_rel.backref == "subjects"
+        assert studies_rel.link_type == "child_of"
 
     def test_backref_relationships_added(self, schema_extract):
         """Test that backref relationships are added correctly"""
@@ -99,8 +106,12 @@ class TestSchemaExtract:
         assert "subjects" in study.relationships
         subjects_rel = study.relationships["subjects"]
         assert subjects_rel.target_type == "subject"
-        assert subjects_rel.backref == "studies"
+        assert subjects_rel.link_type == "parent_of"
 
+    def test_extract_serialization(self, schema_extract, schema_extract_refstr):
+        """Test that the extract serializes as we expect."""
+        assert repr(schema_extract) == schema_extract_refstr
+        
 
 class TestValidationWithTestQueries:
     """Test validation using the provided test queries"""

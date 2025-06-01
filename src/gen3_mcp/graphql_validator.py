@@ -5,7 +5,6 @@ Takes a GraphQL query and minimal schema structure to validate field names and r
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from graphql import FieldNode, Visitor, parse, visit
 from graphql.error import GraphQLSyntaxError
