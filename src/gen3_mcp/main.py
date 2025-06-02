@@ -1,4 +1,14 @@
-"""Main MCP server implementation."""
+"""
+Main MCP server implementation.
+
+🔧 Available Query Tools:
+├── annotated_schema_structure() - Schema overview & entity discovery
+├── query_template() - Generate valid query starting points
+├── validate_query() - Check syntax before execution
+└── execute_graphql() - Run validated queries
+
+💡 Recommended flow: schema → template → validate → execute
+"""
 
 import asyncio
 import json
@@ -38,8 +48,21 @@ def create_mcp_server() -> FastMCP:
 
     @mcp.tool()
     async def annotated_schema_structure() -> dict:
-        """Get complete schema information - all entities with fields, relationships,
-        query patterns, and hierarchical context in one comprehensive response.
+        """Get complete schema information (USE THIS FOR OVERVIEW FIRST)
+
+        🎯 When to use:
+        - First time exploring a data commons
+        - Need to understand data structure: entities, fields, and relationships
+        - Looking for specific entity types
+
+        🔄 Typical workflow:
+        1. annotated_schema_structure() ← You are here
+        2. query_template(entity_name) to start exploring specific entities
+        3. validate_query() for custom queries
+        4. execute_graphql() to run queries
+
+        Returns: All entities with fields, relationships, query patterns,
+                 and hierarchical context
         """
         logger.debug("annotated_schema_structure called")
         gen3_service = await get_gen3_service()
@@ -49,14 +72,20 @@ def create_mcp_server() -> FastMCP:
         logger.info(f"annotated_schema_structure completed with {len(result)} entities")
         return result
 
-    # ===== GRAPHQL QUERY TOOLS =====
+    # ===== QUERY BUILDING TOOLS =====
 
     @mcp.tool()
     async def query_template(
         entity_name: str, include_relationships: bool = True, max_fields: int = 20
     ) -> dict:
-        """Generate safe query template - create GraphQL query template with
-        validated fields (recommended starting point)
+        """Generate safe, validated GraphQL query templates (RECOMMENDED STARTING POINT)
+        💡 Use this first when exploring a new entity type, then modify as needed.
+
+        Related tools for complete workflow:
+        - Thoroughly parse the data the model from annotated_schema_structure()
+          to understand all available entities, their fields, and their relations
+        - Use query_template() first → validate_query() → execute_graphql()
+        - If execute_graphql() fails, try validate_query() to debug
 
         Args:
             entity_name: Name of the entity to generate template for
@@ -72,7 +101,8 @@ def create_mcp_server() -> FastMCP:
         # Add workflow guidance in response
         if result.get("exists"):
             result["next_step"] = (
-                "Use validate_query() to check any modifications, then execute_graphql() to run the query"
+                "Use validate_query() to check any modifications, ",
+                "then execute_graphql() to run the query",
             )
 
         logger.info(f"query_template completed for entity: {entity_name}")
@@ -80,8 +110,15 @@ def create_mcp_server() -> FastMCP:
 
     @mcp.tool()
     async def validate_query(query: str) -> dict:
-        """Validate GraphQL query - check syntax and field names against schema
-        before execution (use before execute_graphql)
+        """Validate GraphQL query - CHECK SYNTAX BEFORE execute_graphql()
+        ⚠️  Always use this before execute_graphql() for custom queries to
+        avoid errors.
+
+        Related tools for complete workflow:
+        - Thoroughly parse the data the model from annotated_schema_structure()
+          to understand all available entities, their fields, and their relations
+        - Use query_template() first → validate_query() → execute_graphql()
+        - If execute_graphql() fails, try validate_query() to debug
 
         Args:
             query: GraphQL query string to validate
@@ -92,32 +129,29 @@ def create_mcp_server() -> FastMCP:
         logger.info(f"validate_query completed - valid: {result.get('valid', False)}")
         return result
 
+    # ===== QUERY EXECUTION =====
+
     @mcp.tool()
     async def execute_graphql(query: str) -> dict:
-        """Execute GraphQL query against the Gen3 data commons - run validated
-        GraphQL query (tip: use validate_query first to check syntax)
+        """Execute GraphQL query against the Gen3 data commons.
+
+        **IMPORTANT**: For best results, use this workflow:
+        1. First time with an entity? Use query_template(entity_name) to get valid field names
+        2. Custom query? Use validate_query(query) to check syntax before execution
+        3. Then use execute_graphql(query) to run the validated query
 
         Args:
             query: GraphQL query string
         """
+
         logger.debug("execute_graphql called")
         query_service = await get_query_service()
         result = await query_service.execute_graphql(query)
 
-        if result is None:
-            logger.warning("execute_graphql returned None")
-            return {
-                "error": "Query execution failed",
-                "suggestion": "Try validate_query() to check syntax or query_template() to generate a safe template",
-            }
-
-        # Check for GraphQL errors and provide guidance
+        # Check for errors and provide guidance
         if result.get("errors"):
             logger.warning(
                 f"execute_graphql returned errors: {len(result['errors'])} errors"
-            )
-            result["suggestion"] = (
-                "Query returned GraphQL errors. Use validate_query() to check field names and syntax."
             )
         else:
             logger.info("execute_graphql completed successfully")

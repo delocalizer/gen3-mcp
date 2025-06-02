@@ -86,7 +86,10 @@ class Gen3Client:
             **kwargs: Additional arguments passed to httpx.post.
 
         Returns:
-            JSON response as dict or None if request fails.
+            JSON response as dict. For HTTP errors, the 'errors' key will
+            contain detailed errors from the response content (if any), and
+            '_http_error_context' will describe the HTTP error context e.g.
+            status_code. Returns None only for network/connection errors.
 
         Raises:
             Gen3ClientError: If client not initialized.
@@ -105,8 +108,33 @@ class Gen3Client:
             logger.debug(f"POST {url} successful")
             return result
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error for POST {url}: {e.response.status_code}")
-            return None
+            status_code = httpx.codes(e.response.status_code)
+            logger.error(f"HTTP error for POST {url}: {repr(status_code)}")
+
+            # Try to extract response content (may contain GraphQL errors)
+            response_content = {}
+            try:
+                response_content = e.response.json()
+                # At the graphql endpoint, an example of this:
+                # {'data': None, 'errors': ['Cannot query field "demographic" on type "subject".']}
+            except ValueError:
+                pass
+            if "errors" not in response_content:
+                response_content["errors"] = [f"HTTP {repr(status_code)} error"]
+
+            # Add HTTP error context to the response content
+            response_content["_http_error_context"] = {
+                "status_code": status_code.value,
+                "error_category": status_code.name,
+                "is_client_error": httpx.codes.is_client_error(status_code),
+                "is_server_error": httpx.codes.is_server_error(status_code),
+            }
+
+            logger.debug(
+                f"HTTP error response includes: {list(response_content.keys())}"
+            )
+            return response_content
+
         except Exception as e:
             logger.error(f"POST {url} failed: {e}")
             return None

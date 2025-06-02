@@ -49,47 +49,32 @@ class QueryService:
         )
 
         if result is None:
-            logger.error("GraphQL query execution failed")
+            logger.error("GraphQL query execution failed - network error")
             return {
-                "error": "Query execution failed - network or server error",
-                "suggestion": "Check your connection and try validate_query() to verify syntax before retrying",
+                "errors": ["Network error - unable to connect to Gen3 server"],
+                "suggestion": "Check your internet connection and Gen3 server availability",
             }
 
-        # Check for GraphQL errors and provide enhanced guidance
-        if "errors" in result:
-            logger.warning(
-                f"GraphQL query returned errors: {len(result['errors'])} errors"
-            )
+        # Extract HTTP error context if present
+        http_error_context = result.pop("_http_error_context", None)
 
-            # Analyze error types for better suggestions
-            error_messages = [error.get("message", "") for error in result["errors"]]
-            suggestions = []
-
-            for error_msg in error_messages:
-                lower_msg = error_msg.lower()
-                if "field" in lower_msg and "exist" in lower_msg:
-                    suggestions.append("Use validate_query() to check field names")
-                elif "syntax" in lower_msg:
-                    suggestions.append(
-                        "Use query_template() to generate a syntactically correct starting template"
-                    )
-                elif "type" in lower_msg:
-                    suggestions.append(
-                        "Check entity names with annotated_schema_structure()"
-                    )
-
-            if suggestions:
-                result["execution_guidance"] = {
-                    "suggestions": list(set(suggestions)),
+        if http_error_context:
+            logger.warning("GraphQL query returned an error")
+            # 400 error = bad query
+            if http_error_context["error_category"] == "BAD_REQUEST":
+                result["suggestion"] = {
                     "recommended_workflow": [
-                        "1. Use validate_query() to check your query syntax and field names",
-                        "2. If validation fails, use the suggestions to fix errors",
-                        "3. Use execute_graphql() to run the validated query",
+                        "1. Inspect errors key to understand the cause of the bad query",
+                        "2. Use validate_query() to check your query syntax and field names",
+                        "3. If validation fails, use the suggestions to fix errors",
+                        "4. Use execute_graphql() to run the validated query",
                     ],
                 }
-        else:
-            logger.info("GraphQL query executed successfully")
 
+            return result
+
+        # Success case
+        logger.info("GraphQL query executed successfully")
         return result
 
     async def generate_query_template(
@@ -108,73 +93,63 @@ class QueryService:
         """
         logger.info(f"Generating query template for {entity_name}")
 
-        try:
-            # Get schema extract to check entity exists
-            schema_extract = await self._get_schema_extract()
+        # Get schema extract to check entity exists
+        schema_extract = await self._get_schema_extract()
 
-            if entity_name not in schema_extract.entities:
-                # Suggest similar entity names
-                suggestions = self._find_similar_entities(entity_name, schema_extract)
+        if entity_name not in schema_extract.entities:
+            # Suggest similar entity names
+            suggestions = self._find_similar_entities(entity_name, schema_extract)
 
-                logger.warning(f"Entity '{entity_name}' not found")
-                return {
-                    "entity_name": entity_name,
-                    "exists": False,
-                    "template": None,
-                    "error": f"Entity '{entity_name}' does not exist",
-                    "suggestions": suggestions[:3],
-                }
-
-            # Get entity schema
-            entity = schema_extract.entities[entity_name]
-
-            # Build template fields
-            required = entity.schema_summary.required_fields
-            relations = list(entity.relationships)
-            basic_fields = ["id"] + [f for f in required if f not in relations]
-            entity_fields = [
-                f for f in entity.schema_summary.enum_fields if f not in basic_fields
-            ][: max_fields - len(basic_fields)]
-            template_fields = basic_fields + entity_fields
-
-            # Generate the template
-            template_lines = [f"{entity_name}(first: 10) {{"]
-            template_lines.extend(f"    {field}" for field in template_fields)
-
-            # Add relationship examples
-            if include_relationships:
-                for rel_name, _rel in list(entity.relationships.items())[:5]:
-                    template_lines.extend(
-                        [
-                            f"    {rel_name} {{",
-                            "        id",
-                            "        submitter_id",
-                            "    }",
-                        ]
-                    )
-
-            template_lines.append("}")
-
-            # Create full query
-            full_template = "{\n    " + "\n    ".join(template_lines) + "\n}"
-
-            logger.info(
-                f"Template generated for {entity_name} with {len(template_fields)} fields"
-            )
-            return {
-                "entity_name": entity_name,
-                "exists": True,
-                "template": full_template,
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to generate template for {entity_name}: {e}")
+            logger.warning(f"Entity '{entity_name}' not found")
             return {
                 "entity_name": entity_name,
                 "exists": False,
                 "template": None,
-                "error": f"Failed to generate template: {e}",
+                "error": f"Entity '{entity_name}' does not exist",
+                "suggestions": suggestions[:3],
             }
+
+        # Get entity schema
+        entity = schema_extract.entities[entity_name]
+
+        # Build template fields
+        required = entity.schema_summary.required_fields
+        relations = list(entity.relationships)
+        basic_fields = ["id"] + [f for f in required if f not in relations]
+        entity_fields = [
+            f for f in entity.schema_summary.enum_fields if f not in basic_fields
+        ][: max_fields - len(basic_fields)]
+        template_fields = basic_fields + entity_fields
+
+        # Generate the template
+        template_lines = [f"{entity_name}(first: 10) {{"]
+        template_lines.extend(f"    {field}" for field in template_fields)
+
+        # Add relationship examples
+        if include_relationships:
+            for rel_name, _rel in list(entity.relationships.items())[:5]:
+                template_lines.extend(
+                    [
+                        f"    {rel_name} {{",
+                        "        id",
+                        "        submitter_id",
+                        "    }",
+                    ]
+                )
+
+        template_lines.append("}")
+
+        # Create full query
+        full_template = "{\n    " + "\n    ".join(template_lines) + "\n}"
+
+        logger.info(
+            f"Template generated for {entity_name} with {len(template_fields)} fields"
+        )
+        return {
+            "entity_name": entity_name,
+            "exists": True,
+            "template": full_template,
+        }
 
     async def validate_query(self, query: str) -> dict[str, Any]:
         """Validate GraphQL query.

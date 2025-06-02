@@ -136,7 +136,7 @@ def validate_graphql(query: str, schema: SchemaExtract) -> ValidationResult:
 
 
 def _suggest_similar_strings(
-    target: str, candidates: set[str], threshold: float = 0.6
+    target: str, candidates: set[str], threshold: float = 0.6, number=3
 ) -> list[str]:
     """Suggest similar strings using basic similarity scoring.
 
@@ -144,9 +144,10 @@ def _suggest_similar_strings(
         target: String to match against.
         candidates: Set of candidate strings.
         threshold: Minimum similarity threshold.
+        number: Maximum number of suggestions
 
     Returns:
-        List of up to 3 similar strings.
+        List of similar strings.
     """
     from difflib import SequenceMatcher
 
@@ -158,7 +159,7 @@ def _suggest_similar_strings(
 
     # Sort by similarity (descending) and return just the strings
     suggestions.sort(key=lambda x: x[1], reverse=True)
-    return [s[0] for s in suggestions[:3]]
+    return [s[0] for s in suggestions[:number]]
 
 
 def _validate_entity_path(
@@ -207,7 +208,7 @@ def _validate_entity_path(
             # Check if this is a valid relationship from parent
             if entity_name in current_entity_schema.relationships:
                 relationship = current_entity_schema.relationships[entity_name]
-                # by construction, each relationship.target_type is a valid key
+                # by schema extract construction, relationship.target_type is a valid key
                 current_entity_schema = schema.entities[relationship.target_type]
             else:
                 # Relationship not found
