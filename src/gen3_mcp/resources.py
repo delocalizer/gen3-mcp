@@ -12,11 +12,13 @@ def get_endpoints_resource(config: Config | None = None) -> dict[str, str]:
     """Available API endpoints for the Gen3 data commons.
 
     Args:
+        # FIXME
         config: Config instance. If None, creates new instance.
 
     Returns:
         Dict with endpoint URLs.
     """
+    # FIXME
     if config is None:
         config = Config()
 
@@ -152,6 +154,7 @@ def register_resources(mcp, config: Config | None = None) -> None:
 
     Args:
         mcp: FastMCP instance to register resources with.
+        # FIXME
         config: Config instance. If None, creates new instance.
     """
     logger.debug("Registering MCP resources")

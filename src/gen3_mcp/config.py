@@ -1,6 +1,7 @@
 """Configuration management."""
 
 from functools import lru_cache
+
 from pydantic import ConfigDict, Field, computed_field
 from pydantic_settings import BaseSettings
 
@@ -8,7 +9,9 @@ from pydantic_settings import BaseSettings
 class Config(BaseSettings):
     """Configuration with computed API endpoints."""
 
-    model_config = ConfigDict(env_prefix="GEN3MCP_", case_sensitive=False, extra="ignore")
+    model_config = ConfigDict(
+        env_prefix="GEN3MCP_", case_sensitive=False, extra="ignore"
+    )
 
     base_url: str = Field(
         default="https://gen3.datacommons.io",

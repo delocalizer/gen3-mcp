@@ -5,7 +5,7 @@ with GraphQL query validation to reduce field name hallucinations.
 """
 
 from .client import Gen3Client
-from .config import Config, setup_logging
+from .config import Config
 from .exceptions import (
     Gen3ClientError,
     Gen3MCPError,

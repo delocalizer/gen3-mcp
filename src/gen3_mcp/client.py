@@ -6,9 +6,8 @@ from typing import Any
 
 import httpx
 
-from auth import AuthManager
-from config import Config, get_config
-from exceptions import Gen3ClientError
+from .auth import AuthManager
+from .config import Config, get_config
 
 logger = logging.getLogger("gen3-mcp.client")
 
@@ -18,8 +17,6 @@ USER_AGENT = "gen3-mcp/1.0"
 class Gen3Client:
     """Gen3 API client."""
 
-    _client = None
-
     def __init__(self, config: Config):
         """Initialize Gen3Client.
 
@@ -27,24 +24,11 @@ class Gen3Client:
             config: Config instance with API settings.
         """
         self.config = config
-        self._http_client: httpx.Client | None = None
+        self._http_client: httpx.AsyncClient | None = None
         self._auth_manager: AuthManager | None = None
         self._initialized = False
 
-    def __aenter__(self):
-        """Async context manager entry.
-
-        Returns:
-            Self after initialization.
-        """
-        self._initialize()
-        return self
-
-    def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
-        self._cleanup()
-
-    def get_json(
+    async def get_json(
         self, url: str, authenticated: bool = True, **kwargs
     ) -> dict[str, Any] | None:
         """Get JSON from URL.
@@ -56,19 +40,15 @@ class Gen3Client:
 
         Returns:
             JSON response as dict or None if request fails.
-
-        Raises:
-            Gen3ClientError: If client not initialized.
         """
-        if not self._initialized:
-            raise Gen3ClientError("Client not initialized - use async context manager")
+        await self._ensure_initialized()
 
         try:
             if authenticated:
-                self._auth_manager.ensure_valid_token()
+                await self._auth_manager.ensure_valid_token()
 
             logger.debug(f"GET {url}")
-            response = self._http_client.get(url, **kwargs)
+            response = await self._http_client.get(url, **kwargs)
             response.raise_for_status()
 
             result = response.json()
@@ -81,7 +61,7 @@ class Gen3Client:
             logger.error(f"GET {url} failed: {e}")
             return None
 
-    def post_json(self, url: str, **kwargs) -> dict[str, Any] | None:
+    async def post_json(self, url: str, **kwargs) -> dict[str, Any] | None:
         """Post JSON to URL.
 
         Args:
@@ -93,18 +73,14 @@ class Gen3Client:
             contain detailed errors from the response content (if any), and
             '_http_error_context' will describe the HTTP error context e.g.
             status_code. Returns None only for network/connection errors.
-
-        Raises:
-            Gen3ClientError: If client not initialized.
         """
-        if not self._initialized:
-            raise Gen3ClientError("Client not initialized - use async context manager")
+        await self._ensure_initialized()
 
         try:
-            self._auth_manager.ensure_valid_token()
+            await self._auth_manager.ensure_valid_token()
 
             logger.debug(f"POST {url}")
-            response = self._http_client.post(url, **kwargs)
+            response = await self._http_client.post(url, **kwargs)
             response.raise_for_status()
 
             result = response.json()
@@ -142,19 +118,14 @@ class Gen3Client:
             logger.error(f"POST {url} failed: {e}")
             return None
 
-    def _initialize(self) -> None:
-        """Initialize HTTP client and auth manager.
-
-        Raises:
-            Gen3ClientError: If initialization fails.
-        """
+    async def _ensure_initialized(self) -> None:
+        """Ensure the client is initialized before making requests."""
         if self._initialized:
-            logger.debug("Client already initialized")
             return
 
         logger.debug("Initializing Gen3 client")
 
-        self._http_client = httpx.Client(
+        self._http_client = httpx.AsyncClient(
             headers={"User-Agent": USER_AGENT},
             timeout=self.config.timeout_seconds,
             follow_redirects=True,
@@ -163,26 +134,17 @@ class Gen3Client:
         self._auth_manager = AuthManager(self.config, self._http_client)
 
         # Get initial token
-        self._auth_manager.ensure_valid_token()
+        await self._auth_manager.ensure_valid_token()
         self._initialized = True
 
         logger.info(f"Gen3 client initialized for {self.config.base_url}")
 
-    def _cleanup(self) -> None:
-        """Clean up resources."""
-        logger.debug("Cleaning up Gen3 client")
-
-        if self._http_client:
-            self._http_client.aclose()
-            self._http_client = None
-
-        self._auth_manager = None
-        self._initialized = False
-
-        logger.debug("Gen3 client cleaned up")
 
 @lru_cache
-def get_client():
-    client = Gen3Client(get_config())
-    client._initialize()
-    return client
+def get_client() -> Gen3Client:
+    """Get a cached Gen3Client instance.
+
+    Returns:
+        Gen3Client instance that will auto-initialize on first use.
+    """
+    return Gen3Client(get_config())

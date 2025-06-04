@@ -42,8 +42,8 @@ def test_config_env_override():
 def test_imports():
     """Test that all main imports work"""
     from gen3_mcp import (
-        Gen3Client,
         Config,
+        Gen3Client,
         Gen3MCPError,
         QueryService,
         SchemaService,

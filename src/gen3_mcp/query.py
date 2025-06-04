@@ -15,9 +15,7 @@ logger = logging.getLogger("gen3-mcp.query")
 class QueryService:
     """Query operations: validation, building, and execution."""
 
-    def __init__(
-        self, client: Gen3Client, config: Config, gen3_service: SchemaService
-    ):
+    def __init__(self, client: Gen3Client, config: Config, gen3_service: SchemaService):
         """Initialize QueryService.
 
         Args:

@@ -4,9 +4,9 @@ import asyncio
 import json
 
 from mcp.server.fastmcp import FastMCP
-from client import get_client
-from config import get_config
 
+from .client import get_client
+from .config import get_config
 
 mcp = FastMCP(
     name="gen3-mcp",
@@ -17,15 +17,16 @@ mcp = FastMCP(
     1. Explore and understand the schema of a Gen3 data commons.
     2. Discover and explore data in a Gen3 data commons.
     """,
-    log_level=get_config().log_level
+    log_level=get_config().log_level,
 )
+
 
 @mcp.resource(
     "resource://schema",
     name="Gen3 Data Commons Full Schema",
     mime_type="application/json",
 )
-def gen3_schema() -> str:
+async def gen3_schema() -> str:
     """Get the full schema of a Gen3 data commons.
 
     This resource provides access to a JSON document defining the schema of
@@ -36,7 +37,7 @@ def gen3_schema() -> str:
     - Relationship definitions that specify links in the data model graph
     - Field definitions that specify property data types and validation rules
     - Controlled vocabularies and enumerated values
-    
+
     System-level metadata and reusable schema fragments are distinguished by
     top-level keys with leading underscores (e.g., _definitions, _settings,
     _terms).
@@ -63,7 +64,7 @@ def gen3_schema() -> str:
         ]
       },
       "subject": {
-        "title": "Subject", 
+        "title": "Subject",
         "type": "object",
         "properties": {
           "submitter_id": {"type": "string"},
@@ -82,7 +83,7 @@ def gen3_schema() -> str:
       },
       "sample": {
         "title": "Sample",
-        "type": "object", 
+        "type": "object",
         "properties": {
           "submitter_id": {"type": "string"},
           "sample_type": {"type": "string"},
@@ -91,7 +92,7 @@ def gen3_schema() -> str:
         "links": [
           {
             "name": "subjects",
-            "backref": "samples", 
+            "backref": "samples",
             "label": "derived_from",
             "target_type": "subject"
           }
@@ -108,15 +109,16 @@ def gen3_schema() -> str:
     4. Follow links between entities to understand the graph data model
     """
     client = get_client()
-    schema = client.get_json(client.config.schema_url)
+    schema = await client.get_json(client.config.schema_url)
     return json.dumps(schema)
 
 
-def main() -> None:
+async def main() -> None:
     """Run the MCP server."""
-    print(gen3_schema())
-    #mcp.run(transport="stdio")
+    schema = await gen3_schema()
+    print(schema)
+    # mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
