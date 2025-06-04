@@ -53,7 +53,5 @@ class Config(BaseSettings):
 
 @lru_cache
 def get_config() -> Config:
-    """
-    Get a cached Config instance.
-    """
+    """Get a cached Config instance."""
     return Config()

@@ -24,9 +24,14 @@ class Gen3Client:
             config: Config instance with API settings.
         """
         self.config = config
-        self._http_client: httpx.AsyncClient | None = None
-        self._auth_manager: AuthManager | None = None
-        self._initialized = False
+        self._http_client = httpx.AsyncClient(
+            headers={"User-Agent": USER_AGENT},
+            timeout=config.timeout_seconds,
+            follow_redirects=True,
+        )
+        self._auth_manager = AuthManager(config, self._http_client)
+
+        logger.info(f"Gen3 client created for {config.base_url}")
 
     async def get_json(
         self, url: str, authenticated: bool = True, **kwargs
@@ -41,8 +46,6 @@ class Gen3Client:
         Returns:
             JSON response as dict or None if request fails.
         """
-        await self._ensure_initialized()
-
         try:
             if authenticated:
                 await self._auth_manager.ensure_valid_token()
@@ -74,8 +77,6 @@ class Gen3Client:
             '_http_error_context' will describe the HTTP error context e.g.
             status_code. Returns None only for network/connection errors.
         """
-        await self._ensure_initialized()
-
         try:
             await self._auth_manager.ensure_valid_token()
 
@@ -95,7 +96,12 @@ class Gen3Client:
             try:
                 response_content = e.response.json()
                 # At the graphql endpoint, an example of this:
-                # {'data': None, 'errors': ['Cannot query field "demographic" on type "subject".']}
+                # {
+                #   'data': None,
+                #   'errors': [
+                #     'Cannot query field "demographic" on type "subject".'
+                #   ]
+                # }
             except ValueError:
                 pass
             if "errors" not in response_content:
@@ -118,33 +124,8 @@ class Gen3Client:
             logger.error(f"POST {url} failed: {e}")
             return None
 
-    async def _ensure_initialized(self) -> None:
-        """Ensure the client is initialized before making requests."""
-        if self._initialized:
-            return
-
-        logger.debug("Initializing Gen3 client")
-
-        self._http_client = httpx.AsyncClient(
-            headers={"User-Agent": USER_AGENT},
-            timeout=self.config.timeout_seconds,
-            follow_redirects=True,
-        )
-
-        self._auth_manager = AuthManager(self.config, self._http_client)
-
-        # Get initial token
-        await self._auth_manager.ensure_valid_token()
-        self._initialized = True
-
-        logger.info(f"Gen3 client initialized for {self.config.base_url}")
-
 
 @lru_cache
 def get_client() -> Gen3Client:
-    """Get a cached Gen3Client instance.
-
-    Returns:
-        Gen3Client instance that will auto-initialize on first use.
-    """
+    """Get a cached Gen3Client instance."""
     return Gen3Client(get_config())
