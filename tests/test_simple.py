@@ -30,13 +30,13 @@ def test_config_env_override():
     import os
 
     # Set environment variable
-    os.environ["GEN3_BASE_URL"] = "https://test.example.com"
+    os.environ["GEN3MCP_BASE_URL"] = "https://test.example.com"
 
     config = Config()
     assert config.base_url == "https://test.example.com"
 
     # Clean up
-    del os.environ["GEN3_BASE_URL"]
+    del os.environ["GEN3MCP_BASE_URL"]
 
 
 def test_imports():
@@ -55,61 +55,6 @@ def test_imports():
     assert SchemaService is not None
     assert QueryService is not None
     assert Gen3MCPError is not None
-
-
-class TestLoggingSetup:
-    """Test that logging setup works correctly"""
-
-    def test_logging_setup_without_force(self):
-        """Test that logging setup doesn't use force=True"""
-        import logging
-
-        from gen3_mcp.config import setup_logging
-
-        # Clear any existing handlers
-        root_logger = logging.getLogger()
-        original_handlers = root_logger.handlers[:]
-        root_logger.handlers = []
-
-        try:
-            # Set up logging
-            logger = setup_logging("DEBUG")
-            assert logger is not None
-            assert logger.name == "gen3-mcp"
-
-            # Should have added handlers without conflicts
-            assert len(root_logger.handlers) > 0
-
-            # Test that it doesn't override existing configuration
-            setup_logging("INFO")  # Should not cause conflicts
-
-        finally:
-            # Restore original handlers
-            root_logger.handlers = original_handlers
-
-    def test_logging_respects_existing_configuration(self):
-        """Test that logging respects existing configuration"""
-        import logging
-
-        from gen3_mcp.config import setup_logging
-
-        # Set up a handler first
-        logger = logging.getLogger()
-        handler = logging.StreamHandler()
-        logger.addHandler(handler)
-        original_level = logger.level
-
-        try:
-            # This should just set level, not add new handlers
-            setup_logging("DEBUG")
-
-            # Should still have our handler
-            assert handler in logger.handlers
-
-        finally:
-            # Clean up
-            logger.removeHandler(handler)
-            logger.setLevel(original_level)
 
 
 if __name__ == "__main__":

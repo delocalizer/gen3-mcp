@@ -19,22 +19,6 @@ def load_test_schema():
         return json.load(f)
 
 
-@pytest.fixture(autouse=True)
-def reset_global_state():
-    """Reset global state before each test"""
-    from gen3_mcp import main
-
-    # Reset global state
-    main._config = None
-    main._client = None
-
-    yield
-
-    # Clean up after test
-    main._config = None
-    main._client = None
-
-
 @pytest.fixture
 def config():
     """Test configuration"""
@@ -131,45 +115,3 @@ def create_test_services():
     }
 
     return mock_gen3_service, mock_query_service
-
-
-@pytest.fixture
-async def mcp_test_setup():
-    """Fixture that handles MCP test setup and teardown"""
-    from gen3_mcp import main
-    from gen3_mcp.main import create_mcp_server
-
-    # Store original state
-    original_config = main._config
-    original_client = main._client
-    original_gen3_service = main._gen3_service
-    original_query_service = main._query_service
-
-    # Reset state (this is already done by reset_global_state, but being explicit)
-    main._config = None
-    main._client = None
-    main._gen3_service = None
-    main._query_service = None
-
-    # Create test services
-    mock_gen3_service, mock_query_service = create_test_services()
-
-    try:
-        with (
-            patch("gen3_mcp.main.get_gen3_service", return_value=mock_gen3_service),
-            patch("gen3_mcp.main.get_query_service", return_value=mock_query_service),
-        ):
-
-            mcp_server = create_mcp_server()
-
-            yield {
-                "mcp_server": mcp_server,
-                "mock_gen3_service": mock_gen3_service,
-                "mock_query_service": mock_query_service,
-            }
-    finally:
-        # Restore original state
-        main._config = original_config
-        main._client = original_client
-        main._gen3_service = original_gen3_service
-        main._query_service = original_query_service

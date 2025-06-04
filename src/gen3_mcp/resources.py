@@ -3,25 +3,18 @@
 import logging
 from typing import Any
 
-from .config import Config
+from .config import get_config
 
 logger = logging.getLogger("gen3-mcp.resources")
 
 
-def get_endpoints_resource(config: Config | None = None) -> dict[str, str]:
+def get_endpoints_resource() -> dict[str, str]:
     """Available API endpoints for the Gen3 data commons.
-
-    Args:
-        # FIXME
-        config: Config instance. If None, creates new instance.
 
     Returns:
         Dict with endpoint URLs.
     """
-    # FIXME
-    if config is None:
-        config = Config()
-
+    config = get_config()
     return {
         "base_url": config.base_url,
         "schema": config.schema_url,
@@ -30,18 +23,13 @@ def get_endpoints_resource(config: Config | None = None) -> dict[str, str]:
     }
 
 
-def get_info_resource(config: Config | None = None) -> str:
+def get_info_resource() -> str:
     """Basic information about the Gen3 data commons instance.
-
-    Args:
-        config: Config instance. If None, creates new instance.
 
     Returns:
         Info string about the Gen3 instance.
     """
-    if config is None:
-        config = Config()
-
+    config = get_config()
     return f"""Gen3 Data Commons MCP Server
 
 Endpoint: {config.base_url}
@@ -149,25 +137,23 @@ def get_workflow_resource() -> str:
 This workflow prevents field name hallucinations and reduces query failures."""
 
 
-def register_resources(mcp, config: Config | None = None) -> None:
+def register_resources(mcp) -> None:
     """Register all resources with the MCP server.
 
     Args:
         mcp: FastMCP instance to register resources with.
-        # FIXME
-        config: Config instance. If None, creates new instance.
     """
     logger.debug("Registering MCP resources")
 
     @mcp.resource("gen3://endpoints")
     def endpoints_resource() -> dict[str, str]:
         """Available API endpoints for the Gen3 data commons."""
-        return get_endpoints_resource(config)
+        return get_endpoints_resource()
 
     @mcp.resource("gen3://info")
     def info_resource() -> str:
         """Basic information about the Gen3 data commons instance."""
-        return get_info_resource(config)
+        return get_info_resource()
 
     @mcp.resource("gen3://tools-by-category")
     def tools_by_category_resource() -> dict[str, Any]:
