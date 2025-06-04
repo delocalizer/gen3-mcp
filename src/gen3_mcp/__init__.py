@@ -4,8 +4,8 @@ A Model Context Protocol (MCP) server for interacting with Gen3 data commons,
 with GraphQL query validation to reduce field name hallucinations.
 """
 
-from .client import Gen3Client
-from .config import Config
+from .client import Gen3Client, get_client
+from .config import Config, get_config
 from .exceptions import (
     Gen3ClientError,
     Gen3MCPError,
@@ -18,8 +18,9 @@ __version__ = "1.2.0"
 
 __all__ = [
     "__version__",
+    "get_config",
+    "get_client",
     "Config",
-    "setup_logging",
     "Gen3Client",
     "SchemaService",
     "QueryService",

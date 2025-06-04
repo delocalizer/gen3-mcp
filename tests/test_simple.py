@@ -30,13 +30,15 @@ def test_config_env_override():
     import os
 
     # Set environment variable
+    original = os.environ.get("GEN3MCP_BASE_URL")
     os.environ["GEN3MCP_BASE_URL"] = "https://test.example.com"
 
     config = Config()
     assert config.base_url == "https://test.example.com"
 
     # Clean up
-    del os.environ["GEN3MCP_BASE_URL"]
+    if original:
+        os.environ["GEN3MCP_BASE_URL"] = original
 
 
 def test_imports():
