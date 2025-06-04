@@ -22,7 +22,7 @@ dev = [
     "coverage"]
 
 [project.scripts]
-gen3-mcp = "gen3_mcp.main:main"
+gen3-mcp = "gen3_mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]

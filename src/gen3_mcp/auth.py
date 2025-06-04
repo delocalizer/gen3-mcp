@@ -9,8 +9,8 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from .config import Gen3Config
-from .exceptions import Gen3ClientError
+from config import Config
+from exceptions import Gen3ClientError
 
 logger = logging.getLogger("gen3-mcp.auth")
 
@@ -67,11 +67,11 @@ class TokenInfo:
 class AuthManager:
     """Manages authentication tokens using config endpoints."""
 
-    def __init__(self, config: Gen3Config, http_client: httpx.AsyncClient):
+    def __init__(self, config: Config, http_client: httpx.Client):
         """Initialize AuthManager.
 
         Args:
-            config: Gen3Config instance with auth settings.
+            config: Config instance with auth settings.
             http_client: Async HTTP client for API calls.
         """
         self.config = config
@@ -79,25 +79,23 @@ class AuthManager:
         self.token_info: TokenInfo | None = None
         self.credentials: dict | None = None
         self._credentials_loaded = False
-        self._lock = asyncio.Lock()  # Prevent concurrent token refreshes
 
-    async def ensure_valid_token(self) -> None:
+    def ensure_valid_token(self) -> None:
         """Ensure we have a valid token, refreshing if necessary.
 
         Raises:
             Gen3ClientError: If credentials cannot be loaded or token refresh fails.
         """
-        async with self._lock:
-            logger.debug("Checking token validity")
+        logger.debug("Checking token validity")
 
-            if not self._credentials_loaded:
-                await self._load_credentials()
+        if not self._credentials_loaded:
+            self._load_credentials()
 
-            if not self.token_info or self.token_info.needs_refresh():
-                logger.info("Token needs refresh")
-                await self._refresh_token()
+        if not self.token_info or self.token_info.needs_refresh():
+            logger.info("Token needs refresh")
+            self._refresh_token()
 
-    async def _load_credentials(self) -> None:
+    def _load_credentials(self) -> None:
         """Load credentials from file.
 
         Raises:
@@ -124,7 +122,7 @@ class AuthManager:
                 f"Invalid JSON in credentials file: {self.config.credentials_file}"
             ) from e
 
-    async def _refresh_token(self) -> None:
+    def _refresh_token(self) -> None:
         """Refresh the access token using config.auth_url.
 
         Raises:
@@ -137,7 +135,7 @@ class AuthManager:
         logger.debug(f"Refreshing token via {self.config.auth_url}")
 
         try:
-            response = await self.http_client.post(
+            response = self.http_client.post(
                 self.config.auth_url, json=self.credentials
             )
             response.raise_for_status()

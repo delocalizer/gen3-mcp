@@ -1,13 +1,14 @@
 """Gen3 client — handles low-level API calls."""
 
 import logging
+from functools import lru_cache
 from typing import Any
 
 import httpx
 
-from .auth import AuthManager
-from .config import Gen3Config
-from .exceptions import Gen3ClientError
+from auth import AuthManager
+from config import Config, get_config
+from exceptions import Gen3ClientError
 
 logger = logging.getLogger("gen3-mcp.client")
 
@@ -17,31 +18,33 @@ USER_AGENT = "gen3-mcp/1.0"
 class Gen3Client:
     """Gen3 API client."""
 
-    def __init__(self, config: Gen3Config):
+    _client = None
+
+    def __init__(self, config: Config):
         """Initialize Gen3Client.
 
         Args:
-            config: Gen3Config instance with API settings.
+            config: Config instance with API settings.
         """
         self.config = config
-        self._http_client: httpx.AsyncClient | None = None
+        self._http_client: httpx.Client | None = None
         self._auth_manager: AuthManager | None = None
         self._initialized = False
 
-    async def __aenter__(self):
+    def __aenter__(self):
         """Async context manager entry.
 
         Returns:
             Self after initialization.
         """
-        await self._initialize()
+        self._initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        await self._cleanup()
+        self._cleanup()
 
-    async def get_json(
+    def get_json(
         self, url: str, authenticated: bool = True, **kwargs
     ) -> dict[str, Any] | None:
         """Get JSON from URL.
@@ -62,10 +65,10 @@ class Gen3Client:
 
         try:
             if authenticated:
-                await self._auth_manager.ensure_valid_token()
+                self._auth_manager.ensure_valid_token()
 
             logger.debug(f"GET {url}")
-            response = await self._http_client.get(url, **kwargs)
+            response = self._http_client.get(url, **kwargs)
             response.raise_for_status()
 
             result = response.json()
@@ -78,7 +81,7 @@ class Gen3Client:
             logger.error(f"GET {url} failed: {e}")
             return None
 
-    async def post_json(self, url: str, **kwargs) -> dict[str, Any] | None:
+    def post_json(self, url: str, **kwargs) -> dict[str, Any] | None:
         """Post JSON to URL.
 
         Args:
@@ -98,10 +101,10 @@ class Gen3Client:
             raise Gen3ClientError("Client not initialized - use async context manager")
 
         try:
-            await self._auth_manager.ensure_valid_token()
+            self._auth_manager.ensure_valid_token()
 
             logger.debug(f"POST {url}")
-            response = await self._http_client.post(url, **kwargs)
+            response = self._http_client.post(url, **kwargs)
             response.raise_for_status()
 
             result = response.json()
@@ -139,7 +142,7 @@ class Gen3Client:
             logger.error(f"POST {url} failed: {e}")
             return None
 
-    async def _initialize(self) -> None:
+    def _initialize(self) -> None:
         """Initialize HTTP client and auth manager.
 
         Raises:
@@ -151,7 +154,7 @@ class Gen3Client:
 
         logger.debug("Initializing Gen3 client")
 
-        self._http_client = httpx.AsyncClient(
+        self._http_client = httpx.Client(
             headers={"User-Agent": USER_AGENT},
             timeout=self.config.timeout_seconds,
             follow_redirects=True,
@@ -160,20 +163,26 @@ class Gen3Client:
         self._auth_manager = AuthManager(self.config, self._http_client)
 
         # Get initial token
-        await self._auth_manager.ensure_valid_token()
+        self._auth_manager.ensure_valid_token()
         self._initialized = True
 
         logger.info(f"Gen3 client initialized for {self.config.base_url}")
 
-    async def _cleanup(self) -> None:
+    def _cleanup(self) -> None:
         """Clean up resources."""
         logger.debug("Cleaning up Gen3 client")
 
         if self._http_client:
-            await self._http_client.aclose()
+            self._http_client.aclose()
             self._http_client = None
 
         self._auth_manager = None
         self._initialized = False
 
         logger.debug("Gen3 client cleaned up")
+
+@lru_cache
+def get_client():
+    client = Gen3Client(get_config())
+    client._initialize()
+    return client

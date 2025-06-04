@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from .client import Gen3Client
-from .config import Gen3Config
+from .config import Config
 from .graphql_validator import validate_graphql
 from .schema import SchemaService
 from .schema_extract import SchemaExtract
@@ -16,13 +16,13 @@ class QueryService:
     """Query operations: validation, building, and execution."""
 
     def __init__(
-        self, client: Gen3Client, config: Gen3Config, gen3_service: SchemaService
+        self, client: Gen3Client, config: Config, gen3_service: SchemaService
     ):
         """Initialize QueryService.
 
         Args:
             client: Gen3Client instance for API calls.
-            config: Gen3Config instance with settings.
+            config: Config instance with settings.
             gen3_service: SchemaService instance for schema operations.
         """
         self.client = client

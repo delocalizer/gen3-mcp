@@ -1,18 +1,18 @@
 """Simple tests (verify pytest working)"""
 
-from gen3_mcp.config import Gen3Config
+from gen3_mcp.config import Config
 
 
 def test_config_creation():
     """Test that config can be created"""
-    config = Gen3Config()
+    config = Config()
     assert config.base_url == "https://gen3.datacommons.io"
     assert config.log_level == "INFO"
 
 
 def test_config_properties():
     """Test that config properties work"""
-    config = Gen3Config()
+    config = Config()
     assert config.auth_url.endswith("/user/credentials/cdis/access_token")
     assert config.graphql_url.endswith("/api/v0/submission/graphql")
     assert config.schema_url.endswith("/api/v0/submission/_dictionary/_all")
@@ -21,7 +21,7 @@ def test_config_properties():
 def test_config_validation():
     """Test that config validation works"""
     # Valid config
-    config = Gen3Config(log_level="DEBUG")
+    config = Config(log_level="DEBUG")
     assert config.log_level == "DEBUG"
 
 
@@ -32,7 +32,7 @@ def test_config_env_override():
     # Set environment variable
     os.environ["GEN3_BASE_URL"] = "https://test.example.com"
 
-    config = Gen3Config()
+    config = Config()
     assert config.base_url == "https://test.example.com"
 
     # Clean up
@@ -43,14 +43,14 @@ def test_imports():
     """Test that all main imports work"""
     from gen3_mcp import (
         Gen3Client,
-        Gen3Config,
+        Config,
         Gen3MCPError,
         QueryService,
         SchemaService,
     )
 
     # Should not raise any import errors
-    assert Gen3Config is not None
+    assert Config is not None
     assert Gen3Client is not None
     assert SchemaService is not None
     assert QueryService is not None

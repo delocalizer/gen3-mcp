@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from gen3_mcp.config import Gen3Config
+from gen3_mcp.config import Config
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
@@ -38,7 +38,7 @@ def reset_global_state():
 @pytest.fixture
 def config():
     """Test configuration"""
-    return Gen3Config(
+    return Config(
         base_url="https://test.gen3.io",
         credentials_file="/tmp/test_creds.json",
         log_level="DEBUG",

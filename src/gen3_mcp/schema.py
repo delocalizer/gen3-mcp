@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from .client import Gen3Client
-from .config import Gen3Config
+from .config import Config
 from .exceptions import Gen3SchemaError
 
 logger = logging.getLogger("gen3-mcp.schema")
@@ -17,12 +17,12 @@ class SchemaService:
     Requires a client and a config instance.
     """
 
-    def __init__(self, client: Gen3Client, config: Gen3Config):
+    def __init__(self, client: Gen3Client, config: Config):
         """Initialize SchemaService.
 
         Args:
             client: Gen3Client instance for API calls.
-            config: Gen3Config instance with settings.
+            config: Config instance with settings.
         """
         self.client = client
         self.config = config

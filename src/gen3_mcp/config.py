@@ -1,15 +1,14 @@
-"""Configuration management and logging setup."""
+"""Configuration management."""
 
-import logging
-
+from functools import lru_cache
 from pydantic import ConfigDict, Field, computed_field
 from pydantic_settings import BaseSettings
 
 
-class Gen3Config(BaseSettings):
+class Config(BaseSettings):
     """Configuration with computed API endpoints."""
 
-    model_config = ConfigDict(env_prefix="GEN3_", case_sensitive=False, extra="ignore")
+    model_config = ConfigDict(env_prefix="GEN3MCP_", case_sensitive=False, extra="ignore")
 
     base_url: str = Field(
         default="https://gen3.datacommons.io",
@@ -45,35 +44,10 @@ class Gen3Config(BaseSettings):
     @computed_field
     @property
     def schema_url(self) -> str:
-        """URL for schema dictionary."""
+        """URL for full schema."""
         return f"{self.base_url}/api/v0/submission/_dictionary/_all"
 
-    def __repr__(self) -> str:
-        """String representation of the configuration."""
-        return f"Gen3Config(base_url='{self.base_url}', log_level='{self.log_level}')"
 
-
-def setup_logging(log_level: str = "INFO") -> logging.Logger:
-    """Configure logging for the entire application.
-
-    Args:
-        log_level: Logging level (DEBUG, INFO, WARNING, ERROR).
-
-    Returns:
-        Logger instance for gen3-mcp.
-    """
-    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
-
-    # Only configure if not already configured to avoid conflicts
-    if not logging.getLogger().handlers:
-        logging.basicConfig(
-            level=numeric_level,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        )
-    else:
-        # Just set the level if logging is already configured
-        logging.getLogger().setLevel(numeric_level)
-
-    logger = logging.getLogger("gen3-mcp")
-    logger.debug(f"Logging configured with level: {log_level}")
-    return logger
+@lru_cache
+def get_config():
+    return Config()

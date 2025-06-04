@@ -3,22 +3,22 @@
 import logging
 from typing import Any
 
-from .config import Gen3Config
+from .config import Config
 
 logger = logging.getLogger("gen3-mcp.resources")
 
 
-def get_endpoints_resource(config: Gen3Config | None = None) -> dict[str, str]:
+def get_endpoints_resource(config: Config | None = None) -> dict[str, str]:
     """Available API endpoints for the Gen3 data commons.
 
     Args:
-        config: Gen3Config instance. If None, creates new instance.
+        config: Config instance. If None, creates new instance.
 
     Returns:
         Dict with endpoint URLs.
     """
     if config is None:
-        config = Gen3Config()
+        config = Config()
 
     return {
         "base_url": config.base_url,
@@ -28,17 +28,17 @@ def get_endpoints_resource(config: Gen3Config | None = None) -> dict[str, str]:
     }
 
 
-def get_info_resource(config: Gen3Config | None = None) -> str:
+def get_info_resource(config: Config | None = None) -> str:
     """Basic information about the Gen3 data commons instance.
 
     Args:
-        config: Gen3Config instance. If None, creates new instance.
+        config: Config instance. If None, creates new instance.
 
     Returns:
         Info string about the Gen3 instance.
     """
     if config is None:
-        config = Gen3Config()
+        config = Config()
 
     return f"""Gen3 Data Commons MCP Server
 
@@ -147,12 +147,12 @@ def get_workflow_resource() -> str:
 This workflow prevents field name hallucinations and reduces query failures."""
 
 
-def register_resources(mcp, config: Gen3Config | None = None) -> None:
+def register_resources(mcp, config: Config | None = None) -> None:
     """Register all resources with the MCP server.
 
     Args:
         mcp: FastMCP instance to register resources with.
-        config: Gen3Config instance. If None, creates new instance.
+        config: Config instance. If None, creates new instance.
     """
     logger.debug("Registering MCP resources")
 
