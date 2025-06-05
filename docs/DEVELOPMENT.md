@@ -25,11 +25,15 @@ mypy src/
 
 ## Project Architecture
 
+### Design Principles
+
+This project follows [awslabs MCP design guidelines](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
+
 ### Core Components
 
-- **`main.py`** - MCP server setup and tool definitions
+- **`server.py`** - MCP server setup and tool definitions
 - **`client.py`** - Gen3 HTTP client
-- **`data.py`** - Gen3 data operations and schema caching
+- **`schema.py`** - Gen3 schema operations
 - **`query.py`** - GraphQL validation and execution
 - **`config.py`** - Configuration management
 
