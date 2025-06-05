@@ -1,7 +1,7 @@
 """Gen3 client — handles low-level API calls."""
 
 import logging
-from functools import lru_cache
+from functools import cache
 from typing import Any
 
 import httpx
@@ -124,7 +124,7 @@ class Gen3Client:
             return None
 
 
-@lru_cache
+@cache
 def get_client() -> Gen3Client:
     """Get a cached Gen3Client instance."""
     return Gen3Client(get_config())

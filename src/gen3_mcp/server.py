@@ -33,6 +33,7 @@ async def get_schema_summary() -> str:
     client = get_client()
     schema = await client.get_json(client.config.schema_url)
     extract = await get_schema_extract(schema)
+    extract = await get_schema_extract(schema)
     return json.dumps(extract.model_dump())
     # return SchemaExtractResponse(isError=False, content=repr(extract), schema_extract=extract)
 

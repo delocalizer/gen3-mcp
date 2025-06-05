@@ -1,6 +1,6 @@
 """Configuration management."""
 
-from functools import lru_cache
+from functools import cache
 
 from pydantic import ConfigDict, Field, computed_field
 from pydantic_settings import BaseSettings
@@ -53,7 +53,7 @@ class Config(BaseSettings):
         return f"{self.base_url}{SCHEMA_URL_PATH}"
 
 
-@lru_cache
+@cache
 def get_config() -> Config:
     """Get a cached Config instance."""
     return Config()

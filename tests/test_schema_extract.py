@@ -7,10 +7,10 @@ import pytest
 
 from gen3_mcp.schema_extract import (
     SchemaExtract,
-    _create_query_patterns,
-    _create_schema_summary,
-    _extract_enum_fields,
-    _get_position_description,
+#    _create_query_patterns,
+#    _create_schema_summary,
+#    _extract_enum_fields,
+#    _get_position_description,
 )
 
 

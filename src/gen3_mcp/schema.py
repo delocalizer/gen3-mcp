@@ -1,34 +1,38 @@
-"""Service providing Gen3 schema operations and caching."""
+"""Manager providing Gen3 schema operations and caching."""
 
 import logging
-import time
+from functools import cache
 from typing import Any
 
-from .client import Gen3Client
-from .config import Config
+from .client import Gen3Client, get_client
 from .exceptions import Gen3SchemaError
+from .models import (
+    EntitySchema,
+    EntitySummary,
+    Property,
+    Relationship,
+    RelType,
+    SchemaExtract,
+    Type,
+)
 
 logger = logging.getLogger("gen3-mcp.schema")
 
 
-class SchemaService:
-    """Service for cached schema operations and data access.
+class SchemaManager:
+    """Manager for cached schema operations and data access.
 
-    Requires a client and a config instance.
+    Requires a client instance.
     """
 
-    def __init__(self, client: Gen3Client, config: Config):
-        """Initialize SchemaService.
+    def __init__(self, client: Gen3Client):
+        """Initialize SchemaManager.
 
         Args:
             client: Gen3Client instance for API calls.
-            config: Config instance with settings.
         """
         self.client = client
-        self.config = config
         self._cache = {}
-        self._cache_timestamps = {}
-        self.cache_ttl = config.schema_cache_ttl
 
     async def get_schema_full(self) -> dict[str, Any]:
         """Get full schema using config.schema_url.
@@ -43,43 +47,179 @@ class SchemaService:
         """
         cache_key = "full_schema"
 
-        if self._is_cache_valid(cache_key):
+        if cache_key in self._cache:
             logger.debug("Using cached full schema")
             return self._cache[cache_key]
 
-        logger.info("Fetching full schema from Gen3")
-        schema = await self.client.get_json(self.config.schema_url, authenticated=False)
+        logger.info("Fetching full schema from {}", self.client.config.schema_url)
+        schema = await self.client.get_json(self.client.config.schema_url, authenticated=False)
 
         if schema is None:
-            logger.error("Failed to fetch schema from Gen3")
+            logger.error("Failed to fetch full schema")
             raise Gen3SchemaError("Failed to fetch schema from Gen3")
 
-        logger.info(f"Fetched schema with {len(schema)} entities")
-        self._update_cache(cache_key, schema)
+        logger.info("Fetched full schema")
+        self._cache[cache_key] = schema
         return schema
 
-    def _is_cache_valid(self, key: str) -> bool:
-        """Check if cache entry is still valid.
-
-        Args:
-            key: Cache key to check.
+    async def get_schema_extract(self) -> SchemaExtract:
+        """Get processed schema extract with relationships and annotations.
 
         Returns:
-            True if cache is valid, False otherwise.
+            SchemaExtract instance with entity definitions, relationships,
+            and schema summary information.
+
+        Raises:
+            Gen3SchemaError: If schema fetch or processing fails.
         """
-        if key not in self._cache:
-            return False
+        cache_key = "extract"
 
-        age = time.time() - self._cache_timestamps.get(key, 0)
-        return age < self.cache_ttl
+        if cache_key in self._cache:
+            logger.debug("Using cached schema extract")
+            return self._cache[cache_key]
 
-    def _update_cache(self, key: str, value: Any) -> None:
-        """Update cache with new value and timestamp.
+        logger.debug("Creating new schema extract")
+
+        # Get the full schema (uses its own cache)
+        full_schema = await self.get_schema_full()
+
+        # Process it
+        extract = self._create_extract(full_schema)
+
+        self._cache[cache_key] = extract
+        return extract
+
+    def _create_extract(self, full_schema: dict[str, Any]) -> SchemaExtract:
+        """Create SchemaExtract from full schema dict.
 
         Args:
-            key: Cache key.
-            value: Value to cache.
+            full_schema: Full Gen3 schema dict.
+
+        Returns:
+            SchemaExtract instance.
         """
-        self._cache[key] = value
-        self._cache_timestamps[key] = time.time()
-        logger.debug(f"Cached {key}")
+        # Create new extract
+        extract = SchemaExtract()
+        relationships = []
+
+        for entity_name, entity_def in full_schema.items():
+            # Skip special keys
+            if entity_name.startswith("_") or entity_name == "metaschema":
+                continue
+
+            # Extract relationships from links
+            links = [
+                link for link in entity_def.get("links", []) if "subgroup" not in link
+            ]
+            links.extend(
+                # Handle subgroup links (common in Gen3)
+                [
+                    sublink
+                    for link in entity_def.get("links", [])
+                    for sublink in link.get("subgroup", [])
+                ]
+            )
+
+            # Collect explicit and implied relationships
+            for link in links:
+                # All explicit schema links are 'child_of' relations.
+                relationships.append(
+                    Relationship(
+                        name=link["name"],
+                        source_type=entity_name,
+                        target_type=link["target_type"],
+                        link_type=RelType.CHILD_OF,
+                    )
+                )
+                # If backref exists it defines the reverse relation
+                if link.get("backref"):
+                    relationships.append(
+                        Relationship(
+                            name=link["backref"],
+                            source_type=link["target_type"],
+                            target_type=entity_name,
+                            link_type=RelType.PARENT_OF,
+                        )
+                    )
+
+            # Extract scalar fields from properties
+            fields = {}
+            for prop_name, prop_def in entity_def.get("properties", {}).items():
+                # skip relationship fields
+                if prop_name in links:
+                    continue
+                prop = None
+                if "type" in prop_def:
+                    prop = Property(name=prop_name, type_=Type(prop_def["type"]))
+                elif "anyOf" in prop_def:
+                    prop = Property(name=prop_name, type_=Type.ANYOF)
+                elif "oneOf" in prop_def:
+                    prop = Property(name=prop_name, type_=Type.ONEOF)
+                elif "enum" in prop_def:
+                    prop = Property(
+                        name=prop_name, type_=Type.ENUM, enum_vals=prop_def["enum"]
+                    )
+                else:
+                    logger.error(f"Unhandled type of {prop_name} in {entity_name}")
+                if prop:
+                    fields[prop_name] = prop
+
+            extract.entities[entity_name] = EntitySchema(
+                name=entity_name, fields=fields, relationships={}
+            )
+
+        # Add the collected relationships
+        for rel in relationships:
+            # Links might possibly reference types not actually defined in the
+            # schema; these relationships are omitted so the result is closed.
+            source = extract.entities.get(rel.source_type)
+            target = extract.entities.get(rel.target_type)
+            if not source:
+                logger.info(f"Entity {rel.source_type} not found")
+                continue
+            elif not target:
+                logger.info(f"Entity {rel.target_type} not found")
+                continue
+            source.relationships[rel.name] = rel
+
+        # Add schema summary information and query patterns
+        for entity_name, entity in extract.entities.items():
+            parent_count = sum(
+                1
+                for rel in entity.relationships.values()
+                if rel.link_type == RelType.CHILD_OF
+            )
+            child_count = sum(
+                1
+                for rel in entity.relationships.values()
+                if rel.link_type == RelType.PARENT_OF
+            )
+            enum_fields = [
+                field.name
+                for field in entity.fields.values()
+                if field.type_ == Type.ENUM
+            ]
+
+            entity_def = full_schema.get(entity_name)
+            entity.schema_summary = EntitySummary(
+                title=entity_def.get("title", ""),
+                description=entity_def.get("description", ""),
+                category=entity_def.get("category", ""),
+                required_fields=entity_def.get("required", []),
+                enum_fields=enum_fields,
+                field_count=len(entity.fields),
+                parent_count=parent_count,
+                child_count=child_count,
+            )
+
+        return extract
+
+    def clear_cache(self):
+        """Clear all cached data. Useful for testing."""
+        self._cache.clear()
+
+
+@cache
+def get_schema_manager() -> SchemaManager:
+    """Get a cached SchemaManager instance."""
+    return SchemaManager(get_client())

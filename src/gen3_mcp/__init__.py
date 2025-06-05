@@ -13,7 +13,7 @@ from .exceptions import (
     Gen3SchemaError,
 )
 from .query import QueryService
-from .schema import SchemaService
+from .schema import SchemaManager, get_schema_manager
 
 __version__ = PACKAGE_VERSION
 
@@ -21,9 +21,10 @@ __all__ = [
     "__version__",
     "get_config",
     "get_client",
+    "get_schema_manager",
     "Config",
     "Gen3Client",
-    "SchemaService",
+    "SchemaManager",
     "QueryService",
     "Gen3MCPError",
     "Gen3ClientError",
