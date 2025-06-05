@@ -8,10 +8,9 @@ import httpx
 
 from .auth import AuthManager
 from .config import Config, get_config
+from .consts import USER_AGENT
 
 logger = logging.getLogger("gen3-mcp.client")
-
-USER_AGENT = "gen3-mcp/1.0"
 
 
 class Gen3Client:

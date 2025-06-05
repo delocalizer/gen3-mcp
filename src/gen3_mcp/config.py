@@ -5,6 +5,8 @@ from functools import lru_cache
 from pydantic import ConfigDict, Field, computed_field
 from pydantic_settings import BaseSettings
 
+from .consts import AUTH_URL_PATH, GRAPHQL_URL_PATH, SCHEMA_URL_PATH
+
 
 class Config(BaseSettings):
     """Configuration with computed API endpoints."""
@@ -36,19 +38,19 @@ class Config(BaseSettings):
     @property
     def auth_url(self) -> str:
         """URL for fetching access tokens."""
-        return f"{self.base_url}/user/credentials/cdis/access_token"
+        return f"{self.base_url}{AUTH_URL_PATH}"
 
     @computed_field
     @property
     def graphql_url(self) -> str:
         """URL for GraphQL queries."""
-        return f"{self.base_url}/api/v0/submission/graphql"
+        return f"{self.base_url}{GRAPHQL_URL_PATH}"
 
     @computed_field
     @property
     def schema_url(self) -> str:
         """URL for full schema."""
-        return f"{self.base_url}/api/v0/submission/_dictionary/_all"
+        return f"{self.base_url}{SCHEMA_URL_PATH}"
 
 
 @lru_cache

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from .config import Config
+from .consts import DEFAULT_TOKEN_EXPIRY_SECONDS, TOKEN_REFRESH_BUFFER_MINUTES
 from .exceptions import Gen3ClientError
 
 logger = logging.getLogger("gen3-mcp.auth")
@@ -44,7 +45,9 @@ class AuthManager:
             return True
 
         # Refresh 5 minutes before expiry
-        refresh_time = self.token_expires_at - timedelta(minutes=5)
+        refresh_time = self.token_expires_at - timedelta(
+            minutes=TOKEN_REFRESH_BUFFER_MINUTES
+        )
         return datetime.now(UTC) >= refresh_time
 
     async def _get_new_token(self) -> None:
@@ -68,7 +71,7 @@ class AuthManager:
 
             # Extract token and calculate expiry
             access_token = token_data["access_token"]
-            expires_in = token_data.get("expires_in", 1800)  # Default 30 minutes
+            expires_in = token_data.get("expires_in", DEFAULT_TOKEN_EXPIRY_SECONDS)
             self.token_expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
 
             # Update client headers

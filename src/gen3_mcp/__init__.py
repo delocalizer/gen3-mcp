@@ -6,6 +6,7 @@ with GraphQL query validation to reduce field name hallucinations.
 
 from .client import Gen3Client, get_client
 from .config import Config, get_config
+from .consts import PACKAGE_VERSION
 from .exceptions import (
     Gen3ClientError,
     Gen3MCPError,
@@ -14,7 +15,7 @@ from .exceptions import (
 from .query import QueryService
 from .schema import SchemaService
 
-__version__ = "1.2.0"
+__version__ = PACKAGE_VERSION
 
 __all__ = [
     "__version__",

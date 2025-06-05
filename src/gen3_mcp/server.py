@@ -1,15 +1,14 @@
 """Gen3 MCP server implementation."""
 
-import asyncio
-import json
 
 from mcp.server.fastmcp import FastMCP
 
 from .client import get_client
 from .config import get_config
+from .consts import SERVER_NAME
 
 mcp = FastMCP(
-    name="gen3-mcp",
+    name=SERVER_NAME,
     instructions="""
     Gen3 MCP server.
 
@@ -21,15 +20,17 @@ mcp = FastMCP(
 )
 
 
-@mcp.resource(
-    "resource://schema",
-    name="Gen3 Data Commons Full Schema",
-    mime_type="application/json",
-)
-async def gen3_schema() -> str:
+# https://www.reddit.com/r/ClaudeAI/comments/1hdxq5o/mcp_claude_desktop_and_resources/
+# Currently Claude desktop treats resources like files that you
+# must actively attach to a chat with the '+' icon. Because we want
+# auto-discovery we implement everything here as `mcp.tool`
+
+
+@mcp.tool()
+async def gen3_schema() -> dict:
     """Get the full schema of a Gen3 data commons.
 
-    This resource provides access to a JSON document defining the schema of
+    This tool provides access to a JSON document defining the schema of
     a Gen3 data commons. Entities (nodes) are named in top-level keys, each
     associated with the JSON Schema object that describes the entity.
 
@@ -101,6 +102,8 @@ async def gen3_schema() -> str:
     }
     ```
 
+    IMPORTANT: use sparingly as the result is likely to be quite large
+
     ## Examples of how to use this information:
     1. Extract the entity names to list all entities available in the commons
     2. Extract links information for an entity to understand its relationships
@@ -110,15 +113,13 @@ async def gen3_schema() -> str:
     """
     client = get_client()
     schema = await client.get_json(client.config.schema_url)
-    return json.dumps(schema)
+    return schema
 
 
-async def main() -> None:
+def main() -> None:
     """Run the MCP server."""
-    schema = await gen3_schema()
-    print(schema)
-    # mcp.run(transport="stdio")
+    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
