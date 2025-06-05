@@ -1,0 +1,57 @@
+"""Service providing Gen3 schema operations and caching."""
+
+import logging
+import time
+from typing import Any
+
+from .client import Gen3Client
+from .config import Config
+from .exceptions import Gen3SchemaError
+
+logger = logging.getLogger("gen3-mcp.schema")
+
+
+class SchemaService:
+    """Service for cached schema operations and data access.
+
+    Requires a client and a config instance.
+    """
+
+    def __init__(self, client: Gen3Client, config: Config):
+        """Initialize SchemaService.
+
+        Args:
+            client: Gen3Client instance for API calls.
+            config: Config instance with settings.
+        """
+        self.client = client
+        self.config = config
+        self._cache = {}
+
+    async def get_schema_full(self) -> dict[str, Any]:
+        """Get full schema using config.schema_url.
+
+        Returns:
+            Full schema dict with entity definitions. Top level keys may include
+            common elements identified with a leading underscore (_definitions,
+            _settings, _terms) as well as individual entity schemas.
+
+        Raises:
+            Gen3SchemaError: If schema fetch fails.
+        """
+        cache_key = "full_schema"
+
+        if cache_key in self._cache:
+            logger.debug("Using cached full schema")
+            return self._cache[cache_key]
+
+        logger.info("Fetching full schema from {}", self.config.schema_url)
+        schema = await self.client.get_json(self.config.schema_url, authenticated=False)
+
+        if schema is None:
+            logger.error("Failed to fetch full schema")
+            raise Gen3SchemaError("Failed to fetch schema from Gen3")
+
+        logger.info(f"Fetched full schema")
+        self._cache[cache_key] = schema
+        return schema

@@ -4,10 +4,9 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from .client import get_client
 from .config import get_config
 from .consts import SERVER_NAME
-from .schema_extract import get_schema_extract
+from .schema import get_schema_manager
 
 mcp = FastMCP(
     name=SERVER_NAME,
@@ -30,10 +29,8 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def get_schema_summary() -> str:
-    client = get_client()
-    schema = await client.get_json(client.config.schema_url)
-    extract = await get_schema_extract(schema)
-    extract = await get_schema_extract(schema)
+    manager = get_schema_manager()
+    extract = await manager.get_schema_extract()
     return json.dumps(extract.model_dump())
     # return SchemaExtractResponse(isError=False, content=repr(extract), schema_extract=extract)
 
@@ -129,7 +126,6 @@ async def get_schema_summary() -> str:
 #       attributes, their data types and validation rules
 #    4. Follow links between entities to understand the graph data model
 #    """
-#    client = get_client()
 #    schema = await client.get_json(client.config.schema_url)
 #    return schema
 

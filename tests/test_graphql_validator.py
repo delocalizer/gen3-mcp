@@ -1,12 +1,14 @@
 """Tests for GraphQL validation against Gen3 schema"""
 
+import asyncio
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from gen3_mcp.graphql_validator import validate_graphql
-from gen3_mcp.schema_extract import SchemaExtract
+from gen3_mcp.schema import SchemaManager
 
 
 @pytest.fixture(scope="session")
@@ -19,11 +21,16 @@ def test_schema():
 
 @pytest.fixture(scope="session")
 def schema_extract(test_schema):
-    """Create SchemaExtract from test schema"""
-    # Clear any cached schema to ensure we use the test schema
+    """Create SchemaExtract from test schema using SchemaManager"""
+    # Create mock client with test schema
+    mock_client = Mock()
+    mock_client.get_json = AsyncMock(return_value=test_schema)
+    mock_client.config = Mock(schema_url="test://schema")
 
-    SchemaExtract.clear_cache()
-    return SchemaExtract.from_full_schema(test_schema)
+    # Create manager and get extract
+    manager = SchemaManager(mock_client)
+    manager.clear_cache()
+    return asyncio.run(manager.get_schema_extract())
 
 
 @pytest.fixture(scope="session")
@@ -52,93 +59,6 @@ def test_queries():
             queries[f"failing_{i}"] = f.read()
 
     return queries
-
-
-class TestSchemaExtract:
-    """Test SchemaExtract functionality"""
-
-    def test_schema_extract_creation(self, test_schema, schema_extract):
-        """Test that SchemaExtract is created correctly from test schema"""
-        assert (
-            len(schema_extract.entities) == 5
-        )  # subject, sample, study, aliquot, aligned_reads_file
-
-        # Check that expected entities are present
-        expected_entities = {
-            "subject",
-            "sample",
-            "study",
-            "aliquot",
-            "aligned_reads_file",
-        }
-        assert set(schema_extract.entities.keys()) == expected_entities
-
-    def test_entity_fields_extraction(self, schema_extract):
-        """Test that entity fields are extracted correctly"""
-        subject = schema_extract.entities["subject"]
-
-        # Should have standard GraphQL fields
-        assert "id" in subject.fields
-        assert "submitter_id" in subject.fields
-        assert "type" in subject.fields
-
-        # Should have entity-specific fields
-        assert "gender" in subject.fields
-        assert "race" in subject.fields
-        assert "ethnicity" in subject.fields
-        assert "age_at_enrollment" in subject.fields
-
-    def test_entity_relationships_extraction(self, schema_extract):
-        """Test that relationships are extracted correctly"""
-        subject = schema_extract.entities["subject"]
-
-        # Subject should have relationship to studies
-        assert "studies" in subject.relationships
-        studies_rel = subject.relationships["studies"]
-        assert studies_rel.target_type == "study"
-        assert studies_rel.link_type == "child_of"
-        assert studies_rel.link_label == "member_of"
-
-    def test_backref_relationships_added(self, schema_extract):
-        """Test that backref relationships are added correctly"""
-        study = schema_extract.entities["study"]
-
-        # Study should have backref relationship from subject
-        assert "subjects" in study.relationships
-        subjects_rel = study.relationships["subjects"]
-        assert subjects_rel.target_type == "subject"
-        assert subjects_rel.link_type == "parent_of"
-        assert subjects_rel.link_label is None  # inferred relation unlabelled
-
-    def test_undef_entity_relationshps_omitted(self, schema_extract):
-        """Test that relationships referencing undefined entities are omitted."""
-        study = schema_extract.entities["study"]
-
-        # Project is referenced in study links but not defined in
-        # the schema so it is omitted from study relationships in
-        # the extract
-        assert "projects" not in study.relationships
-
-    def test_relationships_reference_entities(self, schema_extract):
-        """Test that all relationship sources and targets are schema entities."""
-        entities = set(schema_extract.entities)
-        sources = {
-            rel.source_type
-            for entity in schema_extract.entities.values()
-            for rel in entity.relationships.values()
-        }
-        targets = {
-            rel.target_type
-            for entity in schema_extract.entities.values()
-            for rel in entity.relationships.values()
-        }
-
-        assert sources <= entities
-        assert targets <= entities
-
-    def test_extract_serialization(self, schema_extract, schema_extract_refstr):
-        """Test that the extract serializes as we expect."""
-        assert repr(schema_extract) == schema_extract_refstr
 
 
 class TestValidationWithTestQueries:

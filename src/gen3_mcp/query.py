@@ -6,7 +6,7 @@ from typing import Any
 from .client import Gen3Client
 from .config import Config
 from .graphql_validator import validate_graphql
-from .schema import SchemaService
+from .schema import SchemaManager
 from .schema_extract import SchemaExtract
 
 logger = logging.getLogger("gen3-mcp.query")
@@ -15,17 +15,19 @@ logger = logging.getLogger("gen3-mcp.query")
 class QueryService:
     """Query operations: validation, building, and execution."""
 
-    def __init__(self, client: Gen3Client, config: Config, gen3_service: SchemaService):
+    def __init__(
+        self, client: Gen3Client, config: Config, schema_manager: SchemaManager
+    ):
         """Initialize QueryService.
 
         Args:
             client: Gen3Client instance for API calls.
             config: Config instance with settings.
-            gen3_service: SchemaService instance for schema operations.
+            schema_manager: SchemaManager instance for schema operations.
         """
         self.client = client
         self.config = config
-        self.gen3_service = gen3_service
+        self.schema_manager = schema_manager
         self._schema_extract: SchemaExtract | None = None
 
     async def execute_graphql(self, query: str) -> dict[str, Any] | None:
@@ -213,7 +215,7 @@ class QueryService:
         """
         if self._schema_extract is None:
             logger.debug("Creating SchemaExtract")
-            full_schema = await self.gen3_service.get_schema_full()
+            full_schema = await self.schema_manager.get_schema_full()
             self._schema_extract = SchemaExtract.from_full_schema(full_schema)
             logger.debug("SchemaExtract created")
 

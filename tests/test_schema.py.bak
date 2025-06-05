@@ -1,0 +1,140 @@
+"""Tests for the SchemaManager"""
+
+import pytest
+
+from gen3_mcp.schema import SchemaManager
+
+
+@pytest.fixture(scope="session")
+def test_schema():
+    """Load the test schema from ex_schema.json"""
+    schema_path = Path(__file__).parent / "ex_schema.json"
+    with open(schema_path) as f:
+        return json.load(f)
+
+
+@pytest.fixture(scope="session")
+def schema_extract(test_schema):
+    """Create SchemaExtract from test schema using SchemaManager"""
+    # Create mock client with test schema
+    mock_client = Mock()
+    mock_client.get_json = AsyncMock(return_value=test_schema)
+    mock_client.config = Mock(schema_url="test://schema")
+    
+    # Create manager and get extract
+    manager = SchemaManager(mock_client)
+    manager.clear_cache()
+    return asyncio.run(manager.get_schema_extract())
+
+
+@pytest.mark.asyncio
+async def test_schema_manager_initialization(mock_client, config):
+    """Test SchemaManager initialization"""
+    manager = SchemaManager(mock_client)
+
+    assert manager.client is mock_client
+    assert isinstance(manager._cache, dict)
+
+
+@pytest.mark.asyncio
+async def test_get_schema_full_caching(mock_client, config):
+    """Test that full schema is cached properly"""
+    manager = SchemaManager(mock_client)
+
+    # First call should hit the client
+    schema1 = await manager.get_schema_full()
+    assert mock_client.get_json.call_count == 1
+
+    # Second call should use cache
+    schema2 = await manager.get_schema_full()
+    assert mock_client.get_json.call_count == 1  # No additional calls
+    assert schema1 == schema2
+
+
+class TestSchemaExtract:
+    """Test SchemaExtract functionality"""
+
+    def test_schema_extract_creation(self, test_schema, schema_extract):
+        """Test that SchemaExtract is created correctly from test schema"""
+        assert (
+            len(schema_extract.entities) == 5
+        )  # subject, sample, study, aliquot, aligned_reads_file
+
+        # Check that expected entities are present
+        expected_entities = {
+            "subject",
+            "sample",
+            "study",
+            "aliquot",
+            "aligned_reads_file",
+        }
+        assert set(schema_extract.entities.keys()) == expected_entities
+
+    def test_entity_fields_extraction(self, schema_extract):
+        """Test that entity fields are extracted correctly"""
+        subject = schema_extract.entities["subject"]
+
+        # Should have standard GraphQL fields
+        assert "id" in subject.fields
+        assert "submitter_id" in subject.fields
+        assert "type" in subject.fields
+
+        # Should have entity-specific fields
+        assert "gender" in subject.fields
+        assert "race" in subject.fields
+        assert "ethnicity" in subject.fields
+        assert "age_at_enrollment" in subject.fields
+
+    def test_entity_relationships_extraction(self, schema_extract):
+        """Test that relationships are extracted correctly"""
+        subject = schema_extract.entities["subject"]
+
+        # Subject should have relationship to studies
+        assert "studies" in subject.relationships
+        studies_rel = subject.relationships["studies"]
+        assert studies_rel.target_type == "study"
+        assert studies_rel.link_type == "child_of"
+
+    def test_backref_relationships_added(self, schema_extract):
+        """Test that backref relationships are added correctly"""
+        study = schema_extract.entities["study"]
+
+        # Study should have backref relationship from subject
+        assert "subjects" in study.relationships
+        subjects_rel = study.relationships["subjects"]
+        assert subjects_rel.target_type == "subject"
+        assert subjects_rel.link_type == "parent_of"
+
+    def test_undef_entity_relationshps_omitted(self, schema_extract):
+        """Test that relationships referencing undefined entities are omitted."""
+        study = schema_extract.entities["study"]
+
+        # Project is referenced in study links but not defined in
+        # the schema so it is omitted from study relationships in
+        # the extract
+        assert "projects" not in study.relationships
+
+    def test_relationships_reference_entities(self, schema_extract):
+        """Test that all relationship sources and targets are schema entities."""
+        entities = set(schema_extract.entities)
+        sources = {
+            rel.source_type
+            for entity in schema_extract.entities.values()
+            for rel in entity.relationships.values()
+        }
+        targets = {
+            rel.target_type
+            for entity in schema_extract.entities.values()
+            for rel in entity.relationships.values()
+        }
+
+        assert sources <= entities
+        assert targets <= entities
+
+    def test_extract_serialization(self, schema_extract, schema_extract_refstr):
+        """Test that the extract serializes as we expect."""
+        assert repr(schema_extract) == schema_extract_refstr
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

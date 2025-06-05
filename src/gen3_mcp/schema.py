@@ -51,8 +51,10 @@ class SchemaManager:
             logger.debug("Using cached full schema")
             return self._cache[cache_key]
 
-        logger.info("Fetching full schema from {}", self.client.config.schema_url)
-        schema = await self.client.get_json(self.client.config.schema_url, authenticated=False)
+        logger.info(f"Fetching full schema from {self.client.config.schema_url}")
+        schema = await self.client.get_json(
+            self.client.config.schema_url, authenticated=False
+        )
 
         if schema is None:
             logger.error("Failed to fetch full schema")
@@ -78,7 +80,7 @@ class SchemaManager:
             logger.debug("Using cached schema extract")
             return self._cache[cache_key]
 
-        logger.debug("Creating new schema extract")
+        logger.info("Creating new schema extract")
 
         # Get the full schema (uses its own cache)
         full_schema = await self.get_schema_full()
@@ -86,6 +88,7 @@ class SchemaManager:
         # Process it
         extract = self._create_extract(full_schema)
 
+        logger.info("Created new schema extract")
         self._cache[cache_key] = extract
         return extract
 
