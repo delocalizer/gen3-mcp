@@ -1,8 +1,9 @@
 """Tests for Gen3Client and ClientResponse"""
 
-import pytest
 from unittest.mock import AsyncMock, Mock
+
 import httpx
+import pytest
 
 from gen3_mcp.client import Gen3Client
 from gen3_mcp.config import Config
@@ -16,12 +17,8 @@ class TestClientResponse:
 
     def test_success_response(self):
         """Test creating a successful response"""
-        response = ClientResponse(
-            success=True,
-            status_code=200,
-            data={"test": "data"}
-        )
-        
+        response = ClientResponse(success=True, status_code=200, data={"test": "data"})
+
         assert response.success is True
         assert response.status_code == 200
         assert response.data == {"test": "data"}
@@ -34,9 +31,9 @@ class TestClientResponse:
             success=False,
             status_code=404,
             error_message="Not found",
-            error_category=ErrorCategory.HTTP_CLIENT
+            error_category=ErrorCategory.HTTP_CLIENT,
         )
-        
+
         assert response.success is False
         assert response.status_code == 404
         assert response.error_message == "Not found"
@@ -50,14 +47,12 @@ class TestClientResponse:
             ErrorCategory.HTTP_CLIENT,
             ErrorCategory.HTTP_SERVER,
             ErrorCategory.JSON_PARSE,
-            ErrorCategory.OTHER
+            ErrorCategory.OTHER,
         ]
-        
+
         for category in categories:
             response = ClientResponse(
-                success=False,
-                error_message="Test error",
-                error_category=category
+                success=False, error_message="Test error", error_category=category
             )
             assert response.error_category == category
 
@@ -87,14 +82,16 @@ class TestGen3Client:
         return Mock(spec=httpx.AsyncClient)
 
     @pytest.fixture
-    def client_with_mocks(self, config, mock_auth_manager, mock_http_client, monkeypatch):
+    def client_with_mocks(
+        self, config, mock_auth_manager, mock_http_client, monkeypatch
+    ):
         """Gen3Client with mocked dependencies"""
         client = Gen3Client(config)
-        
+
         # Replace the real clients with mocks
         client._http_client = mock_http_client
         client._auth_manager = mock_auth_manager
-        
+
         return client
 
     @pytest.mark.asyncio
@@ -105,12 +102,12 @@ class TestGen3Client:
         mock_response.status_code = 200
         mock_response.json.return_value = {"test": "data"}
         mock_response.raise_for_status.return_value = None
-        
+
         mock_http_client.get = AsyncMock(return_value=mock_response)
-        
+
         # Test the request
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
-        
+
         assert isinstance(result, ClientResponse)
         assert result.success is True
         assert result.status_code == 200
@@ -123,16 +120,16 @@ class TestGen3Client:
         # Mock HTTP error response
         mock_response = Mock()
         mock_response.status_code = 404
-        
+
         mock_http_client.get = AsyncMock(
             side_effect=httpx.HTTPStatusError(
                 "Not found", request=Mock(), response=mock_response
             )
         )
-        
+
         # Test the request
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
-        
+
         assert isinstance(result, ClientResponse)
         assert result.success is False
         assert result.status_code == 404
@@ -145,10 +142,10 @@ class TestGen3Client:
         mock_http_client.get = AsyncMock(
             side_effect=httpx.ConnectError("Connection failed")
         )
-        
+
         # Test the request
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
-        
+
         assert isinstance(result, ClientResponse)
         assert result.success is False
         assert result.status_code is None
@@ -163,12 +160,12 @@ class TestGen3Client:
         mock_response.status_code = 200
         mock_response.json.side_effect = ValueError("Invalid JSON")
         mock_response.raise_for_status.return_value = None
-        
+
         mock_http_client.get = AsyncMock(return_value=mock_response)
-        
+
         # Test the request
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
-        
+
         assert isinstance(result, ClientResponse)
         assert result.success is False
         assert result.status_code == 200
@@ -183,15 +180,14 @@ class TestGen3Client:
         mock_response.status_code = 200
         mock_response.json.return_value = {"data": {"test": "result"}}
         mock_response.raise_for_status.return_value = None
-        
+
         mock_http_client.post = AsyncMock(return_value=mock_response)
-        
+
         # Test the request
         result = await client_with_mocks.post_json(
-            "https://test.gen3.io/graphql", 
-            json={"query": "{ test }"}
+            "https://test.gen3.io/graphql", json={"query": "{ test }"}
         )
-        
+
         assert isinstance(result, ClientResponse)
         assert result.success is True
         assert result.status_code == 200
@@ -205,21 +201,20 @@ class TestGen3Client:
         mock_response.status_code = 400
         mock_response.json.return_value = {
             "data": None,
-            "errors": ["Cannot query field 'invalid' on type 'Subject'"]
+            "errors": ["Cannot query field 'invalid' on type 'Subject'"],
         }
-        
+
         mock_http_client.post = AsyncMock(
             side_effect=httpx.HTTPStatusError(
                 "Bad Request", request=Mock(), response=mock_response
             )
         )
-        
+
         # Test the request
         result = await client_with_mocks.post_json(
-            "https://test.gen3.io/graphql",
-            json={"query": "{ invalid }"}
+            "https://test.gen3.io/graphql", json={"query": "{ invalid }"}
         )
-        
+
         assert isinstance(result, ClientResponse)
         assert result.success is False
         assert result.status_code == 400
@@ -237,7 +232,7 @@ class TestClientIntegration:
         # This should work with the mocked ClientResponse from conftest.py
         full_schema = await schema_manager.get_schema_full()
         assert full_schema == test_schema
-        
+
         # Extract should also work
         extract = await schema_manager.get_schema_extract()
         assert len(extract) > 0
@@ -245,7 +240,6 @@ class TestClientIntegration:
     @pytest.mark.asyncio
     async def test_schema_manager_error_handling(self, mock_client):
         """Test error handling with new ClientResponse interface"""
-        from gen3_mcp.schema import SchemaManager
 
         # Clear side_effect and set return_value for error response
         mock_client.get_json.side_effect = None
@@ -260,18 +254,17 @@ class TestClientIntegration:
         with pytest.raises(Gen3SchemaError, match="Failed to fetch schema from Gen3"):
             await manager.get_schema_full()
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_query_service_integration(self, mock_client):
         """Test that QueryService works with new ClientResponse interface"""
         from gen3_mcp.query import QueryService
-        from gen3_mcp.schema import SchemaManager
-        
+
         schema_manager = SchemaManager(mock_client)
         query_service = QueryService(schema_manager)
-        
+
         # Test execute_graphql with success
         result = await query_service.execute_graphql("{ subject { id } }")
-        
+
         # Should return the data portion of the mocked response
         assert "data" in result
         assert "subject" in result["data"]
@@ -279,12 +272,12 @@ class TestClientIntegration:
     @pytest.mark.asyncio
     async def test_server_get_schema_summary(self):
         """Test the updated get_schema_summary function returns MCPResponse"""
-        from gen3_mcp.server import get_schema_summary
         from gen3_mcp.models import MCPResponse
-        
+        from gen3_mcp.server import get_schema_summary
+
         # This will use the mocked client from conftest.py
         response = await get_schema_summary()
-        
+
         assert isinstance(response, MCPResponse)
         assert response.status == "success"
         assert response.data is not None
