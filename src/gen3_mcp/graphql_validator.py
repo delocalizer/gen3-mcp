@@ -15,6 +15,7 @@ from .models import (
     QueryValidationResult,
     SchemaExtract,
 )
+from .utils import suggest_similar_strings
 
 logger = logging.getLogger("gen3-mcp.graphql_validator")
 
@@ -126,33 +127,6 @@ def validate_graphql(query: str, schema: SchemaExtract) -> QueryValidationResult
     return QueryValidationResult(valid=valid, query=query, errors=errors)
 
 
-def _suggest_similar_strings(
-    target: str, candidates: set[str], threshold: float = 0.6, number=3
-) -> list[str]:
-    """Suggest similar strings using basic similarity scoring.
-
-    Args:
-        target: String to match against.
-        candidates: Set of candidate strings.
-        threshold: Minimum similarity threshold.
-        number: Maximum number of suggestions
-
-    Returns:
-        List of similar strings.
-    """
-    from difflib import SequenceMatcher
-
-    suggestions = []
-    for candidate in candidates:
-        similarity = SequenceMatcher(None, target.lower(), candidate.lower()).ratio()
-        if similarity >= threshold:
-            suggestions.append((candidate, similarity))
-
-    # Sort by similarity (descending) and return just the strings
-    suggestions.sort(key=lambda x: x[1], reverse=True)
-    return [s[0] for s in suggestions[:number]]
-
-
 def _validate_entity_path(
     entity_path: EntityPath, schema: SchemaExtract
 ) -> list[QueryValidationError]:
@@ -175,7 +149,7 @@ def _validate_entity_path(
         if i == 0:
             # Root entity - must exist directly in schema
             if entity_name not in schema:
-                entity_suggestions = _suggest_similar_strings(
+                entity_suggestions = suggest_similar_strings(
                     entity_name, set(schema.keys())
                 )
                 errors.append(
@@ -203,7 +177,7 @@ def _validate_entity_path(
                 current_entity_schema = schema[relationship.target_type]
             else:
                 # Relationship not found
-                relationship_suggestions = _suggest_similar_strings(
+                relationship_suggestions = suggest_similar_strings(
                     entity_name, set(current_entity_schema.relationships.keys())
                 )
                 errors.append(
@@ -246,7 +220,7 @@ def _validate_direct_entity_fields(
 
     for field_name in field_names:
         if field_name not in all_valid_fields:
-            suggestions = _suggest_similar_strings(field_name, all_valid_fields)
+            suggestions = suggest_similar_strings(field_name, all_valid_fields)
             errors.append(
                 QueryValidationError(
                     entity=entity_schema.name,

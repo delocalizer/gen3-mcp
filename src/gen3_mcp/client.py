@@ -64,8 +64,8 @@ class Gen3Client:
                 return ClientResponse(
                     success=False,
                     status_code=response.status_code,
-                    error_message=f"Response is not valid JSON: {e}",
                     error_category=ErrorCategory.JSON_PARSE,
+                    errors=[f"Response is not valid JSON: {e}"],
                 )
 
         except httpx.HTTPStatusError as e:
@@ -83,24 +83,24 @@ class Gen3Client:
             return ClientResponse(
                 success=False,
                 status_code=status_code,
-                error_message=f"HTTP {status_code} error",
                 error_category=category,
+                errors=[f"HTTP {status_code} error"],
             )
 
         except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
             logger.error(f"Network error for GET {url}: {e}")
             return ClientResponse(
                 success=False,
-                error_message=f"Network error: {e}",
                 error_category=ErrorCategory.NETWORK,
+                errors=[f"Network error: {e}"],
             )
 
         except Exception as e:
             logger.error(f"GET {url} failed: {e}")
             return ClientResponse(
                 success=False,
-                error_message=f"Unexpected error: {e}",
                 error_category=ErrorCategory.OTHER,
+                errors=[f"Unexpected error: {e}"],
             )
 
     async def post_json(self, url: str, **kwargs) -> ClientResponse:
@@ -133,31 +133,45 @@ class Gen3Client:
                 return ClientResponse(
                     success=False,
                     status_code=response.status_code,
-                    error_message=f"Response is not valid JSON: {e}",
                     error_category=ErrorCategory.JSON_PARSE,
+                    errors=[f"Response is not valid JSON: {e}"],
                 )
 
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
             logger.error(f"HTTP error for POST {url}: {status_code}")
 
-            # Try to extract response content (may contain GraphQL errors)
+            # Extract response data and errors
             response_data = None
+            error_list = []
+
             try:
                 response_data = e.response.json()
-                # Example GraphQL error response:
-                # {
-                #   'data': None,
-                #   'errors': [
-                #     'Cannot query field "demographic" on type "subject".'
-                #   ]
-                # }
+
+                # Extract errors from response if they exist (common in GraphQL responses)
+                if isinstance(response_data, dict) and "errors" in response_data:
+                    errors_field = response_data["errors"]
+                    if isinstance(errors_field, list):
+                        for error_item in errors_field:
+                            if isinstance(error_item, str):
+                                error_list.append(error_item)
+                            elif (
+                                isinstance(error_item, dict) and "message" in error_item
+                            ):
+                                error_list.append(error_item["message"])
+                            else:
+                                error_list.append(str(error_item))
+
             except ValueError:
-                # If we can't parse JSON, include raw text if available
+                # Non-JSON response
                 try:
                     response_data = {"raw_response": e.response.text}
                 except:
                     response_data = {"error": "Could not parse error response"}
+
+            # If no errors extracted, use the HTTP error as fallback
+            if not error_list:
+                error_list.append(f"HTTP {status_code} error")
 
             # Determine error category
             if 400 <= status_code < 500:
@@ -169,30 +183,28 @@ class Gen3Client:
 
             logger.debug(f"HTTP error response data: {response_data}")
 
-            # Return error response but include the server's response data
-            # This preserves GraphQL error details while providing consistent interface
             return ClientResponse(
                 success=False,
                 status_code=status_code,
-                error_message=f"HTTP {status_code} error",
                 error_category=category,
                 data=response_data,
+                errors=error_list,
             )
 
         except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
             logger.error(f"Network error for POST {url}: {e}")
             return ClientResponse(
                 success=False,
-                error_message=f"Network error: {e}",
                 error_category=ErrorCategory.NETWORK,
+                errors=[f"Network error: {e}"],
             )
 
         except Exception as e:
             logger.error(f"POST {url} failed: {e}")
             return ClientResponse(
                 success=False,
-                error_message=f"Unexpected error: {e}",
                 error_category=ErrorCategory.OTHER,
+                errors=[f"Unexpected error: {e}"],
             )
 
 

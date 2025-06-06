@@ -88,13 +88,7 @@ async def get_schema_summary() -> MCPResponse:
         return MCPResponse(
             status="error",
             message="Failed to fetch schema from Gen3 data commons",
-            errors=[
-                {
-                    "error_type": "schema_fetch_error",
-                    "message": str(e),
-                    "category": "Gen3SchemaError",
-                }
-            ],
+            errors=[f"Schema fetch error: {e}"],
             suggestions=[
                 "Check that the Gen3 data commons URL is accessible",
                 "Verify your network connection",
@@ -115,13 +109,7 @@ async def get_schema_summary() -> MCPResponse:
         return MCPResponse(
             status="error",
             message="Unexpected error while processing schema",
-            errors=[
-                {
-                    "error_type": "unexpected_error",
-                    "message": str(e),
-                    "category": type(e).__name__,
-                }
-            ],
+            errors=[f"Unexpected error: {e}"],
             suggestions=[
                 "This appears to be an internal error",
                 "Try the request again",
@@ -167,22 +155,14 @@ async def generate_query_template(
     # Convert service result to MCPResponse
     if not result["exists"]:
         # Entity not found case
-        suggestions = [
-            f"Try '{suggestion['name']}' instead"
-            for suggestion in result.get("suggestions", [])
-        ]
-
         return MCPResponse(
             status="error",
             message=f"Entity '{entity_name}' not found in schema",
-            errors=[
-                {
-                    "error_type": "entity_not_found",
-                    "entity": entity_name,
-                    "message": result["error"],
-                }
+            errors=[f"Entity '{entity_name}' not found: {result['error']}"],
+            suggestions=[
+                f"Try '{suggestion['name']}' instead"
+                for suggestion in result.get("suggestions", [])
             ],
-            suggestions=suggestions,
             next_steps={
                 "get_entities": "Use get_schema_summary() to see all available entities",
                 "try_suggestion": "Use one of the suggested similar entity names",
@@ -239,6 +219,9 @@ async def validate_query(query: str) -> MCPResponse:
         if issues are found. A valid query means it's safe to execute.
 
     Workflow: get_schema_summary → generate_query_template → **You are here** → execute_graphql
+
+    ## IMPORTANT
+    **Always** run this before calling execute_graphql
     """
     logger.info(
         f"Validating GraphQL query: {query[:100]}{'...' if len(query) > 100 else ''}"
@@ -267,6 +250,9 @@ async def execute_graphql(query: str) -> MCPResponse:
         and suggestions for fixing the query.
 
     Workflow: get_schema_summary → generate_query_template → validate_query → **You are here**
+
+    ## IMPORTANT
+    **Always** run validate_query on the query before calling this.
     """
     logger.info(
         f"Executing GraphQL query: {query[:100]}{'...' if len(query) > 100 else ''}"
@@ -282,7 +268,6 @@ async def execute_graphql(query: str) -> MCPResponse:
             message="GraphQL query executed with errors",
             errors=result["errors"],
             data=result.get("data"),
-            suggestions=result.get("suggestion", {}).get("recommended_workflow", []),
         )
 
     return MCPResponse(
@@ -290,15 +275,11 @@ async def execute_graphql(query: str) -> MCPResponse:
     )
 
 
-async def main() -> None:
+def main() -> None:
     """Run the MCP server."""
     mcp.run(transport="stdio")
-    # For development/testing
-    # response = await get_schema_summary()
-    # print(response.to_json())
 
 
 if __name__ == "__main__":
-    import asyncio
 
-    asyncio.run(main())
+    main()

@@ -5,8 +5,9 @@ from functools import cache
 from typing import Any
 
 from .graphql_validator import validate_graphql
-from .models import ErrorCategory, QueryValidationResult, SchemaExtract
+from .models import QueryValidationResult
 from .schema import SchemaManager
+from .utils import suggest_similar_strings_with_scores
 
 logger = logging.getLogger("gen3-mcp.query")
 
@@ -44,41 +45,14 @@ class QueryService:
         )
 
         if not response.success:
-            logger.error(f"GraphQL query execution failed: {response.error_message}")
+            error_details = response.errors[0] if response.errors else "Unknown error"
+            logger.error(f"GraphQL query execution failed: {error_details}")
+            return {
+                "errors": response.errors,  # Already a list[str]
+                "data": response.data.get("data") if response.data else None,
+            }
 
-            # Network errors
-            if response.error_category == ErrorCategory.NETWORK:
-                return {
-                    "errors": [f"Network error: {response.error_message}"],
-                    "suggestion": "Check your internet connection and Gen3 server availability",
-                }
-
-            # HTTP client errors (4xx) - usually bad query
-            elif response.error_category == ErrorCategory.HTTP_CLIENT:
-                result = response.data if response.data else {}
-                if "errors" not in result:
-                    result["errors"] = [
-                        f"HTTP {response.status_code} error: {response.error_message}"
-                    ]
-
-                result["suggestion"] = {
-                    "recommended_workflow": [
-                        "1. Inspect errors key to understand the cause of the bad query",
-                        "2. Use validate_query() to check your query syntax and field names",
-                        "3. If validation fails, use the suggestions to fix errors",
-                        "4. Use execute_graphql() to run the validated query",
-                    ],
-                }
-                return result
-
-            # HTTP server errors (5xx) or other errors
-            else:
-                return {
-                    "errors": [f"Server error: {response.error_message}"],
-                    "suggestion": "The Gen3 server encountered an error. Try again later.",
-                }
-
-        # Success case - response.data contains the GraphQL response
+        # Success case - return the data
         result = response.data
         logger.info("GraphQL query executed successfully")
         return result
@@ -104,7 +78,9 @@ class QueryService:
 
         if entity_name not in schema_extract:
             # Suggest similar entity names
-            suggestions = self._find_similar_entities(entity_name, schema_extract)
+            suggestions = suggest_similar_strings_with_scores(
+                entity_name, set(schema_extract.keys()), threshold=0.5, max_results=3
+            )
 
             logger.warning(f"Entity '{entity_name}' not found")
             return {
@@ -112,7 +88,7 @@ class QueryService:
                 "exists": False,
                 "template": None,
                 "error": f"Entity '{entity_name}' does not exist",
-                "suggestions": suggestions[:3],
+                "suggestions": suggestions,
             }
 
         # Get entity schema
@@ -171,30 +147,6 @@ class QueryService:
 
         schema_extract = await self.schema_manager.get_schema_extract()
         return validate_graphql(query, schema_extract)
-
-    def _find_similar_entities(
-        self, entity_name: str, schema_extract: SchemaExtract
-    ) -> list[dict[str, Any]]:
-        """Find entities with similar names.
-
-        Args:
-            entity_name: Entity name to match against.
-            schema_extract: SchemaExtract with available entities.
-
-        Returns:
-            List of dicts with entity name and similarity score.
-        """
-        from difflib import SequenceMatcher
-
-        suggestions = []
-        for available_entity in schema_extract:
-            similarity = SequenceMatcher(
-                None, entity_name.lower(), available_entity.lower()
-            ).ratio()
-            if similarity > 0.5:
-                suggestions.append({"name": available_entity, "similarity": similarity})
-
-        return sorted(suggestions, key=lambda x: x["similarity"], reverse=True)
 
 
 @cache

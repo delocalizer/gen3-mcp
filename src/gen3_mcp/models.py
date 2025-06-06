@@ -3,7 +3,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field
 
-# --- Client Response models --- #
+# =============================================================================
+# HTTP CLIENT MODELS
+# =============================================================================
+# Models for HTTP client operations and error handling.
+# These models standardize responses from HTTP requests to Gen3 APIs,
+# providing consistent error categorization and response formatting.
 
 
 class ErrorCategory(StrEnum):
@@ -22,18 +27,19 @@ class ClientResponse(BaseModel):
     success: bool
     status_code: int | None = None
     data: Any | None = None
-    error_message: str | None = None
     error_category: ErrorCategory | None = None
+    errors: list[str] = Field(
+        default_factory=list, description="List of error messages"
+    )
 
 
-# --- Schema models --- #
-
-
-class RelType(StrEnum):
-    """Describes a relationship between source and target entity."""
-
-    CHILD_OF = "child_of"
-    PARENT_OF = "parent_of"
+# =============================================================================
+# GEN3 SCHEMA MODELS
+# =============================================================================
+# Models representing the Gen3 data model schema structure.
+# These models capture entity definitions, field types, relationships,
+# and metadata extracted from Gen3 schema files. They form a complete
+# representation of the data model for query building and validation.
 
 
 class FieldType(StrEnum):
@@ -50,18 +56,11 @@ class FieldType(StrEnum):
     ENUM = "enum"
 
 
-class Relationship(BaseModel):
-    """
-    Describes a relationship between entities in the Gen3 data model. Captures
-    info explicitly defined in schema entity links, and inferred from backrefs.
-    """
+class RelType(StrEnum):
+    """Describes a relationship between source and target entity."""
 
-    name: str = Field(..., description="Field name used in GraphQL (e.g., 'studies')")
-    source_type: str = Field(..., description="Source entity type (e.g., 'subject')")
-    target_type: str = Field(..., description="Target entity type (e.g., 'study')")
-    link_type: RelType = Field(
-        ..., description="Relationship between source and target"
-    )
+    CHILD_OF = "child_of"
+    PARENT_OF = "parent_of"
 
 
 class Property(BaseModel):
@@ -73,6 +72,20 @@ class Property(BaseModel):
     type_: FieldType = Field(..., description="Type of the property")
     enum_vals: list[str] | None = Field(
         None, description="Allowed values when type_ is FieldType.ENUM"
+    )
+
+
+class Relationship(BaseModel):
+    """
+    Describes a relationship between entities in the Gen3 data model. Captures
+    info explicitly defined in schema entity links, and inferred from backrefs.
+    """
+
+    name: str = Field(..., description="Field name used in GraphQL (e.g., 'studies')")
+    source_type: str = Field(..., description="Source entity type (e.g., 'subject')")
+    target_type: str = Field(..., description="Target entity type (e.g., 'study')")
+    link_type: RelType = Field(
+        ..., description="Relationship between source and target"
     )
 
 
@@ -123,71 +136,12 @@ class SchemaExtract(dict[str, EntitySchema]):
         return {k: v.model_dump() for k, v in self.items()}
 
 
-# --- MCPResponse --- #
-
-
-class MCPResponse(BaseModel):
-    """Standardized MCP tool response format."""
-
-    status: Literal["success", "error", "warning"] = Field(
-        ..., description="Response status"
-    )
-    message: str = Field(..., description="Human-readable summary message")
-    data: dict[str, Any] | None = Field(None, description="Response payload data")
-    errors: list[dict[str, Any]] = Field(
-        default_factory=list, description="Error details if any"
-    )
-    suggestions: list[str] = Field(
-        default_factory=list, description="Actionable suggestions"
-    )
-    next_steps: dict[str, Any] | None = Field(None, description="Workflow guidance")
-    metadata: dict[str, Any] | None = Field(None, description="Additional context")
-
-    def to_json(self) -> str:
-        """Convert to JSON string for MCP tool response."""
-        return self.model_dump_json(exclude_none=True, indent=2)
-
-    # convenience methods
-    @classmethod
-    def success(
-        cls,
-        message: str,
-        data: dict[str, Any] | None = None,
-        suggestions: list[str] | None = None,
-        next_steps: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> "MCPResponse":
-        """Create a success response."""
-        return cls(
-            status="success",
-            message=message,
-            data=data,
-            suggestions=suggestions or [],
-            next_steps=next_steps,
-            metadata=metadata,
-        )
-
-    @classmethod
-    def error(
-        cls,
-        message: str,
-        errors: list[dict[str, Any]] | None = None,
-        suggestions: list[str] | None = None,
-        next_steps: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> "MCPResponse":
-        """Create an error response."""
-        return cls(
-            status="error",
-            message=message,
-            errors=errors or [],
-            suggestions=suggestions or [],
-            next_steps=next_steps,
-            metadata=metadata,
-        )
-
-
-# --- GraphQL query validation models --- #
+# =============================================================================
+# GRAPHQL QUERY VALIDATION MODELS
+# =============================================================================
+# Models for validating GraphQL queries against the Gen3 schema.
+# These models capture validation errors, provide suggestions for fixes,
+# and format results for user consumption.
 
 
 class QueryValidationError(BaseModel):
@@ -248,16 +202,7 @@ class QueryValidationResult(BaseModel):
             )
         return MCPResponse.error(
             message=self.summary,
-            errors=[
-                {
-                    "entity": err.entity,
-                    "field": err.field,
-                    "error_type": err.error_type,
-                    "message": err.message,
-                    "suggestions": err.suggestions,
-                }
-                for err in self.errors
-            ],
+            errors=[f"{err.entity}.{err.field}: {err.message}" for err in self.errors],
             suggestions=[
                 "Fix the validation errors using the suggestions above",
                 "Use get_schema_summary() to see available entities and fields",
@@ -271,4 +216,73 @@ class QueryValidationResult(BaseModel):
                 "alternative": "Start fresh with generate_query_template() for a guaranteed valid query",
             },
             metadata={"query": self.query, "error_count": self.error_count},
+        )
+
+
+# =============================================================================
+# MCP RESPONSE MODELS
+# =============================================================================
+# Models for standardized MCP (Model Context Protocol) tool responses.
+# These models provide a consistent format for returning results from
+# MCP tools, including success/error status, data, suggestions, and workflow guidance.
+
+
+class MCPResponse(BaseModel):
+    """Standardized MCP tool response format."""
+
+    status: Literal["success", "error", "warning"] = Field(
+        ..., description="Response status"
+    )
+    message: str = Field(..., description="Human-readable summary message")
+    data: dict[str, Any] | None = Field(None, description="Response payload data")
+    errors: list[str] = Field(
+        default_factory=list, description="List of error messages"
+    )
+    suggestions: list[str] = Field(
+        default_factory=list, description="Actionable suggestions"
+    )
+    next_steps: dict[str, Any] | None = Field(None, description="Workflow guidance")
+    metadata: dict[str, Any] | None = Field(None, description="Additional context")
+
+    def to_json(self) -> str:
+        """Convert to JSON string for MCP tool response."""
+        return self.model_dump_json(exclude_none=True, indent=2)
+
+    # convenience methods
+    @classmethod
+    def success(
+        cls,
+        message: str,
+        data: dict[str, Any] | None = None,
+        suggestions: list[str] | None = None,
+        next_steps: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "MCPResponse":
+        """Create a success response."""
+        return cls(
+            status="success",
+            message=message,
+            data=data,
+            suggestions=suggestions or [],
+            next_steps=next_steps,
+            metadata=metadata,
+        )
+
+    @classmethod
+    def error(
+        cls,
+        message: str,
+        errors: list[str] | None = None,
+        suggestions: list[str] | None = None,
+        next_steps: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "MCPResponse":
+        """Create an error response."""
+        return cls(
+            status="error",
+            message=message,
+            errors=errors or [],
+            suggestions=suggestions or [],
+            next_steps=next_steps,
+            metadata=metadata,
         )

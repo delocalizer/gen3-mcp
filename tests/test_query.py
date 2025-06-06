@@ -56,16 +56,15 @@ class TestExecuteGraphQL:
         query_service.client.post_json.side_effect = None
         query_service.client.post_json.return_value = ClientResponse(
             success=False,
-            error_message="Connection timeout",
             error_category=ErrorCategory.NETWORK,
+            errors=["Network error: Connection timeout"],
         )
 
         query = "{ subject { id } }"
         result = await query_service.execute_graphql(query)
 
         assert "errors" in result
-        assert "Network error" in result["errors"][0]
-        assert "suggestion" in result
+        assert "Connection timeout" in result["errors"][0]
 
     @pytest.mark.asyncio
     async def test_execute_graphql_http_client_error(self, query_service):
@@ -76,6 +75,7 @@ class TestExecuteGraphQL:
             success=False,
             status_code=400,
             error_category=ErrorCategory.HTTP_CLIENT,
+            errors=["Cannot query field 'invalid_field' on type 'Subject'"],
             data={
                 "data": None,
                 "errors": ["Cannot query field 'invalid_field' on type 'Subject'"],
@@ -87,8 +87,6 @@ class TestExecuteGraphQL:
 
         assert "errors" in result
         assert "invalid_field" in result["errors"][0]
-        assert "suggestion" in result
-        assert "recommended_workflow" in result["suggestion"]
 
     @pytest.mark.asyncio
     async def test_execute_graphql_http_server_error(self, query_service):
@@ -99,14 +97,14 @@ class TestExecuteGraphQL:
             success=False,
             status_code=500,
             error_category=ErrorCategory.HTTP_SERVER,
-            error_message="Internal server error",
+            errors=["Unexpected error: Internal server error"],
         )
 
         query = "{ subject { id } }"
         result = await query_service.execute_graphql(query)
 
         assert "errors" in result
-        assert "Server error" in result["errors"][0]
+        assert "Internal server error" in result["errors"][0]
 
     @pytest.mark.asyncio
     async def test_execute_graphql_with_graphql_errors(self, query_service):
@@ -263,21 +261,29 @@ class TestValidateQuery:
             assert result.errors[0].field == "invalid_field"
 
 
-class TestFindSimilarEntities:
-    """Test _find_similar_entities helper method"""
+class TestSimilarityUtilities:
+    """Test similarity utility functions"""
 
-    def test_find_similar_entities_exact_match(self, query_service, schema_extract):
+    def test_suggest_similar_strings_with_scores_exact_match(self, schema_extract):
         """Test finding similar entities with exact match"""
-        suggestions = query_service._find_similar_entities("subject", schema_extract)
+        from gen3_mcp.utils import suggest_similar_strings_with_scores
+
+        suggestions = suggest_similar_strings_with_scores(
+            "subject", set(schema_extract.keys())
+        )
 
         # Should find exact match with high similarity
         subject_suggestions = [s for s in suggestions if s["name"] == "subject"]
         assert len(subject_suggestions) == 1
         assert subject_suggestions[0]["similarity"] == 1.0
 
-    def test_find_similar_entities_typo(self, query_service, schema_extract):
+    def test_suggest_similar_strings_with_scores_typo(self, schema_extract):
         """Test finding similar entities with typo"""
-        suggestions = query_service._find_similar_entities("subjct", schema_extract)
+        from gen3_mcp.utils import suggest_similar_strings_with_scores
+
+        suggestions = suggest_similar_strings_with_scores(
+            "subjct", set(schema_extract.keys())
+        )
 
         # Should find "subject" as similar
         assert len(suggestions) > 0
@@ -287,30 +293,43 @@ class TestFindSimilarEntities:
         similarities = [s["similarity"] for s in suggestions]
         assert similarities == sorted(similarities, reverse=True)
 
-    def test_find_similar_entities_no_match(self, query_service, schema_extract):
+    def test_suggest_similar_strings_with_scores_no_match(self, schema_extract):
         """Test finding similar entities with no good matches"""
-        suggestions = query_service._find_similar_entities(
-            "completely_different", schema_extract
+        from gen3_mcp.utils import suggest_similar_strings_with_scores
+
+        suggestions = suggest_similar_strings_with_scores(
+            "completely_different", set(schema_extract.keys())
         )
 
         # May return empty list or very low similarity matches
-        # All similarities should be below the threshold or list should be empty
+        # All similarities should be below the default threshold or list should be empty
         for suggestion in suggestions:
             assert suggestion["similarity"] <= 0.5
 
-    def test_find_similar_entities_case_insensitive(
-        self, query_service, schema_extract
-    ):
+    def test_suggest_similar_strings_with_scores_case_insensitive(self, schema_extract):
         """Test that similarity matching is case insensitive"""
-        suggestions_lower = query_service._find_similar_entities(
-            "subject", schema_extract
+        from gen3_mcp.utils import suggest_similar_strings_with_scores
+
+        suggestions_lower = suggest_similar_strings_with_scores(
+            "subject", set(schema_extract.keys())
         )
-        suggestions_upper = query_service._find_similar_entities(
-            "SUBJECT", schema_extract
+        suggestions_upper = suggest_similar_strings_with_scores(
+            "SUBJECT", set(schema_extract.keys())
         )
 
         # Should return same results regardless of case
         assert len(suggestions_lower) == len(suggestions_upper)
+
+    def test_suggest_similar_strings_simple(self):
+        """Test the simple string suggestion function"""
+        from gen3_mcp.utils import suggest_similar_strings
+
+        candidates = ["subject", "study", "sample", "aliquot"]
+        suggestions = suggest_similar_strings("subjct", candidates)
+
+        # Should suggest "subject" as most similar
+        assert "subject" in suggestions
+        assert suggestions[0] == "subject"  # Should be first due to highest similarity
 
 
 class TestGetQueryService:

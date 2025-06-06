@@ -22,22 +22,22 @@ class TestClientResponse:
         assert response.success is True
         assert response.status_code == 200
         assert response.data == {"test": "data"}
-        assert response.error_message is None
         assert response.error_category is None
+        assert response.errors == []
 
     def test_error_response(self):
         """Test creating an error response"""
         response = ClientResponse(
             success=False,
             status_code=404,
-            error_message="Not found",
             error_category=ErrorCategory.HTTP_CLIENT,
+            errors=["Not found"],
         )
 
         assert response.success is False
         assert response.status_code == 404
-        assert response.error_message == "Not found"
         assert response.error_category == ErrorCategory.HTTP_CLIENT
+        assert response.errors == ["Not found"]
         assert response.data is None
 
     def test_error_categories(self):
@@ -52,7 +52,7 @@ class TestClientResponse:
 
         for category in categories:
             response = ClientResponse(
-                success=False, error_message="Test error", error_category=category
+                success=False, error_category=category, errors=["Test error"]
             )
             assert response.error_category == category
 
@@ -112,7 +112,7 @@ class TestGen3Client:
         assert result.success is True
         assert result.status_code == 200
         assert result.data == {"test": "data"}
-        assert result.error_message is None
+        assert result.errors == []
 
     @pytest.mark.asyncio
     async def test_get_json_http_error(self, client_with_mocks, mock_http_client):
@@ -134,7 +134,7 @@ class TestGen3Client:
         assert result.success is False
         assert result.status_code == 404
         assert result.error_category == ErrorCategory.HTTP_CLIENT
-        assert "HTTP 404 error" in result.error_message
+        assert "HTTP 404 error" in result.errors[0]
 
     @pytest.mark.asyncio
     async def test_get_json_network_error(self, client_with_mocks, mock_http_client):
@@ -150,7 +150,7 @@ class TestGen3Client:
         assert result.success is False
         assert result.status_code is None
         assert result.error_category == ErrorCategory.NETWORK
-        assert "Network error" in result.error_message
+        assert "Network error" in result.errors[0]
 
     @pytest.mark.asyncio
     async def test_get_json_invalid_json(self, client_with_mocks, mock_http_client):
@@ -170,7 +170,7 @@ class TestGen3Client:
         assert result.success is False
         assert result.status_code == 200
         assert result.error_category == ErrorCategory.JSON_PARSE
-        assert "Response is not valid JSON" in result.error_message
+        assert "Response is not valid JSON" in result.errors[0]
 
     @pytest.mark.asyncio
     async def test_post_json_success(self, client_with_mocks, mock_http_client):
@@ -245,8 +245,8 @@ class TestClientIntegration:
         mock_client.get_json.side_effect = None
         mock_client.get_json.return_value = ClientResponse(
             success=False,
-            error_message="Connection timeout",
             error_category=ErrorCategory.NETWORK,
+            errors=["Connection timeout"],
         )
 
         manager = SchemaManager(mock_client)
