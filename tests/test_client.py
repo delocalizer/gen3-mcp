@@ -15,46 +15,113 @@ from gen3_mcp.schema import SchemaManager
 class TestClientResponse:
     """Test the ClientResponse model"""
 
-    def test_success_response(self):
-        """Test creating a successful response"""
-        response = ClientResponse(success=True, status_code=200, data={"test": "data"})
+    @pytest.mark.parametrize(
+        "test_case",
+        [
+            {
+                "name": "success_response",
+                "params": {
+                    "success": True,
+                    "status_code": 200,
+                    "data": {"test": "data"},
+                },
+                "expected": {
+                    "success": True,
+                    "status_code": 200,
+                    "error_category": None,
+                    "errors": [],
+                    "data": {"test": "data"},
+                },
+            },
+            {
+                "name": "http_client_error",
+                "params": {
+                    "success": False,
+                    "status_code": 404,
+                    "error_category": ErrorCategory.HTTP_CLIENT,
+                    "errors": ["Not found"],
+                },
+                "expected": {
+                    "success": False,
+                    "status_code": 404,
+                    "error_category": ErrorCategory.HTTP_CLIENT,
+                    "errors": ["Not found"],
+                    "data": None,
+                },
+            },
+            {
+                "name": "network_error",
+                "params": {
+                    "success": False,
+                    "error_category": ErrorCategory.NETWORK,
+                    "errors": ["Network error"],
+                },
+                "expected": {
+                    "success": False,
+                    "error_category": ErrorCategory.NETWORK,
+                    "errors": ["Network error"],
+                    "status_code": None,
+                    "data": None,
+                },
+            },
+            {
+                "name": "http_server_error",
+                "params": {
+                    "success": False,
+                    "status_code": 500,
+                    "error_category": ErrorCategory.HTTP_SERVER,
+                    "errors": ["Server error"],
+                },
+                "expected": {
+                    "success": False,
+                    "status_code": 500,
+                    "error_category": ErrorCategory.HTTP_SERVER,
+                    "errors": ["Server error"],
+                    "data": None,
+                },
+            },
+            {
+                "name": "json_parse_error",
+                "params": {
+                    "success": False,
+                    "status_code": 200,
+                    "error_category": ErrorCategory.JSON_PARSE,
+                    "errors": ["Invalid JSON"],
+                },
+                "expected": {
+                    "success": False,
+                    "status_code": 200,
+                    "error_category": ErrorCategory.JSON_PARSE,
+                    "errors": ["Invalid JSON"],
+                    "data": None,
+                },
+            },
+            {
+                "name": "other_error",
+                "params": {
+                    "success": False,
+                    "error_category": ErrorCategory.OTHER,
+                    "errors": ["Other error"],
+                },
+                "expected": {
+                    "success": False,
+                    "error_category": ErrorCategory.OTHER,
+                    "errors": ["Other error"],
+                    "status_code": None,
+                    "data": None,
+                },
+            },
+        ],
+    )
+    def test_client_response_creation(self, test_case):
+        """Test ClientResponse creation with various configurations"""
+        response = ClientResponse(**test_case["params"])
 
-        assert response.success
-        assert response.status_code == 200
-        assert response.data == {"test": "data"}
-        assert response.error_category is None
-        assert response.errors == []
-
-    def test_error_response(self):
-        """Test creating an error response"""
-        response = ClientResponse(
-            success=False,
-            status_code=404,
-            error_category=ErrorCategory.HTTP_CLIENT,
-            errors=["Not found"],
-        )
-
-        assert not response.success
-        assert response.status_code == 404
-        assert response.error_category == ErrorCategory.HTTP_CLIENT
-        assert response.errors == ["Not found"]
-        assert response.data is None
-
-    def test_error_categories(self):
-        """Test all error categories are available"""
-        categories = [
-            ErrorCategory.NETWORK,
-            ErrorCategory.HTTP_CLIENT,
-            ErrorCategory.HTTP_SERVER,
-            ErrorCategory.JSON_PARSE,
-            ErrorCategory.OTHER,
-        ]
-
-        for category in categories:
-            response = ClientResponse(
-                success=False, error_category=category, errors=["Test error"]
-            )
-            assert response.error_category == category
+        for attr, expected_value in test_case["expected"].items():
+            actual_value = getattr(response, attr)
+            assert (
+                actual_value == expected_value
+            ), f"Expected {attr}={expected_value}, got {actual_value}"
 
 
 class TestGen3Client:
@@ -114,63 +181,135 @@ class TestGen3Client:
         assert result.data == {"test": "data"}
         assert result.errors == []
 
+    @pytest.mark.parametrize(
+        "method,http_method,error_setup,expected",
+        [
+            # Network errors
+            (
+                "get_json",
+                "get",
+                {"exception": httpx.ConnectError("Connection failed")},
+                {
+                    "category": ErrorCategory.NETWORK,
+                    "status_code": None,
+                    "error_contains": "Network error",
+                },
+            ),
+            (
+                "post_json",
+                "post",
+                {"exception": httpx.ConnectError("Connection failed")},
+                {
+                    "category": ErrorCategory.NETWORK,
+                    "status_code": None,
+                    "error_contains": "Network error",
+                },
+            ),
+            # HTTP client errors
+            (
+                "get_json",
+                "get",
+                {"http_error": 404},
+                {
+                    "category": ErrorCategory.HTTP_CLIENT,
+                    "status_code": 404,
+                    "error_contains": "HTTP 404 error",
+                },
+            ),
+            (
+                "post_json",
+                "post",
+                {"http_error": 400},
+                {
+                    "category": ErrorCategory.HTTP_CLIENT,
+                    "status_code": 400,
+                    "error_contains": "HTTP 400 error",
+                },
+            ),
+            # HTTP server errors
+            (
+                "get_json",
+                "get",
+                {"http_error": 500},
+                {
+                    "category": ErrorCategory.HTTP_SERVER,
+                    "status_code": 500,
+                    "error_contains": "HTTP 500 error",
+                },
+            ),
+            (
+                "post_json",
+                "post",
+                {"http_error": 500},
+                {
+                    "category": ErrorCategory.HTTP_SERVER,
+                    "status_code": 500,
+                    "error_contains": "HTTP 500 error",
+                },
+            ),
+            # JSON parse errors
+            (
+                "get_json",
+                "get",
+                {"json_error": ValueError("Invalid JSON")},
+                {
+                    "category": ErrorCategory.JSON_PARSE,
+                    "status_code": 200,
+                    "error_contains": "Response is not valid JSON",
+                },
+            ),
+            (
+                "post_json",
+                "post",
+                {"json_error": ValueError("Invalid JSON")},
+                {
+                    "category": ErrorCategory.JSON_PARSE,
+                    "status_code": 200,
+                    "error_contains": "Response is not valid JSON",
+                },
+            ),
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_get_json_http_error(self, client_with_mocks, mock_http_client):
-        """Test get_json with HTTP error"""
-        # Mock HTTP error response
-        mock_response = Mock()
-        mock_response.status_code = 404
-
-        mock_http_client.get = AsyncMock(
-            side_effect=httpx.HTTPStatusError(
-                "Not found", request=Mock(), response=mock_response
+    async def test_http_error_handling(
+        self,
+        client_with_mocks,
+        mock_http_client,
+        method,
+        http_method,
+        error_setup,
+        expected,
+    ):
+        """Test error handling patterns across GET and POST methods"""
+        # Setup mock based on error_setup
+        if "exception" in error_setup:
+            getattr(mock_http_client, http_method).side_effect = error_setup[
+                "exception"
+            ]
+        elif "http_error" in error_setup:
+            mock_response = Mock()
+            mock_response.status_code = error_setup["http_error"]
+            getattr(mock_http_client, http_method).side_effect = httpx.HTTPStatusError(
+                "Error", request=Mock(), response=mock_response
             )
-        )
+        elif "json_error" in error_setup:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.side_effect = error_setup["json_error"]
+            mock_response.raise_for_status.return_value = None
+            getattr(mock_http_client, http_method).return_value = mock_response
 
-        # Test the request
-        result = await client_with_mocks.get_json("https://test.gen3.io/schema")
+        # Execute the method
+        url = "https://test.gen3.io/test"
+        kwargs = {"json": {"test": "data"}} if method == "post_json" else {}
+        result = await getattr(client_with_mocks, method)(url, **kwargs)
 
+        # Validate results
         assert isinstance(result, ClientResponse)
         assert not result.success
-        assert result.status_code == 404
-        assert result.error_category == ErrorCategory.HTTP_CLIENT
-        assert "HTTP 404 error" in result.errors[0]
-
-    @pytest.mark.asyncio
-    async def test_get_json_network_error(self, client_with_mocks, mock_http_client):
-        """Test get_json with network error"""
-        mock_http_client.get = AsyncMock(
-            side_effect=httpx.ConnectError("Connection failed")
-        )
-
-        # Test the request
-        result = await client_with_mocks.get_json("https://test.gen3.io/schema")
-
-        assert isinstance(result, ClientResponse)
-        assert not result.success
-        assert result.status_code is None
-        assert result.error_category == ErrorCategory.NETWORK
-        assert "Network error" in result.errors[0]
-
-    @pytest.mark.asyncio
-    async def test_get_json_invalid_json(self, client_with_mocks, mock_http_client):
-        """Test get_json with invalid JSON response"""
-        # Mock response with invalid JSON
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.side_effect = ValueError("Invalid JSON")
-        mock_response.raise_for_status.return_value = None
-
-        mock_http_client.get = AsyncMock(return_value=mock_response)
-
-        # Test the request
-        result = await client_with_mocks.get_json("https://test.gen3.io/schema")
-
-        assert isinstance(result, ClientResponse)
-        assert not result.success
-        assert result.status_code == 200
-        assert result.error_category == ErrorCategory.JSON_PARSE
-        assert "Response is not valid JSON" in result.errors[0]
+        assert result.error_category == expected["category"]
+        assert result.status_code == expected["status_code"]
+        assert any(expected["error_contains"] in error for error in result.errors)
 
     @pytest.mark.asyncio
     async def test_post_json_success(self, client_with_mocks, mock_http_client):
@@ -194,9 +333,11 @@ class TestGen3Client:
         assert result.data == {"data": {"test": "result"}}
 
     @pytest.mark.asyncio
-    async def test_post_json_graphql_error(self, client_with_mocks, mock_http_client):
-        """Test post_json with GraphQL error (HTTP 400)"""
-        # Mock GraphQL error response
+    async def test_post_json_graphql_error_with_data(
+        self, client_with_mocks, mock_http_client
+    ):
+        """Test post_json with GraphQL error that includes response data"""
+        # Mock GraphQL error response with data
         mock_response = Mock()
         mock_response.status_code = 400
         mock_response.json.return_value = {

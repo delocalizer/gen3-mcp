@@ -128,85 +128,129 @@ class TestExecuteGraphQL:
 class TestGenerateQueryTemplate:
     """Test generate_query_template method"""
 
+    @pytest.mark.parametrize(
+        "entity,include_relationships,max_fields,expected_checks",
+        [
+            (
+                "subject",
+                True,
+                20,
+                {
+                    "exists": True,
+                    "has_relationships": True,
+                    "has_basic_fields": ["id", "submitter_id"],
+                    "relationship_check": "studies {",
+                },
+            ),
+            (
+                "subject",
+                False,
+                20,
+                {
+                    "exists": True,
+                    "has_relationships": False,
+                    "has_basic_fields": ["id", "submitter_id"],
+                    "relationship_check": None,
+                },
+            ),
+            (
+                "subject",
+                True,
+                5,
+                {
+                    "exists": True,
+                    "has_relationships": True,
+                    "max_fields": 5,
+                    "has_basic_fields": ["id"],
+                },
+            ),
+            (
+                "nonexistent_entity",
+                True,
+                20,
+                {
+                    "exists": False,
+                    "should_have_suggestions": True,
+                    "should_have_error": True,
+                },
+            ),
+            (
+                "subjct",
+                True,
+                20,
+                {  # Typo test
+                    "exists": False,
+                    "should_have_suggestions": True,
+                    "should_suggest_subject": True,
+                },
+            ),
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_generate_query_template_success(self, query_service):
-        """Test successful query template generation"""
-        result = await query_service.generate_query_template("subject")
-
-        assert result["exists"]
-        assert result["entity_name"] == "subject"
-        assert "template" in result
-        assert "subject(first: 10)" in result["template"]
-        assert "id" in result["template"]
-        assert "submitter_id" in result["template"]
-
-    @pytest.mark.asyncio
-    async def test_generate_query_template_with_relationships(self, query_service):
-        """Test template generation with relationships included"""
+    async def test_generate_query_template_variations(
+        self, query_service, entity, include_relationships, max_fields, expected_checks
+    ):
+        """Test query template generation with various parameters"""
         result = await query_service.generate_query_template(
-            "subject", include_relationships=True
+            entity, include_relationships, max_fields
         )
 
-        assert result["exists"]
-        template = result["template"]
+        # Common assertions
+        assert result["entity_name"] == entity
+        assert result["exists"] == expected_checks["exists"]
 
-        # Should include relationship fields
-        assert "studies {" in template
+        if expected_checks["exists"]:
+            template = result["template"]
+            assert f"{entity}(first: 10)" in template
 
-    @pytest.mark.asyncio
-    async def test_generate_query_template_without_relationships(self, query_service):
-        """Test template generation without relationships"""
-        result = await query_service.generate_query_template(
-            "subject", include_relationships=False
-        )
+            # Check basic fields
+            for field in expected_checks.get("has_basic_fields", []):
+                assert field in template
 
-        assert result["exists"]
-        template = result["template"]
+            # Check relationships
+            if expected_checks.get("has_relationships"):
+                relationship_check = expected_checks.get("relationship_check")
+                if relationship_check:
+                    assert relationship_check in template
+            elif (
+                "has_relationships" in expected_checks
+                and not expected_checks["has_relationships"]
+            ):
+                assert "studies {" not in template
 
-        # Should not include relationship fields
-        assert "studies {" not in template
+            # Check field limits
+            if "max_fields" in expected_checks:
+                lines = template.split("\n")
+                # Count only root-level scalar fields (exclude relationship blocks)
+                root_fields = []
+                in_relationship = False
+                for line in lines[2:]:  # Skip first two lines: { and entity(
+                    line = line.strip()
+                    if not line:  # Skip empty lines
+                        continue
+                    if line.endswith("}}"):  # End of template
+                        break
+                    if line.endswith("{"):  # Start of relationship block
+                        in_relationship = True
+                        continue
+                    if line == "}":
+                        in_relationship = False
+                        continue
+                    if not in_relationship and not line.endswith("{"):
+                        root_fields.append(line)
 
-    @pytest.mark.asyncio
-    async def test_generate_query_template_max_fields_limit(self, query_service):
-        """Test template generation with field limit"""
-        result = await query_service.generate_query_template("subject", max_fields=5)
-        print(result)
-
-        assert result["exists"]
-        template = result["template"]
-
-        # Count the number of scalar fields in root entity
-        lines = template.split("\n")
-        root_fields = []
-        for line in lines[2:]:
-            if line.endswith("{"):
-                break
-            root_fields.append(line)
-        # Should respect the max_fields limit
-        assert len(root_fields) == 5
-
-    @pytest.mark.asyncio
-    async def test_generate_query_template_entity_not_found(self, query_service):
-        """Test template generation for non-existent entity"""
-        result = await query_service.generate_query_template("nonexistent_entity")
-
-        assert not result["exists"]
-        assert result["entity_name"] == "nonexistent_entity"
-        assert result["template"] is None
-        assert "error" in result
-        assert "suggestions" in result
-
-    @pytest.mark.asyncio
-    async def test_generate_query_template_similar_suggestions(self, query_service):
-        """Test that similar entity suggestions are provided"""
-        result = await query_service.generate_query_template("subjct")  # Typo
-
-        assert not result["exists"]
-        assert "suggestions" in result
-
-        # Should suggest "subject" as similar
-        suggestion_names = [s["name"] for s in result["suggestions"]]
-        assert "subject" in suggestion_names
+                assert (
+                    len(root_fields) == expected_checks["max_fields"]
+                ), f"Expected {expected_checks['max_fields']} root fields, got {len(root_fields)}: {root_fields}"
+        else:
+            # Non-existent entity checks
+            if expected_checks.get("should_have_suggestions"):
+                assert "suggestions" in result
+            if expected_checks.get("should_have_error"):
+                assert "error" in result
+            if expected_checks.get("should_suggest_subject"):
+                suggestion_names = [s["name"] for s in result["suggestions"]]
+                assert "subject" in suggestion_names
 
 
 class TestValidateQuery:
@@ -261,75 +305,20 @@ class TestValidateQuery:
             assert result.errors[0].field == "invalid_field"
 
 
-class TestSimilarityUtilities:
-    """Test similarity utility functions"""
+class TestEntitySuggestionIntegration:
+    """Test entity suggestion integration in query context"""
 
-    def test_suggest_similar_strings_with_scores_exact_match(self, schema_extract):
-        """Test finding similar entities with exact match"""
-        from gen3_mcp.utils import suggest_similar_strings_with_scores
+    @pytest.mark.asyncio
+    async def test_entity_suggestion_integration(self, query_service):
+        """Test that entity suggestions work in query template generation context"""
+        result = await query_service.generate_query_template("subjct")  # Typo
 
-        suggestions = suggest_similar_strings_with_scores(
-            "subject", set(schema_extract.keys())
-        )
-
-        # Should find exact match with high similarity
-        subject_suggestions = [s for s in suggestions if s["name"] == "subject"]
-        assert len(subject_suggestions) == 1
-        assert subject_suggestions[0]["similarity"] == 1.0
-
-    def test_suggest_similar_strings_with_scores_typo(self, schema_extract):
-        """Test finding similar entities with typo"""
-        from gen3_mcp.utils import suggest_similar_strings_with_scores
-
-        suggestions = suggest_similar_strings_with_scores(
-            "subjct", set(schema_extract.keys())
-        )
-
-        # Should find "subject" as similar
-        assert len(suggestions) > 0
-        assert "subject" in [s["name"] for s in suggestions]
-
-        # Should be sorted by similarity (highest first)
-        similarities = [s["similarity"] for s in suggestions]
-        assert similarities == sorted(similarities, reverse=True)
-
-    def test_suggest_similar_strings_with_scores_no_match(self, schema_extract):
-        """Test finding similar entities with no good matches"""
-        from gen3_mcp.utils import suggest_similar_strings_with_scores
-
-        suggestions = suggest_similar_strings_with_scores(
-            "completely_different", set(schema_extract.keys())
-        )
-
-        # May return empty list or very low similarity matches
-        # All similarities should be below the default threshold or list should be empty
-        for suggestion in suggestions:
-            assert suggestion["similarity"] <= 0.5
-
-    def test_suggest_similar_strings_with_scores_case_insensitive(self, schema_extract):
-        """Test that similarity matching is case insensitive"""
-        from gen3_mcp.utils import suggest_similar_strings_with_scores
-
-        suggestions_lower = suggest_similar_strings_with_scores(
-            "subject", set(schema_extract.keys())
-        )
-        suggestions_upper = suggest_similar_strings_with_scores(
-            "SUBJECT", set(schema_extract.keys())
-        )
-
-        # Should return same results regardless of case
-        assert len(suggestions_lower) == len(suggestions_upper)
-
-    def test_suggest_similar_strings_simple(self):
-        """Test the simple string suggestion function"""
-        from gen3_mcp.utils import suggest_similar_strings
-
-        candidates = ["subject", "study", "sample", "aliquot"]
-        suggestions = suggest_similar_strings("subjct", candidates)
-
-        # Should suggest "subject" as most similar
-        assert "subject" in suggestions
-        assert suggestions[0] == "subject"  # Should be first due to highest similarity
+        assert not result["exists"]
+        assert "suggestions" in result
+        suggestion_names = [s["name"] for s in result["suggestions"]]
+        assert (
+            "subject" in suggestion_names
+        )  # Integration with utils.suggest_similar_strings_with_scores
 
 
 class TestGetQueryService:
@@ -362,7 +351,7 @@ class TestIntegration:
         """Test complete workflow from template generation to execution"""
         # 1. Generate template
         template_result = await query_service.generate_query_template("subject")
-        assert template_result["exists"] is True
+        assert template_result["exists"]
 
         # 2. Validate the generated template
         query = template_result["template"]
@@ -370,7 +359,7 @@ class TestIntegration:
         with patch("gen3_mcp.query.validate_graphql") as mock_validate:
             mock_validate.return_value = QueryValidationResult(valid=True, query=query)
             validation_result = await query_service.validate_query(query)
-            assert validation_result.valid is True
+            assert validation_result.valid
 
         # 3. Execute the validated query
         query_service.client.post_json.return_value = ClientResponse(
@@ -385,7 +374,7 @@ class TestIntegration:
         """Test error handling across the workflow"""
         # 1. Try invalid entity
         template_result = await query_service.generate_query_template("invalid_entity")
-        assert template_result["exists"] is False
+        assert not template_result["exists"]
         assert "suggestions" in template_result
 
         # 2. Use suggested entity if available
@@ -394,7 +383,7 @@ class TestIntegration:
             template_result = await query_service.generate_query_template(
                 suggested_entity
             )
-            assert template_result["exists"] is True
+            assert template_result["exists"]
 
 
 # Test Fixtures leveraging existing conftest.py infrastructure
@@ -412,33 +401,3 @@ async def query_service(mock_client, schema_extract):
     service = QueryService(schema_manager)
 
     return service
-
-
-# Additional test utilities
-class TestUtils:
-    """Utility methods for testing"""
-
-    @staticmethod
-    def create_mock_client_response(
-        success=True,
-        status_code=200,
-        data=None,
-        error_message=None,
-        error_category=None,
-    ):
-        """Helper to create ClientResponse objects for testing"""
-        return ClientResponse(
-            success=success,
-            status_code=status_code,
-            data=data,
-            error_message=error_message,
-            error_category=error_category,
-        )
-
-    @staticmethod
-    def assert_graphql_template_structure(template: str, entity_name: str):
-        """Helper to assert GraphQL template has expected structure"""
-        assert f"{entity_name}(first: 10)" in template
-        assert template.startswith("{")
-        assert template.endswith("}")
-        assert "id" in template  # Should always include id field

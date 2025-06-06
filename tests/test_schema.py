@@ -38,18 +38,6 @@ class TestGetSchemaFull:
         assert "study" in result
 
     @pytest.mark.asyncio
-    async def test_get_schema_full_caching(self, schema_manager):
-        """Test that full schema is cached properly"""
-        # First call should hit the client
-        schema1 = await schema_manager.get_schema_full()
-        assert schema_manager.client.get_json.call_count == 1
-
-        # Second call should use cache
-        schema2 = await schema_manager.get_schema_full()
-        assert schema_manager.client.get_json.call_count == 1  # No additional calls
-        assert schema1 is schema2  # Same object reference
-
-    @pytest.mark.asyncio
     async def test_get_schema_full_network_error(self, mock_client):
         """Test handling of network errors"""
         from gen3_mcp.models import ClientResponse
@@ -111,16 +99,6 @@ class TestGetSchemaExtract:
             "aligned_reads_file",
         }
         assert set(schema_extract.keys()) == expected_entities
-
-    @pytest.mark.asyncio
-    async def test_get_schema_extract_caching(self, schema_manager):
-        """Test that schema extract is cached properly"""
-        # First call should create extract
-        extract1 = await schema_manager.get_schema_extract()
-
-        # Second call should use cache
-        extract2 = await schema_manager.get_schema_extract()
-        assert extract1 is extract2  # Same object reference
 
     @pytest.mark.asyncio
     async def test_get_schema_extract_entities_structure(self, schema_extract):

@@ -16,15 +16,14 @@ from gen3_mcp.consts import (
 class TestConfig:
     """Test Config class functionality"""
 
-    def test_config_creation(self, clean_config):
-        """Test that config can be created with default values"""
+    def test_config_defaults_and_creation(self, clean_config):
+        """Test config creation and default values"""
         assert clean_config.base_url == "https://gen3.datacommons.io"
         assert clean_config.log_level == "INFO"
         assert clean_config.credentials_file == "~/credentials.json"
         assert clean_config.timeout_seconds == 30
 
-    def test_config_properties(self, clean_config):
-        """Test that config properties work"""
+        # Test computed properties
         assert clean_config.auth_url.endswith(AUTH_URL_PATH)
         assert clean_config.graphql_url.endswith(GRAPHQL_URL_PATH)
         assert clean_config.schema_url.endswith(SCHEMA_URL_PATH)
@@ -50,13 +49,6 @@ class TestConfig:
                 os.environ["GEN3MCP_BASE_URL"] = original
             else:
                 os.environ.pop("GEN3MCP_BASE_URL", None)
-
-    def test_config_defaults(self, clean_config):
-        """Test that config has correct default values without env interference"""
-        assert clean_config.base_url == "https://gen3.datacommons.io"
-        assert clean_config.credentials_file == "~/credentials.json"
-        assert clean_config.log_level == "INFO"
-        assert clean_config.timeout_seconds == 30
 
     def test_config_custom_values(self):
         """Test creating config with custom values"""
