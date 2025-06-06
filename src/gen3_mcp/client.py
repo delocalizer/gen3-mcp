@@ -2,13 +2,13 @@
 
 import logging
 from functools import cache
-from typing import Any
 
 import httpx
 
 from .auth import AuthManager
 from .config import Config, get_config
 from .consts import USER_AGENT
+from .models import ClientResponse, ErrorCategory
 
 logger = logging.getLogger("gen3-mcp.client")
 
@@ -34,7 +34,7 @@ class Gen3Client:
 
     async def get_json(
         self, url: str, authenticated: bool = True, **kwargs
-    ) -> dict[str, Any] | None:
+    ) -> ClientResponse:
         """Get JSON from URL.
 
         Args:
@@ -43,7 +43,7 @@ class Gen3Client:
             **kwargs: Additional arguments passed to httpx.get.
 
         Returns:
-            JSON response as dict or None if request fails.
+            ClientResponse with success/error details and data.
         """
         try:
             if authenticated:
@@ -53,17 +53,57 @@ class Gen3Client:
             response = await self._http_client.get(url, **kwargs)
             response.raise_for_status()
 
-            result = response.json()
-            logger.debug(f"GET {url} successful")
-            return result
+            try:
+                data = response.json()
+                logger.debug(f"GET {url} successful")
+                return ClientResponse(
+                    success=True, status_code=response.status_code, data=data
+                )
+            except ValueError as e:
+                logger.error(f"JSON parse error for GET {url}: {e}")
+                return ClientResponse(
+                    success=False,
+                    status_code=response.status_code,
+                    error_message=f"Response is not valid JSON: {e}",
+                    error_category=ErrorCategory.JSON_PARSE,
+                )
+
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error for GET {url}: {e.response.status_code}")
-            return None
+            status_code = e.response.status_code
+            logger.error(f"HTTP error for GET {url}: {status_code}")
+
+            # Determine error category
+            if 400 <= status_code < 500:
+                category = ErrorCategory.HTTP_CLIENT
+            elif 500 <= status_code < 600:
+                category = ErrorCategory.HTTP_SERVER
+            else:
+                category = ErrorCategory.OTHER
+
+            return ClientResponse(
+                success=False,
+                status_code=status_code,
+                error_message=f"HTTP {status_code} error",
+                error_category=category,
+            )
+
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.error(f"Network error for GET {url}: {e}")
+            return ClientResponse(
+                success=False,
+                error_message=f"Network error: {e}",
+                error_category=ErrorCategory.NETWORK,
+            )
+
         except Exception as e:
             logger.error(f"GET {url} failed: {e}")
-            return None
+            return ClientResponse(
+                success=False,
+                error_message=f"Unexpected error: {e}",
+                error_category=ErrorCategory.OTHER,
+            )
 
-    async def post_json(self, url: str, **kwargs) -> dict[str, Any] | None:
+    async def post_json(self, url: str, **kwargs) -> ClientResponse:
         """Post JSON to URL.
 
         Args:
@@ -71,10 +111,9 @@ class Gen3Client:
             **kwargs: Additional arguments passed to httpx.post.
 
         Returns:
-            JSON response as dict. For HTTP errors, the 'errors' key will
-            contain detailed errors from the response content (if any), and
-            '_http_error_context' will describe the HTTP error context e.g.
-            status_code. Returns None only for network/connection errors.
+            ClientResponse with success/error details and data. For successful
+            requests, data contains the JSON response. For HTTP errors, data
+            may contain server response details (like GraphQL errors).
         """
         try:
             await self._auth_manager.ensure_valid_token()
@@ -83,18 +122,30 @@ class Gen3Client:
             response = await self._http_client.post(url, **kwargs)
             response.raise_for_status()
 
-            result = response.json()
-            logger.debug(f"POST {url} successful")
-            return result
+            try:
+                data = response.json()
+                logger.debug(f"POST {url} successful")
+                return ClientResponse(
+                    success=True, status_code=response.status_code, data=data
+                )
+            except ValueError as e:
+                logger.error(f"JSON parse error for POST {url}: {e}")
+                return ClientResponse(
+                    success=False,
+                    status_code=response.status_code,
+                    error_message=f"Response is not valid JSON: {e}",
+                    error_category=ErrorCategory.JSON_PARSE,
+                )
+
         except httpx.HTTPStatusError as e:
-            status_code = httpx.codes(e.response.status_code)
-            logger.error(f"HTTP error for POST {url}: {repr(status_code)}")
+            status_code = e.response.status_code
+            logger.error(f"HTTP error for POST {url}: {status_code}")
 
             # Try to extract response content (may contain GraphQL errors)
-            response_content = {}
+            response_data = None
             try:
-                response_content = e.response.json()
-                # At the graphql endpoint, an example of this:
+                response_data = e.response.json()
+                # Example GraphQL error response:
                 # {
                 #   'data': None,
                 #   'errors': [
@@ -102,26 +153,47 @@ class Gen3Client:
                 #   ]
                 # }
             except ValueError:
-                pass
-            if "errors" not in response_content:
-                response_content["errors"] = [f"HTTP {repr(status_code)} error"]
+                # If we can't parse JSON, include raw text if available
+                try:
+                    response_data = {"raw_response": e.response.text}
+                except:
+                    response_data = {"error": "Could not parse error response"}
 
-            # Add HTTP error context to the response content
-            response_content["_http_error_context"] = {
-                "status_code": status_code.value,
-                "error_category": status_code.name,
-                "is_client_error": httpx.codes.is_client_error(status_code),
-                "is_server_error": httpx.codes.is_server_error(status_code),
-            }
+            # Determine error category
+            if 400 <= status_code < 500:
+                category = ErrorCategory.HTTP_CLIENT
+            elif 500 <= status_code < 600:
+                category = ErrorCategory.HTTP_SERVER
+            else:
+                category = ErrorCategory.OTHER
 
-            logger.debug(
-                f"HTTP error response includes: {list(response_content.keys())}"
+            logger.debug(f"HTTP error response data: {response_data}")
+
+            # Return error response but include the server's response data
+            # This preserves GraphQL error details while providing consistent interface
+            return ClientResponse(
+                success=False,
+                status_code=status_code,
+                error_message=f"HTTP {status_code} error",
+                error_category=category,
+                data=response_data,
             )
-            return response_content
+
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.error(f"Network error for POST {url}: {e}")
+            return ClientResponse(
+                success=False,
+                error_message=f"Network error: {e}",
+                error_category=ErrorCategory.NETWORK,
+            )
 
         except Exception as e:
             logger.error(f"POST {url} failed: {e}")
-            return None
+            return ClientResponse(
+                success=False,
+                error_message=f"Unexpected error: {e}",
+                error_category=ErrorCategory.OTHER,
+            )
 
 
 @cache

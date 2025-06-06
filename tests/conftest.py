@@ -47,12 +47,16 @@ def reference_extract_json():
 
 
 def mock_get_json_side_effect(url, **kwargs):
-    """Mock side effect that may return different responses based on URL"""
+    """Mock side effect that returns ClientResponse objects based on URL"""
+    from gen3_mcp.models import ClientResponse
+
     if url.endswith(SCHEMA_URL_PATH):
-        # Full schema request
-        return FULL_SCHEMA
-    # For any other URL, return None (which might trigger error handling)
-    return None
+        # Full schema request - success
+        return ClientResponse(success=True, status_code=200, data=FULL_SCHEMA)
+    # For any other URL, return network error
+    return ClientResponse(
+        success=False, error_message="Network error", error_category="NETWORK"
+    )
 
 
 @pytest.fixture
@@ -72,23 +76,30 @@ def mock_client():
     client.get_json = AsyncMock(side_effect=mock_get_json_side_effect)
 
     # Mock GraphQL responses with realistic data
-    client.post_json = AsyncMock(
-        return_value={
-            "data": {
-                "subject": [
-                    {
-                        "id": "123e4567-e89b-12d3-a456-426614174000",
-                        "submitter_id": "test_subject_001",
-                        "type": "subject",
-                        "gender": "Female",
-                        "age_at_enrollment": 45,
-                        "race": "White",
-                        "ethnicity": "Not Hispanic or Latino",
-                    }
-                ]
-            }
-        }
-    )
+    def mock_post_json_side_effect(url, **kwargs):
+        from gen3_mcp.models import ClientResponse
+
+        return ClientResponse(
+            success=True,
+            status_code=200,
+            data={
+                "data": {
+                    "subject": [
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "submitter_id": "test_subject_001",
+                            "type": "subject",
+                            "gender": "Female",
+                            "age_at_enrollment": 45,
+                            "race": "White",
+                            "ethnicity": "Not Hispanic or Latino",
+                        }
+                    ]
+                }
+            },
+        )
+
+    client.post_json = AsyncMock(side_effect=mock_post_json_side_effect)
 
     return client
 

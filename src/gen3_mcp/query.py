@@ -5,7 +5,7 @@ from functools import cache
 from typing import Any
 
 from .graphql_validator import validate_graphql
-from .models import QueryValidationResult, SchemaExtract
+from .models import ErrorCategory, QueryValidationResult, SchemaExtract
 from .schema import SchemaManager
 
 logger = logging.getLogger("gen3-mcp.query")
@@ -25,38 +25,42 @@ class QueryService:
         self.client = schema_manager.client
         self.config = schema_manager.client.config
 
-    async def execute_graphql(self, query: str) -> dict[str, Any] | None:
+    async def execute_graphql(self, query: str) -> dict[str, Any]:
         """Execute GraphQL query.
 
         Args:
             query: GraphQL query string.
 
         Returns:
-            Query results dict or None if execution fails. May include errors
-            and suggestions for fixing them.
+            Query results dict. May include errors and suggestions for fixing them.
+            Structure varies based on success/failure and error type.
         """
         logger.info("Executing GraphQL query")
         logger.debug(f"Query: {query[:200]}{'...' if len(query) > 200 else ''}")
 
-        result = await self.client.post_json(
+        response = await self.client.post_json(
             self.config.graphql_url,
             json={"query": query},
         )
 
-        if result is None:
-            logger.error("GraphQL query execution failed - network error")
-            return {
-                "errors": ["Network error - unable to connect to Gen3 server"],
-                "suggestion": "Check your internet connection and Gen3 server availability",
-            }
+        if not response.success:
+            logger.error(f"GraphQL query execution failed: {response.error_message}")
 
-        # Extract HTTP error context if present
-        http_error_context = result.pop("_http_error_context", None)
+            # Network errors
+            if response.error_category == ErrorCategory.NETWORK:
+                return {
+                    "errors": [f"Network error: {response.error_message}"],
+                    "suggestion": "Check your internet connection and Gen3 server availability",
+                }
 
-        if http_error_context:
-            logger.warning("GraphQL query returned an error")
-            # 400 error = bad query
-            if http_error_context["error_category"] == "BAD_REQUEST":
+            # HTTP client errors (4xx) - usually bad query
+            elif response.error_category == ErrorCategory.HTTP_CLIENT:
+                result = response.data if response.data else {}
+                if "errors" not in result:
+                    result["errors"] = [
+                        f"HTTP {response.status_code} error: {response.error_message}"
+                    ]
+
                 result["suggestion"] = {
                     "recommended_workflow": [
                         "1. Inspect errors key to understand the cause of the bad query",
@@ -65,10 +69,17 @@ class QueryService:
                         "4. Use execute_graphql() to run the validated query",
                     ],
                 }
+                return result
 
-            return result
+            # HTTP server errors (5xx) or other errors
+            else:
+                return {
+                    "errors": [f"Server error: {response.error_message}"],
+                    "suggestion": "The Gen3 server encountered an error. Try again later.",
+                }
 
-        # Success case
+        # Success case - response.data contains the GraphQL response
+        result = response.data
         logger.info("GraphQL query executed successfully")
         return result
 

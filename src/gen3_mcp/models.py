@@ -3,6 +3,29 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field
 
+# --- Client Response models --- #
+
+
+class ErrorCategory(StrEnum):
+    """Categories of errors that can occur during HTTP requests."""
+
+    NETWORK = "NETWORK"  # Connection errors, timeouts, DNS failures
+    HTTP_CLIENT = "HTTP_CLIENT"  # 4xx errors (client errors)
+    HTTP_SERVER = "HTTP_SERVER"  # 5xx errors (server errors)
+    JSON_PARSE = "JSON_PARSE"  # Response isn't valid JSON
+    OTHER = "OTHER"  # Any other unexpected errors
+
+
+class ClientResponse(BaseModel):
+    """Standardized response from Gen3Client HTTP operations."""
+
+    success: bool
+    status_code: int | None = None
+    data: Any | None = None
+    error_message: str | None = None
+    error_category: ErrorCategory | None = None
+
+
 # --- Schema models --- #
 
 

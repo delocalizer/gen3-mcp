@@ -54,11 +54,17 @@ class SchemaManager:
             return self._cache[cache_key]
 
         logger.info(f"Fetching full schema from {self.config.schema_url}")
-        schema = await self.client.get_json(self.config.schema_url, authenticated=False)
+        response = await self.client.get_json(
+            self.config.schema_url, authenticated=False
+        )
 
-        if schema is None:
-            logger.error("Failed to fetch full schema")
-            raise Gen3SchemaError("Failed to fetch schema from Gen3")
+        if not response.success:
+            logger.error(f"Failed to fetch full schema: {response.model_dump()}")
+            raise Gen3SchemaError(
+                f"Failed to fetch schema from Gen3: {response.model_dump()}"
+            )
+
+        schema = response.data
 
         logger.info("Fetched full schema")
         self._cache[cache_key] = schema
