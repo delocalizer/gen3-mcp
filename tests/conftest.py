@@ -1,12 +1,14 @@
 """Pytest configuration and shared fixtures"""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from gen3_mcp.config import Config
+from gen3_mcp.consts import SCHEMA_URL_PATH
 from gen3_mcp.schema import SchemaManager
 
 # Configure pytest-asyncio
@@ -46,7 +48,7 @@ def reference_extract_json():
 
 def mock_get_json_side_effect(url, **kwargs):
     """Mock side effect that may return different responses based on URL"""
-    if url.endswith("/_all"):
+    if url.endswith(SCHEMA_URL_PATH):
         # Full schema request
         return FULL_SCHEMA
 
@@ -101,3 +103,37 @@ async def schema_manager(mock_client):
 async def schema_extract(schema_manager):
     """Schema extract fixture using SchemaManager"""
     return await schema_manager.get_schema_extract()
+
+
+@pytest.fixture
+def clean_env():
+    """Fixture that temporarily clears GEN3MCP_* environment variables.
+
+    This ensures Config tests see the true defaults without interference
+    from environment variables that might be set in the user's shell.
+    """
+    # Find all GEN3MCP_* environment variables
+    gen3mcp_vars = {
+        key: value for key, value in os.environ.items() if key.startswith("GEN3MCP_")
+    }
+
+    # Temporarily remove them
+    for key in gen3mcp_vars:
+        os.environ.pop(key, None)
+
+    try:
+        yield
+    finally:
+        # Restore original environment variables
+        for key, value in gen3mcp_vars.items():
+            os.environ[key] = value
+
+
+@pytest.fixture
+def clean_config(clean_env):
+    """Fixture that provides a Config instance with clean environment.
+
+    This ensures tests can verify default values without environment
+    variable interference.
+    """
+    return Config()

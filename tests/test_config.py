@@ -6,23 +6,28 @@ import pytest
 from pydantic import ValidationError
 
 from gen3_mcp.config import Config
+from gen3_mcp.consts import (
+    AUTH_URL_PATH,
+    GRAPHQL_URL_PATH,
+    SCHEMA_URL_PATH,
+)
 
 
 class TestConfig:
     """Test Config class functionality"""
 
-    def test_config_creation(self):
-        """Test that config can be created"""
-        config = Config()
-        assert config.base_url == "https://gen3.datacommons.io"
-        assert config.log_level == "INFO"
+    def test_config_creation(self, clean_config):
+        """Test that config can be created with default values"""
+        assert clean_config.base_url == "https://gen3.datacommons.io"
+        assert clean_config.log_level == "INFO"
+        assert clean_config.credentials_file == "~/credentials.json"
+        assert clean_config.timeout_seconds == 30
 
-    def test_config_properties(self):
+    def test_config_properties(self, clean_config):
         """Test that config properties work"""
-        config = Config()
-        assert config.auth_url.endswith("/user/credentials/cdis/access_token")
-        assert config.graphql_url.endswith("/api/v0/submission/graphql")
-        assert config.schema_url.endswith("/api/v0/submission/_dictionary/_all")
+        assert clean_config.auth_url.endswith(AUTH_URL_PATH)
+        assert clean_config.graphql_url.endswith(GRAPHQL_URL_PATH)
+        assert clean_config.schema_url.endswith(SCHEMA_URL_PATH)
 
     def test_config_validation(self):
         """Test that config validation works"""
@@ -46,12 +51,12 @@ class TestConfig:
             else:
                 os.environ.pop("GEN3MCP_BASE_URL", None)
 
-    #    def test_config_defaults(self):
-    #        """Test that config has correct default values"""
-    #        original = os.environ.get(
-    #        config = Config()
-    #        assert config.credentials_file.endswith("/credentials.json")
-    #        assert config.timeout_seconds == 30
+    def test_config_defaults(self, clean_config):
+        """Test that config has correct default values without env interference"""
+        assert clean_config.base_url == "https://gen3.datacommons.io"
+        assert clean_config.credentials_file == "~/credentials.json"
+        assert clean_config.log_level == "INFO"
+        assert clean_config.timeout_seconds == 30
 
     def test_config_custom_values(self):
         """Test creating config with custom values"""
@@ -69,9 +74,9 @@ class TestConfig:
         custom_base = "https://custom.gen3.io"
         config = Config(base_url=custom_base)
 
-        assert config.auth_url == f"{custom_base}/user/credentials/cdis/access_token"
-        assert config.graphql_url == f"{custom_base}/api/v0/submission/graphql"
-        assert config.schema_url == f"{custom_base}/api/v0/submission/_dictionary/_all"
+        assert config.auth_url == f"{custom_base}{AUTH_URL_PATH}"
+        assert config.graphql_url == f"{custom_base}{GRAPHQL_URL_PATH}"
+        assert config.schema_url == f"{custom_base}{SCHEMA_URL_PATH}"
 
     @pytest.mark.parametrize("log_level", ["DEBUG", "INFO", "WARNING", "ERROR"])
     def test_valid_log_levels(self, log_level):
@@ -100,3 +105,17 @@ class TestConfig:
         # Invalid timeout (too large)
         with pytest.raises(ValidationError):
             Config(timeout_seconds=500)
+
+    def test_env_vars_isolated_from_defaults(self, clean_env):
+        """Test that environment variables don't affect default testing"""
+        # This test runs with clean_env, so should see defaults
+        config = Config()
+        assert config.base_url == "https://gen3.datacommons.io"
+        assert config.log_level == "INFO"
+
+        # Now set an env var within the test
+        os.environ["GEN3MCP_LOG_LEVEL"] = "DEBUG"
+        config_with_env = Config()
+        assert config_with_env.log_level == "DEBUG"
+
+        # The clean_env fixture will restore the original state
