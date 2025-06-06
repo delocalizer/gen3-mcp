@@ -1,4 +1,4 @@
-"""Simple tests (verify pytest working)"""
+"""Simple test to validate test framework is working"""
 
 from unittest import TestCase
 

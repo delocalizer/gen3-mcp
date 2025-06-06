@@ -92,6 +92,31 @@ class SchemaManager:
         self._cache[cache_key] = extract
         return extract
 
+    async def get_entity_schema_extract(self, entity: str) -> EntitySchema:
+        """Get a specific entity schema from the processed extract.
+
+        Args:
+            entity: Name of the entity to retrieve.
+
+        Returns:
+            EntitySchema instance for the specified entity.
+
+        Raises:
+            Gen3SchemaError: If schema fetch fails or entity not found.
+        """
+        # Get the full extract (uses its own cache)
+        extract = await self.get_schema_extract()
+        
+        if entity not in extract:
+            available_entities = list(extract.keys())
+            raise Gen3SchemaError(
+                f"Entity '{entity}' not found in schema. "
+                f"Available entities: {', '.join(sorted(available_entities))}"
+            )
+        
+        logger.debug(f"Retrieved entity schema for '{entity}'")
+        return extract[entity]
+
     def _create_extract(self, full_schema: dict[str, Any]) -> SchemaExtract:
         """Create SchemaExtract from full schema dict.
 
@@ -144,12 +169,13 @@ class SchemaManager:
                             link_type=RelType.PARENT_OF,
                         )
                     )
+            link_names = set(link["name"] for link in links)
 
             # Extract scalar fields from properties
             fields = {}
             for prop_name, prop_def in entity_def.get("properties", {}).items():
                 # skip relationship fields
-                if prop_name in links:
+                if prop_name in link_names:
                     continue
                 prop = None
                 if "type" in prop_def:
@@ -167,7 +193,7 @@ class SchemaManager:
                 if prop:
                     fields[prop_name] = prop
 
-            extract.entities[entity_name] = EntitySchema(
+            extract[entity_name] = EntitySchema(
                 name=entity_name, fields=fields, relationships={}
             )
 
@@ -175,8 +201,8 @@ class SchemaManager:
         for rel in relationships:
             # Links might possibly reference types not actually defined in the
             # schema; these relationships are omitted so the result is closed.
-            source = extract.entities.get(rel.source_type)
-            target = extract.entities.get(rel.target_type)
+            source = extract.get(rel.source_type)
+            target = extract.get(rel.target_type)
             if not source:
                 logger.info(f"Entity {rel.source_type} not found")
                 continue
@@ -186,7 +212,7 @@ class SchemaManager:
             source.relationships[rel.name] = rel
 
         # Add schema summary information and query patterns
-        for entity_name, entity in extract.entities.items():
+        for entity_name, entity in extract.items():
             parent_count = sum(
                 1
                 for rel in entity.relationships.values()

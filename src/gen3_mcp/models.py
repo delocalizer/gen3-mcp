@@ -97,11 +97,9 @@ class EntitySchema(BaseModel):
     )
 
 
-class SchemaExtract(BaseModel):
-    entities: dict[str, EntitySchema] = Field({}, description="Entities in the schema")
-
-
-class SchemaExtractResponse(CallToolResult):
-    """Response model for get_schema_summary."""
-
-    schema_extract: SchemaExtract = Field(..., description="Schema extract")
+class SchemaExtract(dict[str, EntitySchema]):
+    """Schema extract containing entity definitions keyed by entity name."""
+    
+    def to_json(self) -> dict[str, dict]:
+        """Convert to JSON-serializable dict."""
+        return {k: v.model_dump() for k, v in self.items()}

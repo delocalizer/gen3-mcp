@@ -1,50 +1,150 @@
 {
   "aligned_reads_file": {
     "name": "aligned_reads_file",
-    "fields": [
-      "alignment_workflow",
-      "associated_ids",
-      "created_datetime",
-      "data_category",
-      "data_format",
-      "data_type",
-      "experimental_strategy",
-      "file_name",
-      "file_size",
-      "id",
-      "md5sum",
-      "molecular_tagging_workflow",
-      "object_id",
-      "project_id",
-      "state",
-      "storage_urls",
-      "subject_ids",
-      "submitter_id",
-      "type",
-      "updated_datetime",
-      "visit_id",
-      "workflow_end_datetime",
-      "workflow_link",
-      "workflow_start_datetime",
-      "workflow_type",
-      "workflow_version"
-    ],
+    "fields": {
+      "alignment_workflow": {
+        "name": "alignment_workflow",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "associated_ids": {
+        "name": "associated_ids",
+        "type_": "array",
+        "enum_vals": null
+      },
+      "created_datetime": {
+        "name": "created_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "data_category": {
+        "name": "data_category",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "data_format": {
+        "name": "data_format",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "data_type": {
+        "name": "data_type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "experimental_strategy": {
+        "name": "experimental_strategy",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "file_name": {
+        "name": "file_name",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "file_size": {
+        "name": "file_size",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "id": {
+        "name": "id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "md5sum": {
+        "name": "md5sum",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "molecular_tagging_workflow": {
+        "name": "molecular_tagging_workflow",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "object_id": {
+        "name": "object_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "project_id": {
+        "name": "project_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "state": {
+        "name": "state",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "storage_urls": {
+        "name": "storage_urls",
+        "type_": "array",
+        "enum_vals": null
+      },
+      "subject_ids": {
+        "name": "subject_ids",
+        "type_": "array",
+        "enum_vals": null
+      },
+      "submitter_id": {
+        "name": "submitter_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "type": {
+        "name": "type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "updated_datetime": {
+        "name": "updated_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "visit_id": {
+        "name": "visit_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "workflow_end_datetime": {
+        "name": "workflow_end_datetime",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "workflow_link": {
+        "name": "workflow_link",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "workflow_start_datetime": {
+        "name": "workflow_start_datetime",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "workflow_type": {
+        "name": "workflow_type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "workflow_version": {
+        "name": "workflow_version",
+        "type_": "string",
+        "enum_vals": null
+      }
+    },
     "relationships": {
       "aliquots": {
         "name": "aliquots",
         "source_type": "aligned_reads_file",
         "target_type": "aliquot",
-        "link_type": "child_of",
-        "link_multiplicity": "many_to_many",
-        "link_label": "data_from"
+        "link_type": "child_of"
       },
       "subjects": {
         "name": "subjects",
         "source_type": "aligned_reads_file",
         "target_type": "subject",
-        "link_type": "child_of",
-        "link_multiplicity": "many_to_one",
-        "link_label": "data_from"
+        "link_type": "child_of"
       }
     },
     "schema_summary": {
@@ -65,72 +165,160 @@
       "field_count": 26,
       "parent_count": 2,
       "child_count": 0,
-      "position_description": {
-        "position": "leaf",
-        "description": "End-point entity (no children) - likely data files or final results"
-      }
-    },
-    "query_patterns": {
-      "basic_query": "{\n    aligned_reads_file(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "complex_queries": [
-        {
-          "description": "Get aligned_reads_file with linked parent aliquot data",
-          "query": "{\n    aligned_reads_file(first: 5) {\n        id\n        submitter_id\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get aligned_reads_file with linked parent subject data",
-          "query": "{\n    aligned_reads_file(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
-        }
-      ]
+      "position_description": "leaf"
     }
   },
   "aliquot": {
     "name": "aliquot",
-    "fields": [
-      "a260_a280_ratio",
-      "aliquot_container",
-      "aliquot_volume",
-      "aliquot_weight",
-      "analyte_qc_class",
-      "analyte_qc_status",
-      "analyte_type",
-      "clinical_or_contrived",
-      "concentration",
-      "concentration_units",
-      "contrivance_method",
-      "created_datetime",
-      "days_to_aliquoting",
-      "days_to_assay",
-      "id",
-      "isolation_method",
-      "label_name",
-      "label_protocol",
-      "preservation_method",
-      "project_id",
-      "state",
-      "storage_temperature",
-      "subject_ids",
-      "submitter_id",
-      "type",
-      "updated_datetime",
-      "visit_id"
-    ],
+    "fields": {
+      "a260_a280_ratio": {
+        "name": "a260_a280_ratio",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "aliquot_container": {
+        "name": "aliquot_container",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "aliquot_volume": {
+        "name": "aliquot_volume",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "aliquot_weight": {
+        "name": "aliquot_weight",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "analyte_qc_class": {
+        "name": "analyte_qc_class",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "analyte_qc_status": {
+        "name": "analyte_qc_status",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "analyte_type": {
+        "name": "analyte_type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "clinical_or_contrived": {
+        "name": "clinical_or_contrived",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "concentration": {
+        "name": "concentration",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "concentration_units": {
+        "name": "concentration_units",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "contrivance_method": {
+        "name": "contrivance_method",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "created_datetime": {
+        "name": "created_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "days_to_aliquoting": {
+        "name": "days_to_aliquoting",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "days_to_assay": {
+        "name": "days_to_assay",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "id": {
+        "name": "id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "isolation_method": {
+        "name": "isolation_method",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "label_name": {
+        "name": "label_name",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "label_protocol": {
+        "name": "label_protocol",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "preservation_method": {
+        "name": "preservation_method",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "project_id": {
+        "name": "project_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "state": {
+        "name": "state",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "storage_temperature": {
+        "name": "storage_temperature",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "subject_ids": {
+        "name": "subject_ids",
+        "type_": "array",
+        "enum_vals": null
+      },
+      "submitter_id": {
+        "name": "submitter_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "type": {
+        "name": "type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "updated_datetime": {
+        "name": "updated_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "visit_id": {
+        "name": "visit_id",
+        "type_": "string",
+        "enum_vals": null
+      }
+    },
     "relationships": {
       "aligned_reads_files": {
         "name": "aligned_reads_files",
         "source_type": "aliquot",
         "target_type": "aligned_reads_file",
-        "link_type": "parent_of",
-        "link_multiplicity": "many_to_many",
-        "link_label": null
+        "link_type": "parent_of"
       },
       "samples": {
         "name": "samples",
         "source_type": "aliquot",
         "target_type": "sample",
-        "link_type": "child_of",
-        "link_multiplicity": "many_to_many",
-        "link_label": "derived_from"
+        "link_type": "child_of"
       }
     },
     "schema_summary": {
@@ -146,82 +334,212 @@
       "field_count": 27,
       "parent_count": 1,
       "child_count": 1,
-      "position_description": {
-        "position": "intermediate",
-        "description": "Intermediate entity in the data hierarchy - connects other entities"
-      }
-    },
-    "query_patterns": {
-      "basic_query": "{\n    aliquot(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "complex_queries": [
-        {
-          "description": "Get aliquot with linked parent sample data",
-          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get aliquot with linked child aligned_reads_file data",
-          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get aliquot with parent sample and child aligned_reads_file data",
-          "query": "{\n    aliquot(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
-        }
-      ]
+      "position_description": "intermediate"
     }
   },
   "sample": {
     "name": "sample",
-    "fields": [
-      "anatomic_site",
-      "anatomic_site_other",
-      "comments",
-      "composition",
-      "composition_other",
-      "created_datetime",
-      "days_to_collection",
-      "days_to_frozen",
-      "days_to_shipped",
-      "device_used",
-      "fasting_status",
-      "id",
-      "laterality",
-      "preservation_method",
-      "procured_or_purchased",
-      "procurement_method",
-      "procurement_method_other",
-      "project_id",
-      "sample_container",
-      "sample_id",
-      "sample_source",
-      "sample_type",
-      "sample_volume",
-      "sample_weight",
-      "sample_year",
-      "state",
-      "storage_temperature",
-      "subject_ids",
-      "submitter_id",
-      "time_point",
-      "type",
-      "updated_datetime",
-      "visit_id"
-    ],
+    "fields": {
+      "anatomic_site": {
+        "name": "anatomic_site",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "anatomic_site_other": {
+        "name": "anatomic_site_other",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "comments": {
+        "name": "comments",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "composition": {
+        "name": "composition",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "composition_other": {
+        "name": "composition_other",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "created_datetime": {
+        "name": "created_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "days_to_collection": {
+        "name": "days_to_collection",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "days_to_frozen": {
+        "name": "days_to_frozen",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "days_to_shipped": {
+        "name": "days_to_shipped",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "device_used": {
+        "name": "device_used",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "fasting_status": {
+        "name": "fasting_status",
+        "type_": "enum",
+        "enum_vals": [
+          "Fasted (Minimum Of 8 Hours)",
+          "Low Fat Diet",
+          "Not Fasted, No Low Fat Diet"
+        ]
+      },
+      "id": {
+        "name": "id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "laterality": {
+        "name": "laterality",
+        "type_": "enum",
+        "enum_vals": [
+          "Bilateral",
+          "Left",
+          "Not Reported",
+          "Right",
+          "Unknown"
+        ]
+      },
+      "preservation_method": {
+        "name": "preservation_method",
+        "type_": "enum",
+        "enum_vals": [
+          "Cryopreserved",
+          "FFPE",
+          "Fresh",
+          "Frozen",
+          "Not Reported",
+          "OCT",
+          "Snap Frozen",
+          "Unknown"
+        ]
+      },
+      "procured_or_purchased": {
+        "name": "procured_or_purchased",
+        "type_": "enum",
+        "enum_vals": [
+          "Procured",
+          "Purchased"
+        ]
+      },
+      "procurement_method": {
+        "name": "procurement_method",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "procurement_method_other": {
+        "name": "procurement_method_other",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "project_id": {
+        "name": "project_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "sample_container": {
+        "name": "sample_container",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "sample_id": {
+        "name": "sample_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "sample_source": {
+        "name": "sample_source",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "sample_type": {
+        "name": "sample_type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "sample_volume": {
+        "name": "sample_volume",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "sample_weight": {
+        "name": "sample_weight",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "sample_year": {
+        "name": "sample_year",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "state": {
+        "name": "state",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "storage_temperature": {
+        "name": "storage_temperature",
+        "type_": "number",
+        "enum_vals": null
+      },
+      "subject_ids": {
+        "name": "subject_ids",
+        "type_": "array",
+        "enum_vals": null
+      },
+      "submitter_id": {
+        "name": "submitter_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "time_point": {
+        "name": "time_point",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "type": {
+        "name": "type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "updated_datetime": {
+        "name": "updated_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "visit_id": {
+        "name": "visit_id",
+        "type_": "string",
+        "enum_vals": null
+      }
+    },
     "relationships": {
       "aliquots": {
         "name": "aliquots",
         "source_type": "sample",
         "target_type": "aliquot",
-        "link_type": "parent_of",
-        "link_multiplicity": "many_to_many",
-        "link_label": null
+        "link_type": "parent_of"
       },
       "subjects": {
         "name": "subjects",
         "source_type": "sample",
         "target_type": "subject",
-        "link_type": "child_of",
-        "link_multiplicity": "many_to_one",
-        "link_label": "related_to"
+        "link_type": "child_of"
       }
     },
     "schema_summary": {
@@ -242,56 +560,128 @@
       "field_count": 33,
       "parent_count": 1,
       "child_count": 1,
-      "position_description": {
-        "position": "intermediate",
-        "description": "Intermediate entity in the data hierarchy - connects other entities"
-      }
-    },
-    "query_patterns": {
-      "basic_query": "{\n    sample(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "complex_queries": [
-        {
-          "description": "Get sample with linked parent subject data",
-          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get sample with linked child aliquot data",
-          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get sample with parent subject and child aliquot data",
-          "query": "{\n    sample(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n        aliquots {\n            id\n            submitter_id\n        }\n    }\n}"
-        }
-      ]
+      "position_description": "intermediate"
     }
   },
   "study": {
     "name": "study",
-    "fields": [
-      "associated_study",
-      "created_datetime",
-      "data_description",
-      "id",
-      "longitudinal",
-      "project_id",
-      "state",
-      "study_description",
-      "study_design",
-      "study_objective",
-      "study_setup",
-      "study_url",
-      "submitter_id",
-      "type",
-      "updated_datetime"
-    ],
+    "fields": {
+      "associated_study": {
+        "name": "associated_study",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "created_datetime": {
+        "name": "created_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "data_description": {
+        "name": "data_description",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "id": {
+        "name": "id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "longitudinal": {
+        "name": "longitudinal",
+        "type_": "boolean",
+        "enum_vals": null
+      },
+      "project_id": {
+        "name": "project_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "state": {
+        "name": "state",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "study_description": {
+        "name": "study_description",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "study_design": {
+        "name": "study_design",
+        "type_": "enum",
+        "enum_vals": [
+          "Analytical",
+          "Case-Control Cohort Study",
+          "Case-Control Cross-Sectional Study",
+          "Case-Control Cross-Sequential Study",
+          "Case-Control Longitudinal Study",
+          "Case-study",
+          "Clinical",
+          "Clinical Assay",
+          "Clinical Utility",
+          "Experimental with Random Assignment",
+          "Field Experiment",
+          "Meta-analysis",
+          "Naturalistic Observation",
+          "Observational Cohort Study",
+          "Observational Cross-Sectional Study",
+          "Observational Longitudinal Study",
+          "Observational Study",
+          "Pre-Analytical",
+          "Research/Early Development",
+          "Survey"
+        ]
+      },
+      "study_objective": {
+        "name": "study_objective",
+        "type_": "enum",
+        "enum_vals": [
+          "Accuracy",
+          "Interference",
+          "Limit of Detection",
+          "Precision (Repeatability)",
+          "Precision (Reproducibility)",
+          "Specificity/Sensitivity",
+          "Stability"
+        ]
+      },
+      "study_setup": {
+        "name": "study_setup",
+        "type_": "enum",
+        "enum_vals": [
+          "Detection/Enumeration/Isolation",
+          "Genetic Analysis"
+        ]
+      },
+      "study_url": {
+        "name": "study_url",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "submitter_id": {
+        "name": "submitter_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "type": {
+        "name": "type",
+        "type_": "enum",
+        "enum_vals": [
+          "study"
+        ]
+      },
+      "updated_datetime": {
+        "name": "updated_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      }
+    },
     "relationships": {
       "subjects": {
         "name": "subjects",
         "source_type": "study",
         "target_type": "subject",
-        "link_type": "parent_of",
-        "link_multiplicity": "many_to_many",
-        "link_label": null
+        "link_type": "parent_of"
       }
     },
     "schema_summary": {
@@ -314,82 +704,242 @@
       "field_count": 15,
       "parent_count": 0,
       "child_count": 1,
-      "position_description": {
-        "position": "root",
-        "description": "Top-level entity (no parents) - likely administrative or entry point"
-      }
-    },
-    "query_patterns": {
-      "basic_query": "{\n    study(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "complex_queries": [
-        {
-          "description": "Get study with linked child subject data",
-          "query": "{\n    study(first: 5) {\n        id\n        submitter_id\n        subjects {\n            id\n            submitter_id\n        }\n    }\n}"
-        }
-      ]
+      "position_description": "root"
     }
   },
   "subject": {
     "name": "subject",
-    "fields": [
-      "accession",
-      "age_at_enrollment",
-      "age_at_enrollment_gt89",
-      "age_at_immigration",
-      "birth_year",
-      "collaboration_id",
-      "comments",
-      "created_datetime",
-      "days_to_birth",
-      "days_to_immigration",
-      "days_to_lost_to_followup",
-      "death_year",
-      "ethnicity",
-      "ethnicity_other",
-      "experimental_group",
-      "gender",
-      "handedness",
-      "id",
-      "index_date",
-      "index_event_status",
-      "lost_to_followup",
-      "place_of_birth",
-      "primary_site",
-      "project_id",
-      "race",
-      "race_other",
-      "species",
-      "state",
-      "subject_ids",
-      "submitter_id",
-      "type",
-      "updated_datetime",
-      "visit_id"
-    ],
+    "fields": {
+      "accession": {
+        "name": "accession",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "age_at_enrollment": {
+        "name": "age_at_enrollment",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "age_at_enrollment_gt89": {
+        "name": "age_at_enrollment_gt89",
+        "type_": "enum",
+        "enum_vals": [
+          "No",
+          "Yes"
+        ]
+      },
+      "age_at_immigration": {
+        "name": "age_at_immigration",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "birth_year": {
+        "name": "birth_year",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "collaboration_id": {
+        "name": "collaboration_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "comments": {
+        "name": "comments",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "created_datetime": {
+        "name": "created_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "days_to_birth": {
+        "name": "days_to_birth",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "days_to_immigration": {
+        "name": "days_to_immigration",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "days_to_lost_to_followup": {
+        "name": "days_to_lost_to_followup",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "death_year": {
+        "name": "death_year",
+        "type_": "integer",
+        "enum_vals": null
+      },
+      "ethnicity": {
+        "name": "ethnicity",
+        "type_": "enum",
+        "enum_vals": [
+          "Hispanic or Latino",
+          "Not Hispanic or Latino",
+          "Not Reported",
+          "Other (specify)",
+          "Unknown"
+        ]
+      },
+      "ethnicity_other": {
+        "name": "ethnicity_other",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "experimental_group": {
+        "name": "experimental_group",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "gender": {
+        "name": "gender",
+        "type_": "enum",
+        "enum_vals": [
+          "Female",
+          "Male",
+          "Not Reported",
+          "Unknown",
+          "Unspecified"
+        ]
+      },
+      "handedness": {
+        "name": "handedness",
+        "type_": "enum",
+        "enum_vals": [
+          "Left",
+          "Mixed",
+          "Right"
+        ]
+      },
+      "id": {
+        "name": "id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "index_date": {
+        "name": "index_date",
+        "type_": "enum",
+        "enum_vals": [
+          "Diagnosis",
+          "First Patient Visit",
+          "Not Reported",
+          "Study Enrollment"
+        ]
+      },
+      "index_event_status": {
+        "name": "index_event_status",
+        "type_": "enum",
+        "enum_vals": [
+          "Data-Derived",
+          "Imputed"
+        ]
+      },
+      "lost_to_followup": {
+        "name": "lost_to_followup",
+        "type_": "enum",
+        "enum_vals": [
+          "No",
+          "Not Applicable",
+          "Not Reported",
+          "Yes"
+        ]
+      },
+      "place_of_birth": {
+        "name": "place_of_birth",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "primary_site": {
+        "name": "primary_site",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "project_id": {
+        "name": "project_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "race": {
+        "name": "race",
+        "type_": "enum",
+        "enum_vals": [
+          "American Indian or Alaska Native",
+          "Asian",
+          "Biracial",
+          "Black or African American",
+          "Caribbean Indian",
+          "Hispanic",
+          "Jewish",
+          "Lebanese/Non-jewish",
+          "Multiracial",
+          "Native Hawaiian or Other Pacific Islander",
+          "Other (specify)",
+          "Unknown",
+          "White"
+        ]
+      },
+      "race_other": {
+        "name": "race_other",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "species": {
+        "name": "species",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "state": {
+        "name": "state",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "subject_ids": {
+        "name": "subject_ids",
+        "type_": "array",
+        "enum_vals": null
+      },
+      "submitter_id": {
+        "name": "submitter_id",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "type": {
+        "name": "type",
+        "type_": "string",
+        "enum_vals": null
+      },
+      "updated_datetime": {
+        "name": "updated_datetime",
+        "type_": "oneOf",
+        "enum_vals": null
+      },
+      "visit_id": {
+        "name": "visit_id",
+        "type_": "string",
+        "enum_vals": null
+      }
+    },
     "relationships": {
       "aligned_reads_files": {
         "name": "aligned_reads_files",
         "source_type": "subject",
         "target_type": "aligned_reads_file",
-        "link_type": "parent_of",
-        "link_multiplicity": "one_to_many",
-        "link_label": null
+        "link_type": "parent_of"
       },
       "samples": {
         "name": "samples",
         "source_type": "subject",
         "target_type": "sample",
-        "link_type": "parent_of",
-        "link_multiplicity": "one_to_many",
-        "link_label": null
+        "link_type": "parent_of"
       },
       "studies": {
         "name": "studies",
         "source_type": "subject",
         "target_type": "study",
-        "link_type": "child_of",
-        "link_multiplicity": "many_to_many",
-        "link_label": "member_of"
+        "link_type": "child_of"
       }
     },
     "schema_summary": {
@@ -414,31 +964,7 @@
       "field_count": 33,
       "parent_count": 1,
       "child_count": 2,
-      "position_description": {
-        "position": "intermediate",
-        "description": "Intermediate entity in the data hierarchy - connects other entities"
-      }
-    },
-    "query_patterns": {
-      "basic_query": "{\n    subject(first: 10) {\n        id\n        submitter_id\n        type\n    }\n}",
-      "complex_queries": [
-        {
-          "description": "Get subject with linked parent study data",
-          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get subject with linked child aligned_reads_file data",
-          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get subject with linked child sample data",
-          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        samples {\n            id\n            submitter_id\n        }\n    }\n}"
-        },
-        {
-          "description": "Get subject with parent study and child aligned_reads_file data",
-          "query": "{\n    subject(first: 5) {\n        id\n        submitter_id\n        studies {\n            id\n            submitter_id\n        }\n        aligned_reads_files {\n            id\n            submitter_id\n        }\n    }\n}"
-        }
-      ]
+      "position_description": "intermediate"
     }
   }
 }

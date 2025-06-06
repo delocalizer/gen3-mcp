@@ -7,7 +7,7 @@ from .client import Gen3Client
 from .config import Config
 from .graphql_validator import validate_graphql
 from .schema import SchemaManager
-from .schema_extract import SchemaExtract
+from .models import SchemaExtract
 
 logger = logging.getLogger("gen3-mcp.query")
 
