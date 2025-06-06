@@ -1,6 +1,5 @@
 from enum import StrEnum
 
-from mcp.types import CallToolResult
 from pydantic import BaseModel, Field, computed_field
 
 
@@ -99,7 +98,7 @@ class EntitySchema(BaseModel):
 
 class SchemaExtract(dict[str, EntitySchema]):
     """Schema extract containing entity definitions keyed by entity name."""
-    
+
     def to_json(self) -> dict[str, dict]:
         """Convert to JSON-serializable dict."""
         return {k: v.model_dump() for k, v in self.items()}

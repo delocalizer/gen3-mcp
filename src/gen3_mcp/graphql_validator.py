@@ -183,9 +183,9 @@ def _validate_entity_path(
     for i, entity_name in enumerate(entity_path.path):
         if i == 0:
             # Root entity - must exist directly in schema
-            if entity_name not in schema.entities:
+            if entity_name not in schema:
                 entity_suggestions = _suggest_similar_strings(
-                    entity_name, set(schema.entities.keys())
+                    entity_name, set(schema.keys())
                 )
                 errors.append(
                     ValidationError(
@@ -197,7 +197,7 @@ def _validate_entity_path(
                     )
                 )
                 return errors  # Can't continue without valid root
-            current_entity_schema = schema.entities[entity_name]
+            current_entity_schema = schema[entity_name]
         else:
             # Relationship entity - must be accessible from parent
             parent_entity = entity_path.path[i - 1]
@@ -209,7 +209,7 @@ def _validate_entity_path(
             if entity_name in current_entity_schema.relationships:
                 relationship = current_entity_schema.relationships[entity_name]
                 # by schema extract construction, relationship.target_type is a valid key
-                current_entity_schema = schema.entities[relationship.target_type]
+                current_entity_schema = schema[relationship.target_type]
             else:
                 # Relationship not found
                 relationship_suggestions = _suggest_similar_strings(

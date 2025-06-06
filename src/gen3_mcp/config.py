@@ -14,7 +14,6 @@ class Config(BaseSettings):
     model_config = ConfigDict(
         env_prefix="GEN3MCP_", case_sensitive=False, extra="ignore"
     )
-
     base_url: str = Field(
         default="https://gen3.datacommons.io",
         description="Base URL for the Gen3 data commons",
@@ -29,9 +28,6 @@ class Config(BaseSettings):
     )
     timeout_seconds: int = Field(
         default=30, gt=0, le=300, description="HTTP request timeout in seconds"
-    )
-    schema_cache_ttl: int = Field(
-        default=3600, ge=60, description="Schema cache TTL in seconds"
     )
 
     @computed_field

@@ -2,11 +2,12 @@
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from gen3_mcp.config import Config
+from gen3_mcp.schema import SchemaManager
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
@@ -19,19 +20,28 @@ def load_test_schema():
         return json.load(f)
 
 
-@pytest.fixture
-def config():
-    """Test configuration"""
-    return Config(
-        base_url="https://test.gen3.io",
-        credentials_file="/tmp/test_creds.json",
-        log_level="DEBUG",
-        schema_cache_ttl=60,  # Shorter TTL for testing
-    )
+def load_reference_extract():
+    """Load the reference schema extract from ex_schema_extract.json"""
+    extract_path = Path(__file__).parent / "ex_schema_extract.json"
+    with open(extract_path) as f:
+        return f.read()
 
 
-# Load the schema from ex_schema.json
+# Load the schema and reference data
 FULL_SCHEMA = load_test_schema()
+REFERENCE_EXTRACT = load_reference_extract()
+
+
+@pytest.fixture(scope="session")
+def test_schema():
+    """Test schema fixture"""
+    return FULL_SCHEMA
+
+
+@pytest.fixture(scope="session")
+def reference_extract_json():
+    """Reference extract JSON string fixture"""
+    return REFERENCE_EXTRACT
 
 
 def mock_get_json_side_effect(url, **kwargs):
@@ -46,72 +56,48 @@ def mock_client():
     """Mock Gen3 client for testing"""
     from gen3_mcp.client import Gen3Client
 
-    client = AsyncMock(spec=Gen3Client)
+    client = Mock(spec=Gen3Client)
+    # Create a default config for the client
+    client.config = Config(
+        base_url="https://test.gen3.io",
+        credentials_file="/tmp/test_creds.json",
+        log_level="DEBUG",
+    )
 
     # Configure mock to return different responses based on URL
-    client.get_json.side_effect = mock_get_json_side_effect
+    client.get_json = AsyncMock(side_effect=mock_get_json_side_effect)
 
     # Mock GraphQL responses with realistic data
-    client.post_json.return_value = {
-        "data": {
-            "subject": [
-                {
-                    "id": "123e4567-e89b-12d3-a456-426614174000",
-                    "submitter_id": "test_subject_001",
-                    "type": "subject",
-                    "gender": "Female",
-                    "age_at_enrollment": 45,
-                    "race": "White",
-                    "ethnicity": "Not Hispanic or Latino",
-                }
-            ]
+    client.post_json = AsyncMock(
+        return_value={
+            "data": {
+                "subject": [
+                    {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "submitter_id": "test_subject_001",
+                        "type": "subject",
+                        "gender": "Female",
+                        "age_at_enrollment": 45,
+                        "race": "White",
+                        "ethnicity": "Not Hispanic or Latino",
+                    }
+                ]
+            }
         }
-    }
+    )
 
     return client
 
 
-def create_test_services():
-    """Helper to create mock services for testing"""
-    mock_gen3_service = AsyncMock()
-    mock_query_service = AsyncMock()
+@pytest.fixture
+async def schema_manager(mock_client):
+    """SchemaManager fixture with mock client"""
+    manager = SchemaManager(mock_client)
+    manager.clear_cache()  # Ensure clean state
+    return manager
 
-    # Load schema to get realistic data
-    schema = load_test_schema()
 
-    mock_gen3_service.get_schema_full.return_value = schema
-
-    # QueryService has 3 methods: generate_query_template, validate_query, execute_graphql
-    mock_query_service.generate_query_template.return_value = {
-        "entity_name": "subject",
-        "exists": True,
-        "template": "{ subject { id submitter_id } }",
-        "basic_fields": ["id", "submitter_id", "type"],
-        "entity_fields": ["gender", "age_at_enrollment"],
-        "relationship_fields": [],
-        "total_fields": 5,
-    }
-
-    mock_query_service.validate_query.return_value = {
-        "valid": True,
-        "errors": [],
-        "next_steps": {
-            "ready_to_execute": True,
-            "suggestion": "Query is valid! Use execute_graphql() to run it.",
-        },
-    }
-
-    mock_query_service.execute_graphql.return_value = {
-        "data": {
-            "subject": [
-                {
-                    "id": "123e4567-e89b-12d3-a456-426614174000",
-                    "submitter_id": "subject_001",
-                    "gender": "Female",
-                    "age_at_enrollment": 45,
-                }
-            ]
-        }
-    }
-
-    return mock_gen3_service, mock_query_service
+@pytest.fixture
+async def schema_extract(schema_manager):
+    """Schema extract fixture using SchemaManager"""
+    return await schema_manager.get_schema_extract()

@@ -92,31 +92,6 @@ class SchemaManager:
         self._cache[cache_key] = extract
         return extract
 
-    async def get_entity_schema_extract(self, entity: str) -> EntitySchema:
-        """Get a specific entity schema from the processed extract.
-
-        Args:
-            entity: Name of the entity to retrieve.
-
-        Returns:
-            EntitySchema instance for the specified entity.
-
-        Raises:
-            Gen3SchemaError: If schema fetch fails or entity not found.
-        """
-        # Get the full extract (uses its own cache)
-        extract = await self.get_schema_extract()
-        
-        if entity not in extract:
-            available_entities = list(extract.keys())
-            raise Gen3SchemaError(
-                f"Entity '{entity}' not found in schema. "
-                f"Available entities: {', '.join(sorted(available_entities))}"
-            )
-        
-        logger.debug(f"Retrieved entity schema for '{entity}'")
-        return extract[entity]
-
     def _create_extract(self, full_schema: dict[str, Any]) -> SchemaExtract:
         """Create SchemaExtract from full schema dict.
 
@@ -169,7 +144,7 @@ class SchemaManager:
                             link_type=RelType.PARENT_OF,
                         )
                     )
-            link_names = set(link["name"] for link in links)
+            link_names = {link["name"] for link in links}
 
             # Extract scalar fields from properties
             fields = {}
