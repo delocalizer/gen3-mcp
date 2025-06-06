@@ -8,7 +8,7 @@ import httpx
 from .auth import AuthManager
 from .config import Config, get_config
 from .consts import USER_AGENT
-from .models import ClientResponse, ErrorCategory
+from .models import ErrorCategory, Response
 
 logger = logging.getLogger("gen3-mcp.client")
 
@@ -34,7 +34,7 @@ class Gen3Client:
 
     async def get_json(
         self, url: str, authenticated: bool = True, **kwargs
-    ) -> ClientResponse:
+    ) -> Response:
         """Get JSON from URL.
 
         Args:
@@ -43,7 +43,7 @@ class Gen3Client:
             **kwargs: Additional arguments passed to httpx.get.
 
         Returns:
-            ClientResponse with success/error details and data.
+            Response with success/error details and data.
         """
         try:
             if authenticated:
@@ -56,16 +56,27 @@ class Gen3Client:
             try:
                 data = response.json()
                 logger.debug(f"GET {url} successful")
-                return ClientResponse(
-                    success=True, status_code=response.status_code, data=data
+                return Response(
+                    status="success",
+                    message=f"Successfully fetched JSON data from {url}",
+                    data=data,
+                    metadata={
+                        "status_code": response.status_code,
+                        "url": url,
+                    },
                 )
             except ValueError as e:
                 logger.error(f"JSON parse error for GET {url}: {e}")
-                return ClientResponse(
-                    success=False,
-                    status_code=response.status_code,
-                    error_category=ErrorCategory.JSON_PARSE,
-                    errors=[f"Response is not valid JSON: {e}"],
+                return Response(
+                    status="error",
+                    message="Response is not valid JSON",
+                    errors=[f"JSON parse error: {e}"],
+                    suggestions=["Check if the endpoint returns valid JSON"],
+                    metadata={
+                        "status_code": response.status_code,
+                        "url": url,
+                        "error_category": ErrorCategory.JSON_PARSE,
+                    },
                 )
 
         except httpx.HTTPStatusError as e:
@@ -80,30 +91,57 @@ class Gen3Client:
             else:
                 category = ErrorCategory.OTHER
 
-            return ClientResponse(
-                success=False,
-                status_code=status_code,
-                error_category=category,
+            suggestions = []
+            if status_code == 401:
+                suggestions.append("Check authentication credentials")
+            elif status_code == 404:
+                suggestions.append("Verify the URL is correct")
+            elif status_code >= 500:
+                suggestions.append("Server error - try again later")
+            else:
+                suggestions.append("Check the request and try again")
+
+            return Response(
+                status="error",
+                message=f"HTTP request failed with status {status_code}",
                 errors=[f"HTTP {status_code} error"],
+                suggestions=suggestions,
+                metadata={
+                    "status_code": status_code,
+                    "url": url,
+                    "error_category": category,
+                },
             )
 
         except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
             logger.error(f"Network error for GET {url}: {e}")
-            return ClientResponse(
-                success=False,
-                error_category=ErrorCategory.NETWORK,
+            return Response(
+                status="error",
+                message="Network error occurred",
                 errors=[f"Network error: {e}"],
+                suggestions=["Check network connectivity and try again"],
+                metadata={
+                    "url": url,
+                    "error_category": ErrorCategory.NETWORK,
+                    "exception_type": type(e).__name__,
+                },
             )
 
         except Exception as e:
             logger.error(f"GET {url} failed: {e}")
-            return ClientResponse(
-                success=False,
-                error_category=ErrorCategory.OTHER,
+            return Response(
+                status="error",
+                message="Unexpected error occurred",
                 errors=[f"Unexpected error: {e}"],
+                suggestions=["Check the request parameters and try again"],
+                metadata={
+                    "url": url,
+                    "error_category": ErrorCategory.OTHER,
+                    "exception_type": type(e).__name__,
+                },
             )
 
-    async def post_json(self, url: str, **kwargs) -> ClientResponse:
+    async def post_json(self, url: str, **kwargs) -> Response:
         """Post JSON to URL.
 
         Args:
@@ -111,7 +149,7 @@ class Gen3Client:
             **kwargs: Additional arguments passed to httpx.post.
 
         Returns:
-            ClientResponse with success/error details and data. For successful
+            Response with success/error details and data. For successful
             requests, data contains the JSON response. For HTTP errors, data
             may contain server response details (like GraphQL errors).
         """
@@ -125,16 +163,27 @@ class Gen3Client:
             try:
                 data = response.json()
                 logger.debug(f"POST {url} successful")
-                return ClientResponse(
-                    success=True, status_code=response.status_code, data=data
+                return Response(
+                    status="success",
+                    message=f"Successfully posted JSON data to {url}",
+                    data=data,
+                    metadata={
+                        "status_code": response.status_code,
+                        "url": url,
+                    },
                 )
             except ValueError as e:
                 logger.error(f"JSON parse error for POST {url}: {e}")
-                return ClientResponse(
-                    success=False,
-                    status_code=response.status_code,
-                    error_category=ErrorCategory.JSON_PARSE,
-                    errors=[f"Response is not valid JSON: {e}"],
+                return Response(
+                    status="error",
+                    message="Response is not valid JSON",
+                    errors=[f"JSON parse error: {e}"],
+                    suggestions=["Check if the endpoint returns valid JSON"],
+                    metadata={
+                        "status_code": response.status_code,
+                        "url": url,
+                        "error_category": ErrorCategory.JSON_PARSE,
+                    },
                 )
 
         except httpx.HTTPStatusError as e:
@@ -181,30 +230,57 @@ class Gen3Client:
             else:
                 category = ErrorCategory.OTHER
 
+            suggestions = []
+            if status_code == 400:
+                suggestions.append("Check the request body format")
+            elif status_code == 401:
+                suggestions.append("Check authentication credentials")
+            elif status_code >= 500:
+                suggestions.append("Server error - try again later")
+            else:
+                suggestions.append("Check the request and try again")
+
             logger.debug(f"HTTP error response data: {response_data}")
 
-            return ClientResponse(
-                success=False,
-                status_code=status_code,
-                error_category=category,
+            return Response(
+                status="error",
+                message=f"HTTP request failed with status {status_code}",
                 data=response_data,
                 errors=error_list,
+                suggestions=suggestions,
+                metadata={
+                    "status_code": status_code,
+                    "url": url,
+                    "error_category": category,
+                },
             )
 
         except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
             logger.error(f"Network error for POST {url}: {e}")
-            return ClientResponse(
-                success=False,
-                error_category=ErrorCategory.NETWORK,
+            return Response(
+                status="error",
+                message="Network error occurred",
                 errors=[f"Network error: {e}"],
+                suggestions=["Check network connectivity and try again"],
+                metadata={
+                    "url": url,
+                    "error_category": ErrorCategory.NETWORK,
+                    "exception_type": type(e).__name__,
+                },
             )
 
         except Exception as e:
             logger.error(f"POST {url} failed: {e}")
-            return ClientResponse(
-                success=False,
-                error_category=ErrorCategory.OTHER,
+            return Response(
+                status="error",
+                message="Unexpected error occurred",
                 errors=[f"Unexpected error: {e}"],
+                suggestions=["Check the request parameters and try again"],
+                metadata={
+                    "url": url,
+                    "error_category": ErrorCategory.OTHER,
+                    "exception_type": type(e).__name__,
+                },
             )
 
 

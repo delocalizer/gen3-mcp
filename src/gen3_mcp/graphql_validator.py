@@ -11,8 +11,8 @@ from graphql.error import GraphQLSyntaxError
 
 from .models import (
     EntitySchema,
-    QueryValidationError,
-    QueryValidationResult,
+    ErrorCategory,
+    Response,
     SchemaExtract,
 )
 from .utils import suggest_similar_strings
@@ -27,6 +27,17 @@ class EntityPath:
     entity_name: str
     path: list[str]  # Full path from root to this entity
     fields: list[str]  # Scalar fields for this entity
+
+
+@dataclass
+class ValidationError:
+    """Simple validation error for internal use."""
+
+    entity: str
+    field: str
+    error_type: str
+    message: str
+    suggestions: list[str]
 
 
 class GraphQLFieldExtractor(Visitor):
@@ -75,7 +86,7 @@ class GraphQLFieldExtractor(Visitor):
             self.path_stack.pop()
 
 
-def validate_graphql(query: str, schema: SchemaExtract) -> QueryValidationResult:
+def validate_graphql(query: str, schema: SchemaExtract) -> Response:
     """Validate a GraphQL query against the minimal schema using path-based validation.
 
     Args:
@@ -83,7 +94,7 @@ def validate_graphql(query: str, schema: SchemaExtract) -> QueryValidationResult
         schema: SchemaExtract containing entity and field definitions.
 
     Returns:
-        QueryValidationResult with validation status and any errors found.
+        Response with validation status and any errors found.
     """
     logger.debug("Starting GraphQL validation")
 
@@ -95,41 +106,67 @@ def validate_graphql(query: str, schema: SchemaExtract) -> QueryValidationResult
     except GraphQLSyntaxError as e:
         logger.error(f"GraphQL syntax error: {e}")
 
-        return QueryValidationResult(
-            valid=False,
-            query=query,
-            errors=[
-                QueryValidationError(
-                    entity="",
-                    field="",
-                    error_type="syntax_error",
-                    message=f"GraphQL syntax error: {e}.",
-                    suggestions=[
-                        "Check query syntax",
-                        "Ensure all braces and quotes are properly closed",
-                    ],
-                )
+        return Response(
+            status="error",
+            message="GraphQL syntax error",
+            errors=[f"GraphQL syntax error: {e}"],
+            suggestions=[
+                "Check query syntax",
+                "Ensure all braces and quotes are properly closed",
             ],
+            metadata={
+                "query": query,
+                "error_category": ErrorCategory.GRAPHQL,
+                "error_type": "syntax_error",
+            },
         )
 
     errors = []
+    all_suggestions = set()
 
     # Validate each entity path
     for entity_path in extractor.entity_paths.values():
-        # NOTE this collects all errors; a more efficient but less informative
-        # approach is to start at the shortest path and bail at the first error
         path_errors = _validate_entity_path(entity_path, schema)
         errors.extend(path_errors)
+        for error in path_errors:
+            all_suggestions.update(error.suggestions)
 
-    valid = len(errors) == 0
-    logger.info(f"Validation complete - valid: {valid}, errors: {len(errors)}")
+    if errors:
+        # Format error messages for the errors list
+        error_messages = []
+        for err in errors:
+            if err.field:
+                error_messages.append(f"{err.entity}.{err.field}: {err.message}")
+            else:
+                error_messages.append(f"{err.entity}: {err.message}")
 
-    return QueryValidationResult(valid=valid, query=query, errors=errors)
+        return Response(
+            status="error",
+            message=f"GraphQL query validation failed with {len(errors)} errors",
+            errors=error_messages,
+            suggestions=list(all_suggestions)
+            + [
+                "Use get_schema_summary() to see available entities and fields",
+            ],
+            metadata={
+                "query": query,
+                "error_category": ErrorCategory.GRAPHQL,
+                "error_count": len(errors),
+            },
+        )
+    else:
+        logger.info("Validation successful")
+        return Response(
+            status="success",
+            message="GraphQL query is valid",
+            data={"valid": True, "query": query},
+            metadata={"query": query},
+        )
 
 
 def _validate_entity_path(
     entity_path: EntityPath, schema: SchemaExtract
-) -> list[QueryValidationError]:
+) -> list[ValidationError]:
     """Validate an entity using its path context.
 
     Args:
@@ -153,12 +190,16 @@ def _validate_entity_path(
                     entity_name, set(schema.keys())
                 )
                 errors.append(
-                    QueryValidationError(
+                    ValidationError(
                         entity=entity_name,
                         field="",
                         error_type="unknown_entity",
                         message=f"Root entity '{entity_name}' does not exist",
-                        suggestions=entity_suggestions or [],
+                        suggestions=(
+                            [f"Try '{s}' instead" for s in entity_suggestions]
+                            if entity_suggestions
+                            else []
+                        ),
                     )
                 )
                 return errors  # Can't continue without valid root
@@ -181,12 +222,16 @@ def _validate_entity_path(
                     entity_name, set(current_entity_schema.relationships.keys())
                 )
                 errors.append(
-                    QueryValidationError(
+                    ValidationError(
                         entity=entity_name,
                         field="",
                         error_type="unknown_entity",
                         message=f"Relationship '{entity_name}' does not exist in entity '{parent_entity}'",
-                        suggestions=relationship_suggestions or [],
+                        suggestions=(
+                            [f"Try '{s}' instead" for s in relationship_suggestions]
+                            if relationship_suggestions
+                            else []
+                        ),
                     )
                 )
                 current_entity_schema = None
@@ -203,7 +248,7 @@ def _validate_entity_path(
 
 def _validate_direct_entity_fields(
     entity_schema: EntitySchema, field_names: list[str]
-) -> list[QueryValidationError]:
+) -> list[ValidationError]:
     """Validate fields against a specific entity schema.
 
     Args:
@@ -220,12 +265,16 @@ def _validate_direct_entity_fields(
         if field_name not in all_valid_fields:
             suggestions = suggest_similar_strings(field_name, all_valid_fields)
             errors.append(
-                QueryValidationError(
+                ValidationError(
                     entity=entity_schema.name,
                     field=field_name,
                     error_type="unknown_field",
                     message=f"Field '{field_name}' does not exist in entity '{entity_schema.name}'",
-                    suggestions=suggestions or [],
+                    suggestions=(
+                        [f"Try '{s}' instead" for s in suggestions]
+                        if suggestions
+                        else []
+                    ),
                 )
             )
 

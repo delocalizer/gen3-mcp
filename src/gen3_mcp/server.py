@@ -6,8 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .config import get_config
 from .consts import SERVER_NAME
-from .exceptions import Gen3SchemaError
-from .models import MCPResponse
+from .models import Response
 from .query import get_query_service
 from .schema import get_schema_manager
 
@@ -33,7 +32,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def get_schema_summary() -> MCPResponse:
+async def get_schema_summary() -> Response:
     """Discover the data model structure of a Gen3 data commons.
 
     This is your starting point! Get an overview of all available data types
@@ -48,86 +47,20 @@ async def get_schema_summary() -> MCPResponse:
 
     Workflow: **Start here** → generate_query_template → validate_query → execute_graphql
     """
-    try:
-        logger.info("Fetching schema extract for get_schema_summary tool")
-        manager = get_schema_manager()
-        extract = await manager.get_schema_extract()
+    logger.info("Fetching schema extract for get_schema_summary tool")
+    manager = get_schema_manager()
+    response = await manager.get_schema_extract()
 
-        # Convert SchemaExtract to dict for MCPResponse data field
-        extract_data = extract.to_json()
-
-        entity_count = len(extract_data)
-        entity_names = list(extract_data.keys())
-
-        return MCPResponse(
-            status="success",
-            message=f"Retrieved schema extract with {entity_count} entities",
-            data={
-                "schema_extract": extract_data,
-                "entity_count": entity_count,
-                "entity_names": entity_names,
-            },
-            suggestions=[
-                "Use the entity_names to explore specific entities",
-                "Check relationships between entities using the links information",
-                "Look at required_fields and enum_fields for each entity",
-            ],
-            next_steps={
-                "explore_entity": "Use the entity names to dive deeper into specific data types",
-                "query_building": "Use generate_query_template() to create GraphQL queries for these entities",
-                "validation": "Use validate_query() to check GraphQL query syntax",
-            },
-            metadata={
-                "schema_source": manager.config.schema_url,
-                "cached": True,  # Schema manager uses caching
-            },
-        )
-
-    except Gen3SchemaError as e:
-        logger.error(f"Schema error in get_schema_summary: {e}")
-        return MCPResponse(
-            status="error",
-            message="Failed to fetch schema from Gen3 data commons",
-            errors=[f"Schema fetch error: {e}"],
-            suggestions=[
-                "Check that the Gen3 data commons URL is accessible",
-                "Verify your network connection",
-                "Confirm the schema endpoint is available",
-            ],
-            next_steps={
-                "troubleshooting": [
-                    "1. Check connectivity to the Gen3 data commons",
-                    "2. Verify the configured base_url is correct",
-                    "3. Try again in a few moments if this was a temporary network issue",
-                ]
-            },
-            metadata={"attempted_url": manager.config.schema_url},
-        )
-
-    except Exception as e:
-        logger.error(f"Unexpected error in get_schema_summary: {e}")
-        return MCPResponse(
-            status="error",
-            message="Unexpected error while processing schema",
-            errors=[f"Unexpected error: {e}"],
-            suggestions=[
-                "This appears to be an internal error",
-                "Try the request again",
-                "Check the server logs for more details",
-            ],
-            next_steps={
-                "recovery": [
-                    "1. Retry the get_schema_summary() call",
-                    "2. If the issue persists, this may be a server-side problem",
-                ]
-            },
-        )
+    # Enhance success message for MCP tool context
+    if response.is_success:
+        response.message = "Schema extract generated - result is in data"
+    return response
 
 
 @mcp.tool()
 async def generate_query_template(
     entity_name: str, include_relationships: bool = True, max_fields: int = 20
-) -> MCPResponse:
+) -> Response:
     """Generate a ready-to-use GraphQL query template for any data type.
 
     Takes an entity name (from get_schema_summary) and creates a complete,
@@ -148,62 +81,21 @@ async def generate_query_template(
     logger.info(f"Generating query template for entity: {entity_name}")
 
     service = get_query_service()
-    result = await service.generate_query_template(
+    response = await service.generate_query_template(
         entity_name, include_relationships, max_fields
     )
 
-    # Convert service result to MCPResponse
-    if not result["exists"]:
-        # Entity not found case
-        return MCPResponse(
-            status="error",
-            message=f"Entity '{entity_name}' not found in schema",
-            errors=[f"Entity '{entity_name}' not found: {result['error']}"],
-            suggestions=[
-                f"Try '{suggestion['name']}' instead"
-                for suggestion in result.get("suggestions", [])
-            ],
-            next_steps={
-                "get_entities": "Use get_schema_summary() to see all available entities",
-                "try_suggestion": "Use one of the suggested similar entity names",
-            },
-            metadata={
-                "attempted_entity": entity_name,
-                "available_suggestions": result.get("suggestions", []),
-            },
+    # Enhance success message for MCP tool context
+    if response.is_success:
+        response.message = (
+            f"Query template generated and ready for entity '{entity_name}'"
         )
 
-    # Success case
-    return MCPResponse(
-        status="success",
-        message=f"Generated query template for {entity_name}",
-        data={
-            "entity_name": entity_name,
-            "template": result["template"],
-            "included_relationships": include_relationships,
-            "max_fields_used": max_fields,
-        },
-        suggestions=[
-            "Copy the template and modify it for your specific needs",
-            "Use validate_query() to check the template before execution",
-            "Add or remove fields as needed for your use case",
-        ],
-        next_steps={
-            "validate": "Use validate_query() to check the template syntax",
-            "customize": "Modify the template fields and relationships as needed",
-            "execute": "Use execute_graphql() to run the customized query",
-        },
-        metadata={
-            "generation_params": {
-                "include_relationships": include_relationships,
-                "max_fields": max_fields,
-            }
-        },
-    )
+    return response
 
 
 @mcp.tool()
-async def validate_query(query: str) -> MCPResponse:
+async def validate_query(query: str) -> Response:
     """Check if your GraphQL query is valid before executing it.
 
     Validates your GraphQL query syntax and verifies that all entities and
@@ -228,13 +120,17 @@ async def validate_query(query: str) -> MCPResponse:
     )
 
     service = get_query_service()
-    result = await service.validate_query(query)
+    response = await service.validate_query(query)
 
-    return result.to_mcp_response()
+    # Enhance success message for MCP tool context
+    if response.is_success:
+        response.message = "Query validation completed - query is ready for execution"
+
+    return response
 
 
 @mcp.tool()
-async def execute_graphql(query: str) -> MCPResponse:
+async def execute_graphql(query: str) -> Response:
     """Execute your GraphQL query and retrieve data from the Gen3 data commons.
 
     Runs your validated GraphQL query against the Gen3 data commons and
@@ -259,20 +155,13 @@ async def execute_graphql(query: str) -> MCPResponse:
     )
 
     service = get_query_service()
-    result = await service.execute_graphql(query)
+    response = await service.execute_graphql(query)
 
-    # Convert service result to MCPResponse
-    if "errors" in result:
-        return MCPResponse(
-            status="error",
-            message="GraphQL query executed with errors",
-            errors=result["errors"],
-            data=result.get("data"),
-        )
+    # Enhance success message for MCP tool context
+    if response.is_success:
+        response.message = "GraphQL query executed successfully - data retrieved from Gen3 data commons"
 
-    return MCPResponse(
-        status="success", message="GraphQL query executed successfully", data=result
-    )
+    return response
 
 
 def main() -> None:
@@ -281,5 +170,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-
     main()

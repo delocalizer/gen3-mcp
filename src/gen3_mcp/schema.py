@@ -5,7 +5,6 @@ from functools import cache
 from typing import Any
 
 from .client import Gen3Client, get_client
-from .exceptions import Gen3SchemaError
 from .models import (
     EntitySchema,
     EntitySummary,
@@ -13,6 +12,7 @@ from .models import (
     Property,
     Relationship,
     RelType,
+    Response,
     SchemaExtract,
 )
 
@@ -36,67 +36,86 @@ class SchemaManager:
         self.config = client.config
         self._cache = {}
 
-    async def get_schema_full(self) -> dict[str, Any]:
+    async def get_schema_full(self) -> Response:
         """Get full schema using config.schema_url.
 
         Returns:
-            Full schema dict with entity definitions. Top level keys may include
-            common elements identified with a leading underscore (_definitions,
-            _settings, _terms) as well as individual entity schemas.
-
-        Raises:
-            Gen3SchemaError: If schema fetch fails.
+            Response containing full schema dict with entity definitions,
+            or error response if schema fetch fails.
         """
         cache_key = "full_schema"
 
         if cache_key in self._cache:
             logger.debug("Using cached full schema")
-            return self._cache[cache_key]
+            return Response(
+                status="success",
+                message="Schema retrieved from cache",
+                data=self._cache[cache_key],
+            )
 
         logger.info(f"Fetching full schema from {self.config.schema_url}")
         response = await self.client.get_json(
             self.config.schema_url, authenticated=False
         )
 
-        if not response.success:
-            logger.error(f"Failed to fetch full schema: {response.model_dump()}")
-            raise Gen3SchemaError(
-                f"Failed to fetch schema from Gen3: {response.model_dump()}"
+        if not response.is_success:
+            logger.error(f"Failed to fetch full schema: {response.message}")
+            # Enhance error message for schema context and add schema-specific suggestions
+            response.message = "Failed to fetch schema from Gen3 data commons"
+            response.suggestions.extend(
+                [
+                    "Check that the Gen3 data commons URL is accessible",
+                    "Verify your network connection",
+                ]
             )
+            return response
 
+        # Success case - enhance message and cache the data
         schema = response.data
-
         logger.info("Fetched full schema")
         self._cache[cache_key] = schema
-        return schema
+        response.message = "Schema fetched successfully from Gen3 data commons"
+        return response
 
-    async def get_schema_extract(self) -> SchemaExtract:
+    async def get_schema_extract(self) -> Response:
         """Get processed schema extract with relationships and annotations.
 
         Returns:
-            SchemaExtract instance with entity definitions, relationships,
-            and schema summary information.
-
-        Raises:
-            Gen3SchemaError: If schema fetch or processing fails.
+            Response containing SchemaExtract instance with entity definitions,
+            relationships, and schema summary information.
         """
         cache_key = "extract"
 
         if cache_key in self._cache:
             logger.debug("Using cached schema extract")
-            return self._cache[cache_key]
+            return Response(
+                status="success",
+                message="Schema extract retrieved from cache",
+                data=self._cache[cache_key],
+            )
 
         logger.info("Creating new schema extract")
 
-        # Get the full schema (uses its own cache)
-        full_schema = await self.get_schema_full()
+        # Get the full schema (returns Response)
+        schema_response = await self.get_schema_full()
+        if not schema_response.is_success:
+            # Forward the error from get_schema_full
+            schema_response.message = (
+                "Failed to create schema extract - " + schema_response.message
+            )
+            return schema_response
 
         # Process it
-        extract = self._create_extract(full_schema)
+        extract = self._create_extract(schema_response.data)
 
         logger.info("Created new schema extract")
         self._cache[cache_key] = extract
-        return extract
+
+        return Response(
+            status="success",
+            message="Schema extract created successfully",
+            data=extract,
+        )
 
     def _create_extract(self, full_schema: dict[str, Any]) -> SchemaExtract:
         """Create SchemaExtract from full schema dict.
