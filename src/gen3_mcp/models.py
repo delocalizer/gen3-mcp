@@ -1,14 +1,7 @@
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
-
-
-class PositionDescription(StrEnum):
-    """Describes the entity node location in the data model graph"""
-
-    INTERMEDIATE = "intermediate"
-    LEAF = "leaf"
-    ROOT = "root"
 
 
 class RelType(StrEnum):
@@ -18,7 +11,7 @@ class RelType(StrEnum):
     PARENT_OF = "parent_of"
 
 
-class Type(StrEnum):
+class FieldType(StrEnum):
     """JSON simple types, plus compound types and enum"""
 
     ARRAY = "array"
@@ -52,9 +45,9 @@ class Property(BaseModel):
     """
 
     name: str = Field(..., description="Name of the property")
-    type_: Type = Field(..., description="Type of the property")
+    type_: FieldType = Field(..., description="Type of the property")
     enum_vals: list[str] | None = Field(
-        None, description="Allowed values when type_ is Type.ENUM"
+        None, description="Allowed values when type_ is FieldType.ENUM"
     )
 
 
@@ -72,13 +65,14 @@ class EntitySummary(BaseModel):
 
     @computed_field
     @property
-    def position_description(self) -> PositionDescription:
+    def position_description(self) -> Literal["intermediate", "leaf", "root"]:
+        """Describes the entity node location in the data model graph."""
         if self.parent_count == 0:
-            return PositionDescription.ROOT
+            return "root"
         elif self.child_count == 0:
-            return PositionDescription.LEAF
+            return "leaf"
         else:
-            return PositionDescription.INTERMEDIATE
+            return "intermediate"
 
 
 class EntitySchema(BaseModel):

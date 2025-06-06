@@ -326,15 +326,15 @@ class TestSchemaSummary:
         """Test position description logic"""
         # Study should be root (no parents)
         study = schema_extract["study"]
-        assert study.schema_summary.position_description.value == "root"
+        assert study.schema_summary.position_description == "root"
 
         # Aligned reads file should be leaf (no children)
         aligned_reads = schema_extract["aligned_reads_file"]
-        assert aligned_reads.schema_summary.position_description.value == "leaf"
+        assert aligned_reads.schema_summary.position_description == "leaf"
 
         # Subject should be intermediate (has both parents and children)
         subject = schema_extract["subject"]
-        assert subject.schema_summary.position_description.value == "intermediate"
+        assert subject.schema_summary.position_description == "intermediate"
 
 
 class TestSingletonFactory:

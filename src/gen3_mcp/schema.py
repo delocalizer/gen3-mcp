@@ -9,11 +9,11 @@ from .exceptions import Gen3SchemaError
 from .models import (
     EntitySchema,
     EntitySummary,
+    FieldType,
     Property,
     Relationship,
     RelType,
     SchemaExtract,
-    Type,
 )
 
 logger = logging.getLogger("gen3-mcp.schema")
@@ -154,14 +154,14 @@ class SchemaManager:
                     continue
                 prop = None
                 if "type" in prop_def:
-                    prop = Property(name=prop_name, type_=Type(prop_def["type"]))
+                    prop = Property(name=prop_name, type_=FieldType(prop_def["type"]))
                 elif "anyOf" in prop_def:
-                    prop = Property(name=prop_name, type_=Type.ANYOF)
+                    prop = Property(name=prop_name, type_=FieldType.ANYOF)
                 elif "oneOf" in prop_def:
-                    prop = Property(name=prop_name, type_=Type.ONEOF)
+                    prop = Property(name=prop_name, type_=FieldType.ONEOF)
                 elif "enum" in prop_def:
                     prop = Property(
-                        name=prop_name, type_=Type.ENUM, enum_vals=prop_def["enum"]
+                        name=prop_name, type_=FieldType.ENUM, enum_vals=prop_def["enum"]
                     )
                 else:
                     logger.error(f"Unhandled type of {prop_name} in {entity_name}")
@@ -201,7 +201,7 @@ class SchemaManager:
             enum_fields = [
                 field.name
                 for field in entity.fields.values()
-                if field.type_ == Type.ENUM
+                if field.type_ == FieldType.ENUM
             ]
 
             entity_def = full_schema.get(entity_name)
