@@ -133,7 +133,7 @@ class TestGenerateQueryTemplate:
         """Test successful query template generation"""
         result = await query_service.generate_query_template("subject")
 
-        assert result["exists"] is True
+        assert result["exists"]
         assert result["entity_name"] == "subject"
         assert "template" in result
         assert "subject(first: 10)" in result["template"]
@@ -147,7 +147,7 @@ class TestGenerateQueryTemplate:
             "subject", include_relationships=True
         )
 
-        assert result["exists"] is True
+        assert result["exists"]
         template = result["template"]
 
         # Should include relationship fields
@@ -160,7 +160,7 @@ class TestGenerateQueryTemplate:
             "subject", include_relationships=False
         )
 
-        assert result["exists"] is True
+        assert result["exists"]
         template = result["template"]
 
         # Should not include relationship fields
@@ -172,7 +172,7 @@ class TestGenerateQueryTemplate:
         result = await query_service.generate_query_template("subject", max_fields=5)
         print(result)
 
-        assert result["exists"] is True
+        assert result["exists"]
         template = result["template"]
 
         # Count the number of scalar fields in root entity
@@ -190,7 +190,7 @@ class TestGenerateQueryTemplate:
         """Test template generation for non-existent entity"""
         result = await query_service.generate_query_template("nonexistent_entity")
 
-        assert result["exists"] is False
+        assert not result["exists"]
         assert result["entity_name"] == "nonexistent_entity"
         assert result["template"] is None
         assert "error" in result
@@ -201,7 +201,7 @@ class TestGenerateQueryTemplate:
         """Test that similar entity suggestions are provided"""
         result = await query_service.generate_query_template("subjct")  # Typo
 
-        assert result["exists"] is False
+        assert not result["exists"]
         assert "suggestions" in result
 
         # Should suggest "subject" as similar
@@ -227,7 +227,7 @@ class TestValidateQuery:
             result = await query_service.validate_query(query)
 
             assert isinstance(result, QueryValidationResult)
-            assert result.valid is True
+            assert result.valid
             assert result.query == query
 
     @pytest.mark.asyncio
@@ -256,7 +256,7 @@ class TestValidateQuery:
             result = await query_service.validate_query(query)
 
             assert isinstance(result, QueryValidationResult)
-            assert result.valid is False
+            assert not result.valid
             assert len(result.errors) == 1
             assert result.errors[0].field == "invalid_field"
 

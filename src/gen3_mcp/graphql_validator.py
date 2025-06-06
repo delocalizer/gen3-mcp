@@ -214,9 +214,7 @@ def _validate_direct_entity_fields(
         List of validation errors.
     """
     errors = []
-    all_valid_fields = entity_schema.fields.keys() | set(
-        entity_schema.relationships.keys()
-    )
+    all_valid_fields = set(entity_schema.fields) | set(entity_schema.relationships)
 
     for field_name in field_names:
         if field_name not in all_valid_fields:

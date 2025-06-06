@@ -98,10 +98,13 @@ class QueryService:
         required = entity.schema_summary.required_fields
         relations = list(entity.relationships)
         basic_fields = ["id"] + [f for f in required if f not in relations]
-        entity_fields = [
-            f for f in entity.schema_summary.enum_fields if f not in basic_fields
-        ][: max_fields - len(basic_fields)]
-        template_fields = basic_fields + entity_fields
+        remaining_slots = max_fields - len(basic_fields)
+        template_fields = (
+            basic_fields
+            + [f for f in entity.schema_summary.enum_fields if f not in basic_fields][
+                :remaining_slots
+            ]
+        )
 
         # Generate the template
         template_lines = [f"{entity_name}(first: 10) {{"]

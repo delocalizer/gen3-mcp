@@ -19,7 +19,7 @@ class TestClientResponse:
         """Test creating a successful response"""
         response = ClientResponse(success=True, status_code=200, data={"test": "data"})
 
-        assert response.success is True
+        assert response.success
         assert response.status_code == 200
         assert response.data == {"test": "data"}
         assert response.error_category is None
@@ -34,7 +34,7 @@ class TestClientResponse:
             errors=["Not found"],
         )
 
-        assert response.success is False
+        assert not response.success
         assert response.status_code == 404
         assert response.error_category == ErrorCategory.HTTP_CLIENT
         assert response.errors == ["Not found"]
@@ -109,7 +109,7 @@ class TestGen3Client:
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
 
         assert isinstance(result, ClientResponse)
-        assert result.success is True
+        assert result.success
         assert result.status_code == 200
         assert result.data == {"test": "data"}
         assert result.errors == []
@@ -131,7 +131,7 @@ class TestGen3Client:
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
 
         assert isinstance(result, ClientResponse)
-        assert result.success is False
+        assert not result.success
         assert result.status_code == 404
         assert result.error_category == ErrorCategory.HTTP_CLIENT
         assert "HTTP 404 error" in result.errors[0]
@@ -147,7 +147,7 @@ class TestGen3Client:
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
 
         assert isinstance(result, ClientResponse)
-        assert result.success is False
+        assert not result.success
         assert result.status_code is None
         assert result.error_category == ErrorCategory.NETWORK
         assert "Network error" in result.errors[0]
@@ -167,7 +167,7 @@ class TestGen3Client:
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
 
         assert isinstance(result, ClientResponse)
-        assert result.success is False
+        assert not result.success
         assert result.status_code == 200
         assert result.error_category == ErrorCategory.JSON_PARSE
         assert "Response is not valid JSON" in result.errors[0]
@@ -189,7 +189,7 @@ class TestGen3Client:
         )
 
         assert isinstance(result, ClientResponse)
-        assert result.success is True
+        assert result.success
         assert result.status_code == 200
         assert result.data == {"data": {"test": "result"}}
 
@@ -216,7 +216,7 @@ class TestGen3Client:
         )
 
         assert isinstance(result, ClientResponse)
-        assert result.success is False
+        assert not result.success
         assert result.status_code == 400
         assert result.error_category == ErrorCategory.HTTP_CLIENT
         assert result.data is not None  # Should include GraphQL error details

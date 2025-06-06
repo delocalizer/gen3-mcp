@@ -116,18 +116,14 @@ class SchemaManager:
             if entity_name.startswith("_") or entity_name == "metaschema":
                 continue
 
-            # Extract relationships from links
+            # Extract relationships from links - combine direct and subgroup links
             links = [
                 link for link in entity_def.get("links", []) if "subgroup" not in link
+            ] + [
+                sublink
+                for link in entity_def.get("links", [])
+                for sublink in link.get("subgroup", [])
             ]
-            links.extend(
-                # Handle subgroup links (common in Gen3)
-                [
-                    sublink
-                    for link in entity_def.get("links", [])
-                    for sublink in link.get("subgroup", [])
-                ]
-            )
 
             # Collect explicit and implied relationships
             for link in links:
