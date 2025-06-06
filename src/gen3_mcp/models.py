@@ -1,7 +1,9 @@
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field
+
+# --- Schema models --- #
 
 
 class RelType(StrEnum):
@@ -96,3 +98,154 @@ class SchemaExtract(dict[str, EntitySchema]):
     def to_json(self) -> dict[str, dict]:
         """Convert to JSON-serializable dict."""
         return {k: v.model_dump() for k, v in self.items()}
+
+
+# --- MCPResponse --- #
+
+
+class MCPResponse(BaseModel):
+    """Standardized MCP tool response format."""
+
+    status: Literal["success", "error", "warning"] = Field(
+        ..., description="Response status"
+    )
+    message: str = Field(..., description="Human-readable summary message")
+    data: dict[str, Any] | None = Field(None, description="Response payload data")
+    errors: list[dict[str, Any]] = Field(
+        default_factory=list, description="Error details if any"
+    )
+    suggestions: list[str] = Field(
+        default_factory=list, description="Actionable suggestions"
+    )
+    next_steps: dict[str, Any] | None = Field(None, description="Workflow guidance")
+    metadata: dict[str, Any] | None = Field(None, description="Additional context")
+
+    def to_json(self) -> str:
+        """Convert to JSON string for MCP tool response."""
+        return self.model_dump_json(exclude_none=True, indent=2)
+
+    # convenience methods
+    @classmethod
+    def success(
+        cls,
+        message: str,
+        data: dict[str, Any] | None = None,
+        suggestions: list[str] | None = None,
+        next_steps: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "MCPResponse":
+        """Create a success response."""
+        return cls(
+            status="success",
+            message=message,
+            data=data,
+            suggestions=suggestions or [],
+            next_steps=next_steps,
+            metadata=metadata,
+        )
+
+    @classmethod
+    def error(
+        cls,
+        message: str,
+        errors: list[dict[str, Any]] | None = None,
+        suggestions: list[str] | None = None,
+        next_steps: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "MCPResponse":
+        """Create an error response."""
+        return cls(
+            status="error",
+            message=message,
+            errors=errors or [],
+            suggestions=suggestions or [],
+            next_steps=next_steps,
+            metadata=metadata,
+        )
+
+
+# --- GraphQL query validation models --- #
+
+
+class QueryValidationError(BaseModel):
+    """Validation error with context and suggestions."""
+
+    entity: str = Field(..., description="Entity where error occurred")
+    field: str = Field(..., description="Field where error occurred")
+    error_type: str = Field(
+        ..., description="Type of error (syntax_error, unknown_entity, unknown_field)"
+    )
+    message: str = Field(..., description="Human readable error message")
+    suggestions: list[str] = Field(default_factory=list, description="Suggested fixes")
+
+
+class QueryValidationResult(BaseModel):
+    """GraphQL query validation result with essential context."""
+
+    # Core validation results
+    valid: bool = Field(..., description="Whether the query is valid")
+    query: str = Field(..., description="Original query that was validated")
+
+    # Error details
+    errors: list[QueryValidationError] = Field(
+        default_factory=list, description="Validation errors found"
+    )
+
+    @computed_field
+    @property
+    def error_count(self) -> int:
+        """Total number of validation errors."""
+        return len(self.errors)
+
+    @computed_field
+    @property
+    def status(self) -> Literal["success", "error"]:
+        """MCP-compatible status derived from validation result."""
+        return "success" if self.valid else "error"
+
+    @computed_field
+    @property
+    def summary(self) -> str:
+        """Human-readable summary of validation result."""
+        if self.valid:
+            return "Query validation successful"
+        else:
+            return f"Query validation failed with {self.error_count} errors"
+
+    def to_mcp_response(self) -> "MCPResponse":
+        """Convert to MCP response format."""
+        if self.valid:
+            return MCPResponse.success(
+                message=self.summary,
+                data={"valid": self.valid, "query": self.query},
+                next_steps={
+                    "ready_to_execute": True,
+                    "suggestion": "Query is valid! Use execute_graphql() to run it.",
+                },
+            )
+        return MCPResponse.error(
+            message=self.summary,
+            errors=[
+                {
+                    "entity": err.entity,
+                    "field": err.field,
+                    "error_type": err.error_type,
+                    "message": err.message,
+                    "suggestions": err.suggestions,
+                }
+                for err in self.errors
+            ],
+            suggestions=[
+                "Fix the validation errors using the suggestions above",
+                "Use get_schema_summary() to see available entities and fields",
+            ],
+            next_steps={
+                "workflow": [
+                    "1. Fix the validation errors using the suggestions above",
+                    "2. Re-run validate_query() to confirm fixes",
+                    "3. Use execute_graphql() to run the validated query",
+                ],
+                "alternative": "Start fresh with generate_query_template() for a guaranteed valid query",
+            },
+            metadata={"query": self.query, "error_count": self.error_count},
+        )

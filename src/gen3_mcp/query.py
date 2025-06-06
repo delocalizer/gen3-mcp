@@ -5,7 +5,7 @@ from functools import cache
 from typing import Any
 
 from .graphql_validator import validate_graphql
-from .models import SchemaExtract
+from .models import QueryValidationResult, SchemaExtract
 from .schema import SchemaManager
 
 logger = logging.getLogger("gen3-mcp.query")
@@ -146,58 +146,20 @@ class QueryService:
             "template": full_template,
         }
 
-    async def validate_query(self, query: str) -> dict[str, Any]:
+    async def validate_query(self, query: str) -> QueryValidationResult:
         """Validate GraphQL query.
 
         Args:
             query: GraphQL query string to validate.
 
         Returns:
-            Dict with validation results including validity status, errors,
+            QueryValidationResult including validity status, errors,
             and suggestions for fixing any issues.
         """
         logger.info("Validating GraphQL query")
 
         schema_extract = await self.schema_manager.get_schema_extract()
-        result = validate_graphql(query, schema_extract)
-
-        # Convert to expected MCP response format
-        response = {
-            "valid": result.is_valid,
-            "errors": [
-                {
-                    "entity": err.entity,
-                    "field": err.field,
-                    "message": err.message,
-                    "suggestions": err.suggestions or [],
-                }
-                for err in result.errors
-            ],
-        }
-
-        # Add workflow guidance
-        if not result.is_valid:
-            logger.warning(f"Query validation failed with {len(result.errors)} errors")
-            response["next_steps"] = {
-                "suggestions": [
-                    "Fix the validation errors using the suggestions above",
-                    "Use annotated_schema_structure() to see available entities and fields",
-                ],
-                "workflow": [
-                    "1. Fix the validation errors using the suggestions above",
-                    "2. Re-run validate_query() to confirm fixes",
-                    "3. Use execute_graphql() to run the validated query",
-                ],
-                "alternative": "Start fresh with query_template() for a guaranteed valid query",
-            }
-        else:
-            logger.info("Query validation successful")
-            response["next_steps"] = {
-                "ready_to_execute": True,
-                "suggestion": "Query is valid! Use execute_graphql() to run it.",
-            }
-
-        return response
+        return validate_graphql(query, schema_extract)
 
     def _find_similar_entities(
         self, entity_name: str, schema_extract: SchemaExtract

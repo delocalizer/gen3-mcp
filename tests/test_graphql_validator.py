@@ -37,8 +37,8 @@ class TestValidationWithTestQueries:
         query = test_queries["passing_1"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
     @pytest.mark.asyncio
     async def test_passing_query_2(self, schema_extract, test_queries):
@@ -46,8 +46,8 @@ class TestValidationWithTestQueries:
         query = test_queries["passing_2"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
     @pytest.mark.asyncio
     async def test_passing_query_3(self, schema_extract, test_queries):
@@ -55,8 +55,8 @@ class TestValidationWithTestQueries:
         query = test_queries["passing_3"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
     @pytest.mark.asyncio
     async def test_failing_query_1_syntax_error(self, schema_extract, test_queries):
@@ -64,7 +64,7 @@ class TestValidationWithTestQueries:
         query = test_queries["failing_1"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) == 1
         error = result.errors[0]
         assert error.error_type == "syntax_error"
@@ -76,7 +76,7 @@ class TestValidationWithTestQueries:
         query = test_queries["failing_2"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) == 1
 
         # Should have error about unknown field 'study_name'
@@ -94,7 +94,7 @@ class TestValidationWithTestQueries:
         query = test_queries["failing_3"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) > 0
 
         # Should have error about invalid relationship
@@ -106,7 +106,7 @@ class TestValidationWithTestQueries:
         )
 
 
-class TestValidationErrorHandling:
+class TestQueryValidationErrorHandling:
     """Test error handling and suggestions"""
 
     @pytest.mark.asyncio
@@ -115,7 +115,7 @@ class TestValidationErrorHandling:
         query = "{ unknown_entity { id } }"
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) == 1
         assert result.errors[0].error_type == "unknown_entity"
         assert "unknown_entity" in result.errors[0].message
@@ -129,7 +129,7 @@ class TestValidationErrorHandling:
         query = "{ subject { id unknown_field } }"
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) == 1
         assert result.errors[0].error_type == "unknown_field"
         assert result.errors[0].field == "unknown_field"
@@ -144,7 +144,7 @@ class TestValidationErrorHandling:
         query = "{ subject { id gendr } }"  # Typo in 'gender'
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         field_error = result.errors[0]
         assert field_error.field == "gendr"
 
@@ -165,7 +165,7 @@ class TestValidationErrorHandling:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) == 2
 
         # Both errors should be for unknown fields
@@ -192,8 +192,8 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
     @pytest.mark.asyncio
     async def test_valid_backref_relationship(self, schema_extract):
@@ -211,8 +211,8 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
     @pytest.mark.asyncio
     async def test_valid_multi_level_relationship(self, schema_extract):
@@ -235,8 +235,8 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
     @pytest.mark.asyncio
     async def test_invalid_relationship_field(self, schema_extract):
@@ -254,7 +254,7 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) == 1
         assert result.errors[0].error_type == "unknown_field"
         assert result.errors[0].field == "invalid_study_field"
@@ -296,8 +296,8 @@ class TestComplexScenarios:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
     @pytest.mark.asyncio
     async def test_mixed_valid_invalid_fields(self, schema_extract):
@@ -315,7 +315,7 @@ class TestComplexScenarios:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is False
+        assert not result.valid
         assert len(result.errors) == 2
 
         invalid_fields = {error.field for error in result.errors}
@@ -339,8 +339,8 @@ class TestComplexScenarios:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.is_valid is True
-        assert len(result.errors) == 0
+        assert result.valid
+        assert not result.errors
 
 
 if __name__ == "__main__":
