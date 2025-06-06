@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from gen3_mcp.config import Config
 from gen3_mcp.exceptions import Gen3SchemaError
 from gen3_mcp.models import EntitySchema, SchemaExtract
 from gen3_mcp.schema import SchemaManager, get_schema_manager
@@ -18,6 +19,7 @@ class TestSchemaManagerInitialization:
 
         assert manager.client is mock_client
         assert isinstance(manager._cache, dict)
+        assert isinstance(manager.config, Config)
         assert len(manager._cache) == 0
 
 

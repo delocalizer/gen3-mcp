@@ -51,6 +51,8 @@ def mock_get_json_side_effect(url, **kwargs):
     if url.endswith(SCHEMA_URL_PATH):
         # Full schema request
         return FULL_SCHEMA
+    # For any other URL, return None (which might trigger error handling)
+    return None
 
 
 @pytest.fixture

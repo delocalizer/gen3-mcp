@@ -1,10 +1,9 @@
 """GraphQL Query service for validation, building, and execution."""
 
 import logging
+from functools import cache
 from typing import Any
 
-from .client import Gen3Client
-from .config import Config
 from .graphql_validator import validate_graphql
 from .models import SchemaExtract
 from .schema import SchemaManager
@@ -15,20 +14,16 @@ logger = logging.getLogger("gen3-mcp.query")
 class QueryService:
     """Query operations: validation, building, and execution."""
 
-    def __init__(
-        self, client: Gen3Client, config: Config, schema_manager: SchemaManager
-    ):
+    def __init__(self, schema_manager: SchemaManager):
         """Initialize QueryService.
 
         Args:
-            client: Gen3Client instance for API calls.
-            config: Config instance with settings.
             schema_manager: SchemaManager instance for schema operations.
         """
-        self.client = client
-        self.config = config
         self.schema_manager = schema_manager
-        self._schema_extract: SchemaExtract | None = None
+        # Access client and config through schema_manager
+        self.client = schema_manager.client
+        self.config = schema_manager.client.config
 
     async def execute_graphql(self, query: str) -> dict[str, Any] | None:
         """Execute GraphQL query.
@@ -93,10 +88,10 @@ class QueryService:
         """
         logger.info(f"Generating query template for {entity_name}")
 
-        # Get schema extract to check entity exists
-        schema_extract = await self._get_schema_extract()
+        # Get schema extract from schema manager
+        schema_extract = await self.schema_manager.get_schema_extract()
 
-        if entity_name not in schema_extract.entities:
+        if entity_name not in schema_extract:
             # Suggest similar entity names
             suggestions = self._find_similar_entities(entity_name, schema_extract)
 
@@ -110,7 +105,7 @@ class QueryService:
             }
 
         # Get entity schema
-        entity = schema_extract.entities[entity_name]
+        entity = schema_extract[entity_name]
 
         # Build template fields
         required = entity.schema_summary.required_fields
@@ -163,7 +158,7 @@ class QueryService:
         """
         logger.info("Validating GraphQL query")
 
-        schema_extract = await self._get_schema_extract()
+        schema_extract = await self.schema_manager.get_schema_extract()
         result = validate_graphql(query, schema_extract)
 
         # Convert to expected MCP response format
@@ -204,23 +199,6 @@ class QueryService:
 
         return response
 
-    async def _get_schema_extract(self) -> SchemaExtract:
-        """Get or create SchemaExtract from full schema.
-
-        Returns:
-            SchemaExtract instance.
-
-        Raises:
-            Gen3SchemaError: If schema fetch fails.
-        """
-        if self._schema_extract is None:
-            logger.debug("Creating SchemaExtract")
-            full_schema = await self.schema_manager.get_schema_full()
-            self._schema_extract = SchemaExtract.from_full_schema(full_schema)
-            logger.debug("SchemaExtract created")
-
-        return self._schema_extract
-
     def _find_similar_entities(
         self, entity_name: str, schema_extract: SchemaExtract
     ) -> list[dict[str, Any]]:
@@ -236,7 +214,7 @@ class QueryService:
         from difflib import SequenceMatcher
 
         suggestions = []
-        for available_entity in schema_extract.entities:
+        for available_entity in schema_extract:
             similarity = SequenceMatcher(
                 None, entity_name.lower(), available_entity.lower()
             ).ratio()
@@ -244,3 +222,15 @@ class QueryService:
                 suggestions.append({"name": available_entity, "similarity": similarity})
 
         return sorted(suggestions, key=lambda x: x["similarity"], reverse=True)
+
+
+@cache
+def get_query_service() -> QueryService:
+    """Get a cached QueryService instance using the default schema manager.
+
+    Returns:
+        QueryService instance with default dependencies.
+    """
+    from .schema import get_schema_manager
+
+    return QueryService(get_schema_manager())

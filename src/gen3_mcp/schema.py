@@ -32,6 +32,8 @@ class SchemaManager:
             client: Gen3Client instance for API calls.
         """
         self.client = client
+        # Access config through client
+        self.config = client.config
         self._cache = {}
 
     async def get_schema_full(self) -> dict[str, Any]:
@@ -51,10 +53,8 @@ class SchemaManager:
             logger.debug("Using cached full schema")
             return self._cache[cache_key]
 
-        logger.info(f"Fetching full schema from {self.client.config.schema_url}")
-        schema = await self.client.get_json(
-            self.client.config.schema_url, authenticated=False
-        )
+        logger.info(f"Fetching full schema from {self.config.schema_url}")
+        schema = await self.client.get_json(self.config.schema_url, authenticated=False)
 
         if schema is None:
             logger.error("Failed to fetch full schema")
