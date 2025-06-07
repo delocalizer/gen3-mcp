@@ -46,7 +46,7 @@ async def get_schema_summary() -> Response:
         you can query.
 
     Workflow: **Start here** → generate_query_template → validate_query → execute_graphql
-    
+
     Raises:
         No exceptions raised - all errors are caught and returned as Response objects.
         May propagate any errors from get_schema_manager().get_schema_extract().
@@ -81,7 +81,7 @@ async def generate_query_template(
         Copy the template from data.template and modify as needed.
 
     Workflow: get_schema_summary → **You are here** → validate_query → execute_graphql
-    
+
     Raises:
         No exceptions raised - all errors are caught and returned as Response objects.
         May propagate any errors from get_query_service().generate_query_template().
@@ -122,7 +122,7 @@ async def validate_query(query: str) -> Response:
 
     ## IMPORTANT
     **Always** run this before calling execute_graphql
-    
+
     Raises:
         No exceptions raised - all errors are caught and returned as Response objects.
         May propagate any errors from get_query_service().validate_query().
@@ -161,7 +161,7 @@ async def execute_graphql(query: str) -> Response:
 
     ## IMPORTANT
     **Always** run validate_query on the query before calling this.
-    
+
     Raises:
         No exceptions raised - all errors are caught and returned as Response objects.
         May propagate any errors from get_query_service().execute_graphql().
@@ -182,7 +182,7 @@ async def execute_graphql(query: str) -> Response:
 
 def main() -> None:
     """Run the MCP server.
-    
+
     Raises:
         May raise any exceptions from mcp.run() - typically system-level errors
         related to stdio transport setup or FastMCP server initialization.

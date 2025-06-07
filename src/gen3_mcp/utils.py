@@ -19,7 +19,7 @@ def suggest_similar_strings(
 
     Returns:
         List of similar strings, sorted by similarity (highest first).
-        
+
     Raises:
         Could theoretically raise:
         - TypeError: If target or candidates are not strings/iterables
@@ -55,7 +55,7 @@ def suggest_similar_strings_with_scores(
 
     Returns:
         List of dicts with 'name' and 'similarity' keys, sorted by similarity (highest first).
-        
+
     Raises:
         Could theoretically raise:
         - TypeError: If target or candidates are not strings/iterables

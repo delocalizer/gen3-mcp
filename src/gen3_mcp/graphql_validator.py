@@ -45,7 +45,7 @@ class GraphQLFieldExtractor(Visitor):
 
     def __init__(self):
         """Initialize GraphQLFieldExtractor.
-        
+
         Raises:
             No exceptions raised.
         """
@@ -59,7 +59,7 @@ class GraphQLFieldExtractor(Visitor):
         Args:
             node: GraphQL field node.
             *_: Unused visitor arguments.
-            
+
         Raises:
             No exceptions raised in normal operation.
             Could theoretically raise:
@@ -90,7 +90,7 @@ class GraphQLFieldExtractor(Visitor):
         Args:
             node: GraphQL field node.
             *_: Unused visitor arguments.
-            
+
         Raises:
             No exceptions raised in normal operation.
             Could theoretically raise:
@@ -109,7 +109,7 @@ def validate_graphql(query: str, schema: SchemaExtract) -> Response:
 
     Returns:
         Response with validation status and any errors found.
-        
+
     Raises:
         No exceptions raised - all errors are caught and returned as Response objects.
         The following exceptions are caught internally and converted to Response:
@@ -195,7 +195,7 @@ def _validate_entity_path(
 
     Returns:
         List of validation errors.
-        
+
     Raises:
         Could theoretically raise:
         - KeyError: If schema structure is unexpected
@@ -284,7 +284,7 @@ def _validate_direct_entity_fields(
 
     Returns:
         List of validation errors.
-        
+
     Raises:
         Could theoretically raise:
         - AttributeError: If entity_schema structure is unexpected

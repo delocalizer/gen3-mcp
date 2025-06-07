@@ -5,6 +5,7 @@ from functools import cache
 from typing import Any
 
 from .client import Gen3Client, get_client
+from .exceptions import ClientError, SchemaError
 from .models import (
     EntitySchema,
     EntitySummary,
@@ -12,7 +13,6 @@ from .models import (
     Property,
     Relationship,
     RelType,
-    Response,
     SchemaExtract,
 )
 
@@ -30,7 +30,7 @@ class SchemaManager:
 
         Args:
             client: Gen3Client instance for API calls.
-            
+
         Raises:
             No exceptions raised during initialization.
         """
@@ -39,101 +39,73 @@ class SchemaManager:
         self.config = client.config
         self._cache = {}
 
-    async def get_schema_full(self) -> Response:
+    async def get_schema_full(self) -> dict[str, Any]:
         """Get full schema using config.schema_url.
 
         Returns:
-            Response containing full schema dict with entity definitions,
-            or error response if schema fetch fails.
-            
+            Full schema dict with entity definitions.
+
         Raises:
-            No exceptions raised - all errors are caught and returned as Response objects.
-            However, propagates errors from client.get_json() which may include:
-            - Gen3ClientError: Authentication failures
-            - Network/HTTP errors (converted to Response by client)
+            ClientError: If schema fetch fails due to client/network issues.
         """
         cache_key = "full_schema"
 
         if cache_key in self._cache:
             logger.debug("Using cached full schema")
-            return Response(
-                status="success",
-                message="Schema retrieved from cache",
-                data=self._cache[cache_key],
-            )
+            return self._cache[cache_key]
 
         logger.info(f"Fetching full schema from {self.config.schema_url}")
-        response = await self.client.get_json(
-            self.config.schema_url, authenticated=False
-        )
 
-        if not response.is_success:
-            logger.error(f"Failed to fetch full schema: {response.message}")
-            # Enhance error message for schema context and add schema-specific suggestions
-            response.message = "Failed to fetch schema from Gen3 data commons"
-            response.suggestions.extend(
-                [
-                    "Check that the Gen3 data commons URL is accessible",
-                    "Verify your network connection",
-                ]
+        try:
+            schema = await self.client.get_json(
+                self.config.schema_url, authenticated=False
             )
-            return response
+            logger.info("Fetched full schema")
+            self._cache[cache_key] = schema
+            return schema
 
-        # Success case - enhance message and cache the data
-        schema = response.data
-        logger.info("Fetched full schema")
-        self._cache[cache_key] = schema
-        response.message = "Schema fetched successfully from Gen3 data commons"
-        return response
+        except ClientError:
+            logger.error("Failed to fetch full schema due to client error")
+            # Re-raise ClientError as-is - it has the right context already
+            raise
 
-    async def get_schema_extract(self) -> Response:
+    async def get_schema_extract(self) -> SchemaExtract:
         """Get processed schema extract with relationships and annotations.
 
         Returns:
-            Response containing SchemaExtract instance with entity definitions,
-            relationships, and schema summary information.
-            
+            SchemaExtract instance with entity definitions, relationships,
+            and schema summary information.
+
         Raises:
-            No exceptions raised - all errors are caught and returned as Response objects.
-            May propagate errors from get_schema_full().
-            Internal processing in _create_extract() could theoretically raise:
-            - KeyError: If schema structure is unexpected
-            - ValueError: If FieldType enum conversion fails  
-            - Exception: Any other unexpected error during schema processing
-            (These would bubble up as Response errors)
+            ClientError: If schema fetch fails due to client/network issues.
+            SchemaError: If schema processing fails.
+                Raised from the following underlying exceptions:
+                - ValueError: If FieldType enum conversion fails
+                - Exception: Any other unexpected error during schema processing
         """
         cache_key = "extract"
 
         if cache_key in self._cache:
             logger.debug("Using cached schema extract")
-            return Response(
-                status="success",
-                message="Schema extract retrieved from cache",
-                data=self._cache[cache_key],
-            )
+            return self._cache[cache_key]
 
         logger.info("Creating new schema extract")
 
-        # Get the full schema (returns Response)
-        schema_response = await self.get_schema_full()
-        if not schema_response.is_success:
-            # Forward the error from get_schema_full
-            schema_response.message = (
-                "Failed to create schema extract - " + schema_response.message
-            )
-            return schema_response
+        try:
+            # Get the full schema (may raise ClientError)
+            schema = await self.get_schema_full()
 
-        # Process it
-        extract = self._create_extract(schema_response.data)
+            # Process it (may raise SchemaError)
+            extract = self._create_extract(schema)
 
-        logger.info("Created new schema extract")
-        self._cache[cache_key] = extract
+            logger.info("Created new schema extract")
+            self._cache[cache_key] = extract
+            return extract
 
-        return Response(
-            status="success",
-            message="Schema extract created successfully",
-            data=extract,
-        )
+        except SchemaError:
+            logger.error("Failed to create schema extract due to schema error")
+            # Re-raise SchemaError as-is - already has appropriate context
+            raise
 
     def _create_extract(self, full_schema: dict[str, Any]) -> SchemaExtract:
         """Create SchemaExtract from full schema dict.
@@ -143,11 +115,13 @@ class SchemaManager:
 
         Returns:
             SchemaExtract instance.
-            
+
         Raises:
-            ValueError: If FieldType enum conversion fails for unknown property types
-            KeyError: If expected schema structure elements are missing
-            Exception: Any other unexpected error during schema processing
+            SchemaError: If schema processing fails.
+                Raised from the following underlying exceptions:
+                - ValueError: If FieldType enum conversion fails for unknown property types
+                - KeyError: If expected schema structure elements are missing
+                - Exception: Any other unexpected error during schema processing
         """
         # Create new extract
         extract = SchemaExtract()
@@ -196,21 +170,34 @@ class SchemaManager:
                 # skip relationship fields
                 if prop_name in link_names:
                     continue
-                prop = None
-                if "type" in prop_def:
-                    prop = Property(name=prop_name, type_=FieldType(prop_def["type"]))
-                elif "anyOf" in prop_def:
-                    prop = Property(name=prop_name, type_=FieldType.ANYOF)
-                elif "oneOf" in prop_def:
-                    prop = Property(name=prop_name, type_=FieldType.ONEOF)
-                elif "enum" in prop_def:
-                    prop = Property(
-                        name=prop_name, type_=FieldType.ENUM, enum_vals=prop_def["enum"]
-                    )
-                else:
-                    logger.error(f"Unhandled type of {prop_name} in {entity_name}")
-                if prop:
-                    fields[prop_name] = prop
+
+                try:
+                    prop = None
+                    if "type" in prop_def:
+                        prop = Property(
+                            name=prop_name, type_=FieldType(prop_def["type"])
+                        )
+                    elif "anyOf" in prop_def:
+                        prop = Property(name=prop_name, type_=FieldType.ANYOF)
+                    elif "oneOf" in prop_def:
+                        prop = Property(name=prop_name, type_=FieldType.ONEOF)
+                    elif "enum" in prop_def:
+                        prop = Property(
+                            name=prop_name,
+                            type_=FieldType.ENUM,
+                            enum_vals=prop_def["enum"],
+                        )
+                    else:
+                        logger.error(f"Unhandled type of {prop_name} in {entity_name}")
+
+                    if prop:
+                        fields[prop_name] = prop
+
+                except ValueError as e:
+                    raise SchemaError(
+                        f"Invalid property type '{prop_def['type']}' in entity '{entity_name}', property '{prop_name}'",
+                        errors=[str(e)],
+                    ) from e
 
             extract[entity_name] = EntitySchema(
                 name=entity_name, fields=fields, relationships={}
@@ -264,7 +251,7 @@ class SchemaManager:
 
     def clear_cache(self):
         """Clear all cached data. Useful for testing.
-        
+
         Raises:
             No exceptions raised.
         """
@@ -274,7 +261,7 @@ class SchemaManager:
 @cache
 def get_schema_manager() -> SchemaManager:
     """Get a cached SchemaManager instance.
-    
+
     Raises:
         May propagate exceptions from get_client() initialization chain.
     """

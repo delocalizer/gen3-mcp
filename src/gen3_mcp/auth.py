@@ -10,7 +10,7 @@ import httpx
 
 from .config import Config
 from .consts import DEFAULT_TOKEN_EXPIRY_SECONDS, TOKEN_REFRESH_BUFFER_MINUTES
-from .exceptions import Gen3ClientError
+from .exceptions import ClientError
 
 logger = logging.getLogger("gen3-mcp.auth")
 
@@ -24,7 +24,7 @@ class AuthManager:
         Args:
             config: Config instance with auth settings.
             http_client: Async HTTP client for API calls.
-            
+
         Raises:
             No exceptions raised during initialization.
         """
@@ -36,10 +36,10 @@ class AuthManager:
         """Ensure we have a valid token, refreshing if necessary.
 
         Raises:
-            Gen3ClientError: If credentials cannot be loaded or token refresh fails.
-                Wraps the following underlying exceptions:
+            ClientError: If credentials cannot be loaded or token refresh fails.
+                Raised from the following underlying exceptions:
                 - FileNotFoundError: Credentials file not found
-                - json.JSONDecodeError: Invalid JSON in credentials file  
+                - json.JSONDecodeError: Invalid JSON in credentials file
                 - httpx.HTTPStatusError: HTTP error during token request
                 - KeyError: Missing access_token in response
                 - Exception: Any other unexpected error during token refresh
@@ -50,7 +50,7 @@ class AuthManager:
 
     def _needs_token(self) -> bool:
         """Check if we need to get a new token.
-        
+
         Raises:
             No exceptions raised.
         """
@@ -67,8 +67,8 @@ class AuthManager:
         """Get a new access token.
 
         Raises:
-            Gen3ClientError: If credentials cannot be loaded or token request fails.
-                Wraps the following underlying exceptions:
+            ClientError: If credentials cannot be loaded or token request fails.
+                Raised from the following underlying exceptions:
                 - FileNotFoundError: Credentials file not found (via _load_credentials)
                 - json.JSONDecodeError: Invalid JSON in credentials file (via _load_credentials)
                 - httpx.HTTPStatusError: HTTP error during token request
@@ -100,15 +100,23 @@ class AuthManager:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error during token request: {e.response.status_code}")
-            raise Gen3ClientError(
-                f"HTTP error during token request: {e.response.status_code}"
+            raise ClientError(
+                f"HTTP error during token request: {e.response.status_code}",
+                context={
+                    "status_code": e.response.status_code,
+                    "method": e.request.method,
+                    "url": str(e.response.url),
+                    "response_body": e.response.json(),
+                },
             ) from e
         except KeyError as e:
             logger.error("Missing access_token in response")
-            raise Gen3ClientError("Missing access_token in response") from e
+            raise ClientError(
+                "Missing access_token in response", errors=[f"Missing key: {e}"]
+            ) from e
         except Exception as e:
             logger.error(f"Failed to get token: {e}")
-            raise Gen3ClientError(f"Failed to get token: {e}") from e
+            raise ClientError(f"Failed to get token: {e}", errors=[str(e)]) from e
 
     def _load_credentials(self) -> dict[str, Any]:
         """Load credentials from file.
@@ -117,8 +125,8 @@ class AuthManager:
             Credentials dictionary.
 
         Raises:
-            Gen3ClientError: If credentials file not found or contains invalid JSON.
-                Wraps the following underlying exceptions:
+            ClientError: If credentials file not found or contains invalid JSON.
+                Raised from the following underlying exceptions:
                 - FileNotFoundError: Credentials file not found
                 - json.JSONDecodeError: Invalid JSON in credentials file
         """
@@ -133,13 +141,14 @@ class AuthManager:
 
         except FileNotFoundError as e:
             logger.error(f"Credentials file not found: {self.config.credentials_file}")
-            raise Gen3ClientError(
+            raise ClientError(
                 f"Credentials file not found: {self.config.credentials_file}"
             ) from e
         except json.JSONDecodeError as e:
             logger.error(
                 f"Invalid JSON in credentials file: {self.config.credentials_file}"
             )
-            raise Gen3ClientError(
-                f"Invalid JSON in credentials file: {self.config.credentials_file}"
+            raise ClientError(
+                f"Invalid JSON in credentials file: {self.config.credentials_file}",
+                errors=[f"JSON error: {e.msg} at line {e.lineno}, column {e.colno}"],
             ) from e

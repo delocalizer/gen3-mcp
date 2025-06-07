@@ -34,7 +34,7 @@ class Config(BaseSettings):
     @property
     def auth_url(self) -> str:
         """URL for fetching access tokens.
-        
+
         Raises:
             No exceptions raised.
         """
@@ -44,7 +44,7 @@ class Config(BaseSettings):
     @property
     def graphql_url(self) -> str:
         """URL for GraphQL queries.
-        
+
         Raises:
             No exceptions raised.
         """
@@ -54,7 +54,7 @@ class Config(BaseSettings):
     @property
     def schema_url(self) -> str:
         """URL for full schema.
-        
+
         Raises:
             No exceptions raised.
         """
@@ -64,7 +64,7 @@ class Config(BaseSettings):
 @cache
 def get_config() -> Config:
     """Get a cached Config instance.
-    
+
     Raises:
         pydantic.ValidationError: If environment variables fail validation
             (e.g., invalid log_level, negative timeout_seconds)

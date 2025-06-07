@@ -8,7 +8,7 @@ import pytest
 from gen3_mcp.client import Gen3Client
 from gen3_mcp.config import Config
 from gen3_mcp.exceptions import Gen3SchemaError
-from gen3_mcp.models import Response, ErrorCategory
+from gen3_mcp.models import ErrorCategory, Response
 from gen3_mcp.schema import SchemaManager
 
 

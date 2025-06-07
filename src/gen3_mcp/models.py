@@ -3,6 +3,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field
 
+from .exceptions import Gen3MCPError
+
 # =============================================================================
 # ERROR CATEGORIZATION
 # =============================================================================
@@ -57,6 +59,24 @@ class Response(BaseModel):
     def is_error(self) -> bool:
         """Check if response indicates error."""
         return self.status == "error"
+
+    @classmethod
+    def from_error(cls, error: Gen3MCPError) -> "Response":
+        """Create Response from Gen3MCPError.
+
+        Args:
+            error: Gen3MCPError instance
+
+        Returns:
+            Response object with error details
+        """
+        return cls(
+            status="error",
+            message=error.message,
+            errors=error.errors,
+            suggestions=error.suggestions,
+            metadata={**error.context, "exception_type": type(error).__name__},
+        )
 
 
 # =============================================================================

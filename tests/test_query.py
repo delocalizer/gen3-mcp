@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from gen3_mcp.models import Response, ErrorCategory, Response
+from gen3_mcp.models import ErrorCategory, Response
 from gen3_mcp.query import QueryService, get_query_service
 from gen3_mcp.schema import SchemaManager
 
@@ -260,9 +260,7 @@ class TestValidateQuery:
     async def test_validate_query_success(self, query_service):
         """Test successful query validation"""
         # Mock the graphql_validator.validate_graphql function
-        mock_validation_result = Response(
-            valid=True, query="{ subject { id } }"
-        )
+        mock_validation_result = Response(valid=True, query="{ subject { id } }")
 
         with patch("gen3_mcp.query.validate_graphql") as mock_validate:
             mock_validate.return_value = mock_validation_result

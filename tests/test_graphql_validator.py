@@ -93,7 +93,10 @@ class TestValidationWithTestQueries:
 
         # Should have error about invalid relationship
         error = result.errors[0]
-        assert ("Relationship 'samples' does not exist in entity 'aligned_reads_file'" in error)
+        assert (
+            "Relationship 'samples' does not exist in entity 'aligned_reads_file'"
+            in error
+        )
 
 
 class TestQueryValidationErrorHandling:

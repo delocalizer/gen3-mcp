@@ -19,7 +19,7 @@ class QueryService:
 
         Args:
             schema_manager: SchemaManager instance for schema operations.
-            
+
         Raises:
             No exceptions raised during initialization.
         """
@@ -36,7 +36,7 @@ class QueryService:
 
         Returns:
             Response with query results or error information.
-            
+
         Raises:
             No exceptions raised - all errors are caught and returned as Response objects.
             Propagates errors from client.post_json() which may include:
@@ -69,7 +69,7 @@ class QueryService:
 
         Returns:
             Response with template info or error information if entity doesn't exist.
-            
+
         Raises:
             No exceptions raised - all errors are caught and returned as Response objects.
             May propagate errors from schema_manager.get_schema_extract().
@@ -183,7 +183,7 @@ class QueryService:
 
         Returns:
             Response with validation status, errors, and suggestions.
-            
+
         Raises:
             No exceptions raised - all errors are caught and returned as Response objects.
             May propagate errors from:
@@ -208,7 +208,7 @@ def get_query_service() -> QueryService:
 
     Returns:
         QueryService instance with default dependencies.
-        
+
     Raises:
         May propagate exceptions from get_schema_manager() initialization chain.
     """
