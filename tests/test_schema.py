@@ -40,11 +40,11 @@ class TestGetSchemaFull:
     @pytest.mark.asyncio
     async def test_get_schema_full_network_error(self, mock_client):
         """Test handling of network errors"""
-        from gen3_mcp.models import ClientResponse
+        from gen3_mcp.models import Response
 
         # Mock client to return error response
         mock_client.get_json.side_effect = None  # Clear side_effect
-        mock_client.get_json.return_value = ClientResponse(
+        mock_client.get_json.return_value = Response(
             success=False,
             error_message="Network connection failed",
             error_category="NETWORK",
@@ -57,14 +57,14 @@ class TestGetSchemaFull:
     @pytest.mark.asyncio
     async def test_get_schema_full_cache_after_error(self, mock_client, test_schema):
         """Test that cache is not populated after errors"""
-        from gen3_mcp.models import ClientResponse
+        from gen3_mcp.models import Response
 
         manager = SchemaManager(mock_client)
         manager.clear_cache()
 
         # First call fails
         mock_client.get_json.side_effect = None  # Clear side_effect
-        mock_client.get_json.return_value = ClientResponse(
+        mock_client.get_json.return_value = Response(
             success=False, error_message="Network error", error_category="NETWORK"
         )
         with pytest.raises(Gen3SchemaError):
@@ -74,7 +74,7 @@ class TestGetSchemaFull:
         assert "full_schema" not in manager._cache
 
         # Second call succeeds
-        mock_client.get_json.return_value = ClientResponse(
+        mock_client.get_json.return_value = Response(
             success=True, status_code=200, data=test_schema
         )
         result = await manager.get_schema_full()
@@ -365,11 +365,11 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_schema_handling(self, mock_client):
         """Test handling of invalid schema responses"""
-        from gen3_mcp.models import ClientResponse
+        from gen3_mcp.models import Response
 
         # Return empty dict in successful response
         mock_client.get_json.side_effect = None  # Clear side_effect
-        mock_client.get_json.return_value = ClientResponse(
+        mock_client.get_json.return_value = Response(
             success=True, status_code=200, data={}  # Empty schema
         )
         manager = SchemaManager(mock_client)

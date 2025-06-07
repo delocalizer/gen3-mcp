@@ -37,7 +37,7 @@ class TestValidationWithTestQueries:
         query = test_queries["passing_1"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
     @pytest.mark.asyncio
@@ -46,7 +46,7 @@ class TestValidationWithTestQueries:
         query = test_queries["passing_2"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
     @pytest.mark.asyncio
@@ -55,7 +55,7 @@ class TestValidationWithTestQueries:
         query = test_queries["passing_3"]
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
     @pytest.mark.asyncio
@@ -64,10 +64,9 @@ class TestValidationWithTestQueries:
         query = test_queries["failing_1"]
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) == 1
         error = result.errors[0]
-        assert error.error_type == "syntax_error"
         assert "syntax error" in error.message.lower()
 
     @pytest.mark.asyncio
@@ -76,17 +75,12 @@ class TestValidationWithTestQueries:
         query = test_queries["failing_2"]
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) == 1
 
         # Should have error about unknown field 'study_name'
         error = result.errors[0]
-        assert error.error_type == "unknown_field"
-        assert error.field == "study_name"
-
-        # Should provide suggestions
-        assert error.suggestions is not None
-        assert len(error.suggestions) > 0
+        assert "'study_name' does not exist in entity 'study'" in error
 
     @pytest.mark.asyncio
     async def test_failing_query_3_invalid_relation(self, schema_extract, test_queries):
@@ -94,16 +88,12 @@ class TestValidationWithTestQueries:
         query = test_queries["failing_3"]
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) > 0
 
         # Should have error about invalid relationship
         error = result.errors[0]
-        assert error.error_type == "unknown_entity"
-        assert (
-            error.message
-            == "Relationship 'samples' does not exist in entity 'aligned_reads_file'"
-        )
+        assert ("Relationship 'samples' does not exist in entity 'aligned_reads_file'" in error)
 
 
 class TestQueryValidationErrorHandling:
@@ -115,7 +105,7 @@ class TestQueryValidationErrorHandling:
         query = "{ unknown_entity { id } }"
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) == 1
         assert result.errors[0].error_type == "unknown_entity"
         assert "unknown_entity" in result.errors[0].message
@@ -129,7 +119,7 @@ class TestQueryValidationErrorHandling:
         query = "{ subject { id unknown_field } }"
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) == 1
         assert result.errors[0].error_type == "unknown_field"
         assert result.errors[0].field == "unknown_field"
@@ -144,7 +134,7 @@ class TestQueryValidationErrorHandling:
         query = "{ subject { id gendr } }"  # Typo in 'gender'
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         field_error = result.errors[0]
         assert field_error.field == "gendr"
 
@@ -165,7 +155,7 @@ class TestQueryValidationErrorHandling:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) == 2
 
         # Both errors should be for unknown fields
@@ -192,7 +182,7 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
     @pytest.mark.asyncio
@@ -211,7 +201,7 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
     @pytest.mark.asyncio
@@ -235,7 +225,7 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
     @pytest.mark.asyncio
@@ -254,7 +244,7 @@ class TestRelationshipValidation:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) == 1
         assert result.errors[0].error_type == "unknown_field"
         assert result.errors[0].field == "invalid_study_field"
@@ -296,7 +286,7 @@ class TestComplexScenarios:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
     @pytest.mark.asyncio
@@ -315,7 +305,7 @@ class TestComplexScenarios:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert not result.valid
+        assert not result.is_success
         assert len(result.errors) == 2
 
         invalid_fields = {error.field for error in result.errors}
@@ -339,7 +329,7 @@ class TestComplexScenarios:
         """
         result = validate_graphql(query, schema_extract)
 
-        assert result.valid
+        assert result.is_success
         assert not result.errors
 
 

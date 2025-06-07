@@ -47,14 +47,19 @@ def reference_extract_json():
 
 
 def mock_get_json_side_effect(url, **kwargs):
-    """Mock side effect that returns ClientResponse objects based on URL"""
-    from gen3_mcp.models import ClientResponse
+    """Mock side effect that returns Response objects based on URL"""
+    from gen3_mcp.models import Response
 
     if url.endswith(SCHEMA_URL_PATH):
         # Full schema request - success
-        return ClientResponse(success=True, status_code=200, data=FULL_SCHEMA)
+        return Response(
+            status="success",
+            message="Successfully retrieved schema",
+            metadata={"status_code": 200},
+            data=FULL_SCHEMA,
+        )
     # For any other URL, return network error
-    return ClientResponse(
+    return Response(
         success=False, error_message="Network error", error_category="NETWORK"
     )
 
@@ -77,9 +82,9 @@ def mock_client():
 
     # Mock GraphQL responses with realistic data
     def mock_post_json_side_effect(url, **kwargs):
-        from gen3_mcp.models import ClientResponse
+        from gen3_mcp.models import Response
 
-        return ClientResponse(
+        return Response(
             success=True,
             status_code=200,
             data={
@@ -113,9 +118,16 @@ async def schema_manager(mock_client):
 
 
 @pytest.fixture
-async def schema_extract(schema_manager):
+async def schema_extract_response(schema_manager):
     """Schema extract fixture using SchemaManager"""
     return await schema_manager.get_schema_extract()
+
+
+@pytest.fixture
+async def schema_extract(schema_manager):
+    """Schema extract fixture using SchemaManager"""
+    response = await schema_manager.get_schema_extract()
+    return response.data
 
 
 @pytest.fixture

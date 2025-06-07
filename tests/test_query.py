@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from gen3_mcp.models import ClientResponse, ErrorCategory, QueryValidationResult
+from gen3_mcp.models import Response, ErrorCategory, Response
 from gen3_mcp.query import QueryService, get_query_service
 from gen3_mcp.schema import SchemaManager
 
@@ -30,7 +30,7 @@ class TestExecuteGraphQL:
         """Test successful GraphQL query execution"""
         # Clear the side_effect and set return_value
         query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = ClientResponse(
+        query_service.client.post_json.return_value = Response(
             success=True,
             status_code=200,
             data={
@@ -54,7 +54,7 @@ class TestExecuteGraphQL:
         """Test GraphQL execution with network error"""
         # Clear the side_effect and set return_value
         query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = ClientResponse(
+        query_service.client.post_json.return_value = Response(
             success=False,
             error_category=ErrorCategory.NETWORK,
             errors=["Network error: Connection timeout"],
@@ -71,7 +71,7 @@ class TestExecuteGraphQL:
         """Test GraphQL execution with HTTP 4xx error (bad query)"""
         # Clear the side_effect and set return_value
         query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = ClientResponse(
+        query_service.client.post_json.return_value = Response(
             success=False,
             status_code=400,
             error_category=ErrorCategory.HTTP_CLIENT,
@@ -93,7 +93,7 @@ class TestExecuteGraphQL:
         """Test GraphQL execution with HTTP 5xx error"""
         # Clear the side_effect and set return_value
         query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = ClientResponse(
+        query_service.client.post_json.return_value = Response(
             success=False,
             status_code=500,
             error_category=ErrorCategory.HTTP_SERVER,
@@ -111,7 +111,7 @@ class TestExecuteGraphQL:
         """Test successful HTTP but with GraphQL errors in response"""
         # Clear the side_effect and set return_value
         query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = ClientResponse(
+        query_service.client.post_json.return_value = Response(
             success=True,
             status_code=200,
             data={"data": None, "errors": ["Syntax error in query"]},
@@ -260,7 +260,7 @@ class TestValidateQuery:
     async def test_validate_query_success(self, query_service):
         """Test successful query validation"""
         # Mock the graphql_validator.validate_graphql function
-        mock_validation_result = QueryValidationResult(
+        mock_validation_result = Response(
             valid=True, query="{ subject { id } }"
         )
 
@@ -270,7 +270,7 @@ class TestValidateQuery:
             query = "{ subject { id } }"
             result = await query_service.validate_query(query)
 
-            assert isinstance(result, QueryValidationResult)
+            assert isinstance(result, Response)
             assert result.valid
             assert result.query == query
 
@@ -279,7 +279,7 @@ class TestValidateQuery:
         """Test query validation with errors"""
         from gen3_mcp.models import QueryValidationError
 
-        mock_validation_result = QueryValidationResult(
+        mock_validation_result = Response(
             valid=False,
             query="{ subject { invalid_field } }",
             errors=[
@@ -299,7 +299,7 @@ class TestValidateQuery:
             query = "{ subject { invalid_field } }"
             result = await query_service.validate_query(query)
 
-            assert isinstance(result, QueryValidationResult)
+            assert isinstance(result, Response)
             assert not result.valid
             assert len(result.errors) == 1
             assert result.errors[0].field == "invalid_field"
@@ -357,12 +357,12 @@ class TestIntegration:
         query = template_result["template"]
         # Mock validation success
         with patch("gen3_mcp.query.validate_graphql") as mock_validate:
-            mock_validate.return_value = QueryValidationResult(valid=True, query=query)
+            mock_validate.return_value = Response(valid=True, query=query)
             validation_result = await query_service.validate_query(query)
             assert validation_result.valid
 
         # 3. Execute the validated query
-        query_service.client.post_json.return_value = ClientResponse(
+        query_service.client.post_json.return_value = Response(
             success=True, status_code=200, data={"data": {"subject": [{"id": "123"}]}}
         )
         execution_result = await query_service.execute_graphql(query)

@@ -1,4 +1,4 @@
-"""Tests for Gen3Client and ClientResponse"""
+"""Tests for Gen3Client and Response"""
 
 from unittest.mock import AsyncMock, Mock
 
@@ -8,12 +8,12 @@ import pytest
 from gen3_mcp.client import Gen3Client
 from gen3_mcp.config import Config
 from gen3_mcp.exceptions import Gen3SchemaError
-from gen3_mcp.models import ClientResponse, ErrorCategory
+from gen3_mcp.models import Response, ErrorCategory
 from gen3_mcp.schema import SchemaManager
 
 
-class TestClientResponse:
-    """Test the ClientResponse model"""
+class TestResponse:
+    """Test the Response model"""
 
     @pytest.mark.parametrize(
         "test_case",
@@ -114,8 +114,8 @@ class TestClientResponse:
         ],
     )
     def test_client_response_creation(self, test_case):
-        """Test ClientResponse creation with various configurations"""
-        response = ClientResponse(**test_case["params"])
+        """Test Response creation with various configurations"""
+        response = Response(**test_case["params"])
 
         for attr, expected_value in test_case["expected"].items():
             actual_value = getattr(response, attr)
@@ -175,8 +175,8 @@ class TestGen3Client:
         # Test the request
         result = await client_with_mocks.get_json("https://test.gen3.io/schema")
 
-        assert isinstance(result, ClientResponse)
-        assert result.success
+        assert isinstance(result, Response)
+        assert result.is_success
         assert result.status_code == 200
         assert result.data == {"test": "data"}
         assert result.errors == []
@@ -305,8 +305,8 @@ class TestGen3Client:
         result = await getattr(client_with_mocks, method)(url, **kwargs)
 
         # Validate results
-        assert isinstance(result, ClientResponse)
-        assert not result.success
+        assert isinstance(result, Response)
+        assert not result.is_success
         assert result.error_category == expected["category"]
         assert result.status_code == expected["status_code"]
         assert any(expected["error_contains"] in error for error in result.errors)
@@ -327,8 +327,8 @@ class TestGen3Client:
             "https://test.gen3.io/graphql", json={"query": "{ test }"}
         )
 
-        assert isinstance(result, ClientResponse)
-        assert result.success
+        assert isinstance(result, Response)
+        assert result.is_success
         assert result.status_code == 200
         assert result.data == {"data": {"test": "result"}}
 
@@ -356,8 +356,8 @@ class TestGen3Client:
             "https://test.gen3.io/graphql", json={"query": "{ invalid }"}
         )
 
-        assert isinstance(result, ClientResponse)
-        assert not result.success
+        assert isinstance(result, Response)
+        assert not result.is_success
         assert result.status_code == 400
         assert result.error_category == ErrorCategory.HTTP_CLIENT
         assert result.data is not None  # Should include GraphQL error details
@@ -369,8 +369,8 @@ class TestClientIntegration:
 
     @pytest.mark.asyncio
     async def test_schema_manager_integration(self, schema_manager, test_schema):
-        """Test that SchemaManager still works with new ClientResponse interface"""
-        # This should work with the mocked ClientResponse from conftest.py
+        """Test that SchemaManager still works with new Response interface"""
+        # This should work with the mocked Response from conftest.py
         full_schema = await schema_manager.get_schema_full()
         assert full_schema == test_schema
 
@@ -380,11 +380,11 @@ class TestClientIntegration:
 
     @pytest.mark.asyncio
     async def test_schema_manager_error_handling(self, mock_client):
-        """Test error handling with new ClientResponse interface"""
+        """Test error handling with new Response interface"""
 
         # Clear side_effect and set return_value for error response
         mock_client.get_json.side_effect = None
-        mock_client.get_json.return_value = ClientResponse(
+        mock_client.get_json.return_value = Response(
             success=False,
             error_category=ErrorCategory.NETWORK,
             errors=["Connection timeout"],
@@ -397,7 +397,7 @@ class TestClientIntegration:
 
     @pytest.mark.asyncio
     async def test_query_service_integration(self, mock_client):
-        """Test that QueryService works with new ClientResponse interface"""
+        """Test that QueryService works with new Response interface"""
         from gen3_mcp.query import QueryService
 
         schema_manager = SchemaManager(mock_client)
