@@ -6,7 +6,7 @@ from functools import cache
 from .exceptions import ClientError, EntityError, GraphQLError
 from .graphql_validator import validate_graphql
 from .schema import SchemaManager
-from .utils import suggest_similar_strings_with_scores
+from .utils import suggest_similar_strings
 
 logger = logging.getLogger("gen3-mcp.query")
 
@@ -111,7 +111,7 @@ class QueryService:
 
         if entity_name not in schema_extract:
             # Suggest similar entity names
-            suggestions = suggest_similar_strings_with_scores(
+            suggestions = suggest_similar_strings(
                 entity_name,
                 set(schema_extract.keys()),
                 threshold=0.5,
@@ -122,7 +122,7 @@ class QueryService:
             raise EntityError(
                 f"Entity '{entity_name}' not found in schema",
                 suggestions=[
-                    f"Try '{suggestion['name']}' instead" for suggestion in suggestions
+                    f"Try '{suggestion}' instead" for suggestion in suggestions
                 ],
                 context={
                     "attempted_entity": entity_name,
