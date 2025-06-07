@@ -152,6 +152,17 @@ class Gen3Client:
             Response with success/error details and data. For successful
             requests, data contains the JSON response. For HTTP errors, data
             may contain server response details (like GraphQL errors).
+            
+        Raises:
+            No exceptions raised - all errors are caught and returned as Response objects.
+            However, the following exceptions are caught internally and converted to Response:
+            - Gen3ClientError: From ensure_valid_token() if authentication fails
+            - httpx.HTTPStatusError: HTTP 4xx/5xx responses
+            - httpx.ConnectError: Network connection failures  
+            - httpx.TimeoutException: Request timeouts
+            - httpx.NetworkError: General network issues
+            - ValueError: JSON parsing errors from response.json() or e.response.json()
+            - Exception: Any other unexpected errors
         """
         try:
             await self._auth_manager.ensure_valid_token()
@@ -286,5 +297,10 @@ class Gen3Client:
 
 @cache
 def get_client() -> Gen3Client:
-    """Get a cached Gen3Client instance."""
+    """Get a cached Gen3Client instance.
+    
+    Raises:
+        No exceptions raised directly.
+        May propagate exceptions from Config() initialization via get_config().
+    """
     return Gen3Client(get_config())

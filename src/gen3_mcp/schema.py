@@ -30,6 +30,9 @@ class SchemaManager:
 
         Args:
             client: Gen3Client instance for API calls.
+            
+        Raises:
+            No exceptions raised during initialization.
         """
         self.client = client
         # Access config through client
@@ -42,6 +45,12 @@ class SchemaManager:
         Returns:
             Response containing full schema dict with entity definitions,
             or error response if schema fetch fails.
+            
+        Raises:
+            No exceptions raised - all errors are caught and returned as Response objects.
+            However, propagates errors from client.get_json() which may include:
+            - Gen3ClientError: Authentication failures
+            - Network/HTTP errors (converted to Response by client)
         """
         cache_key = "full_schema"
 
@@ -83,6 +92,15 @@ class SchemaManager:
         Returns:
             Response containing SchemaExtract instance with entity definitions,
             relationships, and schema summary information.
+            
+        Raises:
+            No exceptions raised - all errors are caught and returned as Response objects.
+            May propagate errors from get_schema_full().
+            Internal processing in _create_extract() could theoretically raise:
+            - KeyError: If schema structure is unexpected
+            - ValueError: If FieldType enum conversion fails  
+            - Exception: Any other unexpected error during schema processing
+            (These would bubble up as Response errors)
         """
         cache_key = "extract"
 
@@ -125,6 +143,11 @@ class SchemaManager:
 
         Returns:
             SchemaExtract instance.
+            
+        Raises:
+            ValueError: If FieldType enum conversion fails for unknown property types
+            KeyError: If expected schema structure elements are missing
+            Exception: Any other unexpected error during schema processing
         """
         # Create new extract
         extract = SchemaExtract()
@@ -240,11 +263,19 @@ class SchemaManager:
         return extract
 
     def clear_cache(self):
-        """Clear all cached data. Useful for testing."""
+        """Clear all cached data. Useful for testing.
+        
+        Raises:
+            No exceptions raised.
+        """
         self._cache.clear()
 
 
 @cache
 def get_schema_manager() -> SchemaManager:
-    """Get a cached SchemaManager instance."""
+    """Get a cached SchemaManager instance.
+    
+    Raises:
+        May propagate exceptions from get_client() initialization chain.
+    """
     return SchemaManager(get_client())

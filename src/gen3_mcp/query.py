@@ -19,6 +19,9 @@ class QueryService:
 
         Args:
             schema_manager: SchemaManager instance for schema operations.
+            
+        Raises:
+            No exceptions raised during initialization.
         """
         self.schema_manager = schema_manager
         # Access client and config through schema_manager
@@ -33,6 +36,12 @@ class QueryService:
 
         Returns:
             Response with query results or error information.
+            
+        Raises:
+            No exceptions raised - all errors are caught and returned as Response objects.
+            Propagates errors from client.post_json() which may include:
+            - Gen3ClientError: Authentication failures
+            - Network/HTTP/GraphQL errors (converted to Response by client)
         """
         logger.info("Executing GraphQL query")
         logger.debug(f"Query: {query[:200]}{'...' if len(query) > 200 else ''}")
@@ -60,6 +69,14 @@ class QueryService:
 
         Returns:
             Response with template info or error information if entity doesn't exist.
+            
+        Raises:
+            No exceptions raised - all errors are caught and returned as Response objects.
+            May propagate errors from schema_manager.get_schema_extract().
+            Internal processing could theoretically raise:
+            - KeyError: If entity schema structure is unexpected
+            - IndexError: If list slicing operations fail unexpectedly
+            - Exception: Any other unexpected error during template generation
         """
         logger.info(f"Generating query template for {entity_name}")
 
@@ -166,6 +183,12 @@ class QueryService:
 
         Returns:
             Response with validation status, errors, and suggestions.
+            
+        Raises:
+            No exceptions raised - all errors are caught and returned as Response objects.
+            May propagate errors from:
+            - schema_manager.get_schema_extract()
+            - validate_graphql() function
         """
         logger.info("Validating GraphQL query")
 
@@ -185,6 +208,9 @@ def get_query_service() -> QueryService:
 
     Returns:
         QueryService instance with default dependencies.
+        
+    Raises:
+        May propagate exceptions from get_schema_manager() initialization chain.
     """
     from .schema import get_schema_manager
 

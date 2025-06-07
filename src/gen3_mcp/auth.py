@@ -24,6 +24,9 @@ class AuthManager:
         Args:
             config: Config instance with auth settings.
             http_client: Async HTTP client for API calls.
+            
+        Raises:
+            No exceptions raised during initialization.
         """
         self.config = config
         self.http_client = http_client
@@ -34,13 +37,23 @@ class AuthManager:
 
         Raises:
             Gen3ClientError: If credentials cannot be loaded or token refresh fails.
+                Wraps the following underlying exceptions:
+                - FileNotFoundError: Credentials file not found
+                - json.JSONDecodeError: Invalid JSON in credentials file  
+                - httpx.HTTPStatusError: HTTP error during token request
+                - KeyError: Missing access_token in response
+                - Exception: Any other unexpected error during token refresh
         """
         # Check if we need a new token
         if self._needs_token():
             await self._get_new_token()
 
     def _needs_token(self) -> bool:
-        """Check if we need to get a new token."""
+        """Check if we need to get a new token.
+        
+        Raises:
+            No exceptions raised.
+        """
         if self.token_expires_at is None:
             return True
 
@@ -55,6 +68,12 @@ class AuthManager:
 
         Raises:
             Gen3ClientError: If credentials cannot be loaded or token request fails.
+                Wraps the following underlying exceptions:
+                - FileNotFoundError: Credentials file not found (via _load_credentials)
+                - json.JSONDecodeError: Invalid JSON in credentials file (via _load_credentials)
+                - httpx.HTTPStatusError: HTTP error during token request
+                - KeyError: Missing access_token in response
+                - Exception: Any other unexpected error during token refresh
         """
         logger.debug("Getting new token")
 
@@ -99,6 +118,9 @@ class AuthManager:
 
         Raises:
             Gen3ClientError: If credentials file not found or contains invalid JSON.
+                Wraps the following underlying exceptions:
+                - FileNotFoundError: Credentials file not found
+                - json.JSONDecodeError: Invalid JSON in credentials file
         """
         logger.debug(f"Loading credentials from {self.config.credentials_file}")
 

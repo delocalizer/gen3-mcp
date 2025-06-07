@@ -19,6 +19,12 @@ def suggest_similar_strings(
 
     Returns:
         List of similar strings, sorted by similarity (highest first).
+        
+    Raises:
+        Could theoretically raise:
+        - TypeError: If target or candidates are not strings/iterables
+        - ValueError: If threshold is not numeric
+        (In practice, these would indicate programming errors)
     """
     from difflib import SequenceMatcher
 
@@ -49,6 +55,12 @@ def suggest_similar_strings_with_scores(
 
     Returns:
         List of dicts with 'name' and 'similarity' keys, sorted by similarity (highest first).
+        
+    Raises:
+        Could theoretically raise:
+        - TypeError: If target or candidates are not strings/iterables
+        - ValueError: If threshold is not numeric
+        (In practice, these would indicate programming errors)
     """
     from difflib import SequenceMatcher
 

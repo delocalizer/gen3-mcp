@@ -44,7 +44,11 @@ class GraphQLFieldExtractor(Visitor):
     """Extract field information with path context from GraphQL AST."""
 
     def __init__(self):
-        """Initialize GraphQLFieldExtractor."""
+        """Initialize GraphQLFieldExtractor.
+        
+        Raises:
+            No exceptions raised.
+        """
         super().__init__()
         self.entity_paths: dict[str, EntityPath] = {}
         self.path_stack: list[str] = []
@@ -55,6 +59,11 @@ class GraphQLFieldExtractor(Visitor):
         Args:
             node: GraphQL field node.
             *_: Unused visitor arguments.
+            
+        Raises:
+            No exceptions raised in normal operation.
+            Could theoretically raise:
+            - AttributeError: If node structure is unexpected
         """
         field_name = node.name.value
 
@@ -81,6 +90,11 @@ class GraphQLFieldExtractor(Visitor):
         Args:
             node: GraphQL field node.
             *_: Unused visitor arguments.
+            
+        Raises:
+            No exceptions raised in normal operation.
+            Could theoretically raise:
+            - IndexError: If path_stack is empty when popping (defensive programming issue)
         """
         if node.selection_set and self.path_stack:
             self.path_stack.pop()
@@ -95,6 +109,12 @@ def validate_graphql(query: str, schema: SchemaExtract) -> Response:
 
     Returns:
         Response with validation status and any errors found.
+        
+    Raises:
+        No exceptions raised - all errors are caught and returned as Response objects.
+        The following exceptions are caught internally and converted to Response:
+        - graphql.error.GraphQLSyntaxError: Invalid GraphQL syntax
+        - Exception: Any other unexpected errors during validation processing
     """
     logger.debug("Starting GraphQL validation")
 
@@ -175,6 +195,13 @@ def _validate_entity_path(
 
     Returns:
         List of validation errors.
+        
+    Raises:
+        Could theoretically raise:
+        - KeyError: If schema structure is unexpected
+        - IndexError: If path indexing fails
+        - AttributeError: If entity schema structure is malformed
+        (In practice, these would indicate bugs in schema processing)
     """
     logger.debug(f"Validating entity path: {'/'.join(entity_path.path)}")
     errors = []
@@ -257,6 +284,12 @@ def _validate_direct_entity_fields(
 
     Returns:
         List of validation errors.
+        
+    Raises:
+        Could theoretically raise:
+        - AttributeError: If entity_schema structure is unexpected
+        - TypeError: If field operations fail unexpectedly
+        (In practice, these would indicate bugs in schema processing)
     """
     errors = []
     all_valid_fields = set(entity_schema.fields) | set(entity_schema.relationships)
