@@ -5,7 +5,7 @@ from functools import cache
 from typing import Any
 
 from .client import Gen3Client, get_client
-from .exceptions import ClientError, SchemaError
+from .exceptions import ConfigError, ParseError
 from .models import (
     EntitySchema,
     EntitySummary,
@@ -46,7 +46,9 @@ class SchemaManager:
             Full schema dict with entity definitions.
 
         Raises:
-            ClientError: If schema fetch fails due to client/network issues.
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPStatusError: For HTTP errors during schema fetch.
+            httpx.RequestError: For network errors during schema fetch.
         """
         cache_key = "full_schema"
 
@@ -56,18 +58,12 @@ class SchemaManager:
 
         logger.info(f"Fetching full schema from {self.config.schema_url}")
 
-        try:
-            schema = await self.client.get_json(
-                self.config.schema_url, authenticated=False
-            )
-            logger.info("Fetched full schema")
-            self._cache[cache_key] = schema
-            return schema
-
-        except ClientError:
-            logger.error("Failed to fetch full schema due to client error")
-            # Re-raise ClientError as-is - it has the right context already
-            raise
+        schema = await self.client.get_json(
+            self.config.schema_url, authenticated=False
+        )
+        logger.info("Fetched full schema")
+        self._cache[cache_key] = schema
+        return schema
 
     async def get_schema_extract(self) -> SchemaExtract:
         """Get processed schema extract with relationships and annotations.
@@ -77,11 +73,10 @@ class SchemaManager:
             and schema summary information.
 
         Raises:
-            ClientError: If schema fetch fails due to client/network issues.
-            SchemaError: If schema processing fails.
-                Raised from the following underlying exceptions:
-                - ValueError: If FieldType enum conversion fails
-                - Exception: Any other unexpected error during schema processing
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPStatusError: For HTTP errors during schema fetch.
+            httpx.RequestError: For network errors during schema fetch.
+            ParseError: If schema processing fails due to unexpected schema format.
         """
         cache_key = "extract"
 
@@ -91,21 +86,15 @@ class SchemaManager:
 
         logger.info("Creating new schema extract")
 
-        try:
-            # Get the full schema (may raise ClientError)
-            schema = await self.get_schema_full()
+        # Get the full schema (may raise ConfigError, httpx errors)
+        schema = await self.get_schema_full()
 
-            # Process it (may raise SchemaError)
-            extract = self._create_extract(schema)
+        # Process it (may raise ParseError)
+        extract = self._create_extract(schema)
 
-            logger.info("Created new schema extract")
-            self._cache[cache_key] = extract
-            return extract
-
-        except SchemaError:
-            logger.error("Failed to create schema extract due to schema error")
-            # Re-raise SchemaError as-is - already has appropriate context
-            raise
+        logger.info("Created new schema extract")
+        self._cache[cache_key] = extract
+        return extract
 
     def _create_extract(self, full_schema: dict[str, Any]) -> SchemaExtract:
         """Create SchemaExtract from full schema dict.
@@ -117,11 +106,7 @@ class SchemaManager:
             SchemaExtract instance.
 
         Raises:
-            SchemaError: If schema processing fails.
-                Raised from the following underlying exceptions:
-                - ValueError: If FieldType enum conversion fails for unknown property types
-                - KeyError: If expected schema structure elements are missing
-                - Exception: Any other unexpected error during schema processing
+            ParseError: If schema processing fails due to unexpected schema format.
         """
         # Create new extract
         extract = SchemaExtract()
@@ -194,9 +179,19 @@ class SchemaManager:
                         fields[prop_name] = prop
 
                 except ValueError as e:
-                    raise SchemaError(
-                        f"Invalid property type '{prop_def['type']}' in entity '{entity_name}', property '{prop_name}'",
+                    raise ParseError(
+                        f"Unknown property type '{prop_def['type']}' in entity '{entity_name}', property '{prop_name}'",
                         errors=[str(e)],
+                        suggestions=[
+                            "Check if Gen3 schema format has changed",
+                            "Update parsing logic to handle new property types",
+                            "Contact system administrator about schema format"
+                        ],
+                        context={
+                            "entity_name": entity_name,
+                            "property_name": prop_name,
+                            "property_type": prop_def.get('type', 'unknown')
+                        }
                     ) from e
 
             extract[entity_name] = EntitySchema(

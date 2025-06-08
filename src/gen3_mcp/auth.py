@@ -10,7 +10,7 @@ import httpx
 
 from .config import Config
 from .consts import DEFAULT_TOKEN_EXPIRY_SECONDS, TOKEN_REFRESH_BUFFER_MINUTES
-from .exceptions import ClientError
+from .exceptions import ConfigError, Gen3MCPError
 
 logger = logging.getLogger("gen3-mcp.auth")
 
@@ -36,13 +36,9 @@ class AuthManager:
         """Ensure we have a valid token, refreshing if necessary.
 
         Raises:
-            ClientError: If credentials cannot be loaded or token refresh fails.
-                Raised from the following underlying exceptions:
-                - FileNotFoundError: Credentials file not found
-                - json.JSONDecodeError: Invalid JSON in credentials file
-                - httpx.HTTPStatusError: HTTP error during token request
-                - KeyError: Missing access_token in response
-                - Exception: Any other unexpected error during token refresh
+            ConfigError: If credentials cannot be loaded.
+            httpx.HTTPStatusError: If HTTP errors occur during token request.
+            Gen3MCPError: If auth server response format is unexpected.
         """
         # Check if we need a new token
         if self._needs_token():
@@ -67,13 +63,9 @@ class AuthManager:
         """Get a new access token.
 
         Raises:
-            ClientError: If credentials cannot be loaded or token request fails.
-                Raised from the following underlying exceptions:
-                - FileNotFoundError: Credentials file not found (via _load_credentials)
-                - json.JSONDecodeError: Invalid JSON in credentials file (via _load_credentials)
-                - httpx.HTTPStatusError: HTTP error during token request
-                - KeyError: Missing access_token in response
-                - Exception: Any other unexpected error during token refresh
+            ConfigError: If credentials cannot be loaded.
+            httpx.HTTPStatusError: If HTTP errors occur during token request.
+            Gen3MCPError: If auth server response format is unexpected.
         """
         logger.debug("Getting new token")
 
@@ -98,25 +90,21 @@ class AuthManager:
 
             logger.info("Token obtained successfully")
 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error during token request: {e.response.status_code}")
-            raise ClientError(
-                f"HTTP error during token request: {e.response.status_code}",
-                context={
-                    "status_code": e.response.status_code,
-                    "method": e.request.method,
-                    "url": str(e.response.url),
-                    "response_body": e.response.json(),
-                },
-            ) from e
         except KeyError as e:
             logger.error("Missing access_token in response")
-            raise ClientError(
-                "Missing access_token in response", errors=[f"Missing key: {e}"]
+            raise Gen3MCPError(
+                "Auth server returned response without access_token",
+                errors=[f"Missing required field: {e}"],
+                suggestions=[
+                    "This may indicate an auth server bug or API change",
+                    "Contact system administrator",
+                    "Check if auth server implementation has changed"
+                ],
+                context={
+                    "auth_url": self.config.auth_url,
+                    "response_keys": list(token_data.keys()) if 'token_data' in locals() else []
+                }
             ) from e
-        except Exception as e:
-            logger.error(f"Failed to get token: {e}")
-            raise ClientError(f"Failed to get token: {e}", errors=[str(e)]) from e
 
     def _load_credentials(self) -> dict[str, Any]:
         """Load credentials from file.
@@ -125,10 +113,7 @@ class AuthManager:
             Credentials dictionary.
 
         Raises:
-            ClientError: If credentials file not found or contains invalid JSON.
-                Raised from the following underlying exceptions:
-                - FileNotFoundError: Credentials file not found
-                - json.JSONDecodeError: Invalid JSON in credentials file
+            ConfigError: If credentials file not found or contains invalid JSON.
         """
         logger.debug(f"Loading credentials from {self.config.credentials_file}")
 
@@ -141,14 +126,30 @@ class AuthManager:
 
         except FileNotFoundError as e:
             logger.error(f"Credentials file not found: {self.config.credentials_file}")
-            raise ClientError(
-                f"Credentials file not found: {self.config.credentials_file}"
+            raise ConfigError(
+                f"Credentials file not found: {self.config.credentials_file}",
+                suggestions=[
+                    f"Create credentials file at {self.config.credentials_file}",
+                    "Check file path configuration",
+                    "Ensure file exists and is readable"
+                ],
+                context={"credentials_path": self.config.credentials_file}
             ) from e
         except json.JSONDecodeError as e:
             logger.error(
                 f"Invalid JSON in credentials file: {self.config.credentials_file}"
             )
-            raise ClientError(
+            raise ConfigError(
                 f"Invalid JSON in credentials file: {self.config.credentials_file}",
                 errors=[f"JSON error: {e.msg} at line {e.lineno}, column {e.colno}"],
+                suggestions=[
+                    "Fix JSON syntax in credentials file",
+                    "Validate JSON format with a JSON checker", 
+                    "Ensure all quotes and brackets are properly closed"
+                ],
+                context={
+                    "credentials_path": self.config.credentials_file,
+                    "json_error_line": e.lineno,
+                    "json_error_column": e.colno
+                }
             ) from e

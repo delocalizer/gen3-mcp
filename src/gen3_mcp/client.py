@@ -9,7 +9,6 @@ import httpx
 from .auth import AuthManager
 from .config import Config, get_config
 from .consts import USER_AGENT
-from .exceptions import ClientError
 
 logger = logging.getLogger("gen3-mcp.client")
 
@@ -45,41 +44,19 @@ class Gen3Client:
             Parsed JSON data.
 
         Raises:
-            ClientError: For all HTTP, network, and JSON parsing errors.
-                Raised from the following underlying exceptions:
-                - httpx.HTTPStatusError: HTTP 4xx/5xx responses
-                - httpx.RequestError (Network error, timeouts etc)
-                - ValueError: JSON parsing errors from response.json()
-                - Exception: Any other unexpected errors
+            ConfigError: From auth if there is a config issue.
+            Gen3MCPError: From auth if server response format unexpected.
+            httpx.HTTPStatusError: For HTTP 4xx/5xx responses.
+            httpx.RequestError: For network errors, timeouts, DNS failures.
         """
-        try:
-            if authenticated:
-                await self._auth_manager.ensure_valid_token()
+        if authenticated:
+            await self._auth_manager.ensure_valid_token()
 
-            logger.debug(f"GET {url}")
-            response = await self._http_client.get(url, **kwargs)
-            response.raise_for_status()
-            data = response.json()
-            logger.debug(f"GET {url} successful")
-            return data
-
-        # e.g. from failed ensure_valid_token
-        except ClientError:
-            raise
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error for GET {url}: {e.response.status_code}")
-            raise ClientError(
-                f"HTTP request failed with status {e.response.status_code}",
-                context={
-                    "status_code": e.response.status_code,
-                    "method": e.request.method,
-                    "url": str(e.response.url),
-                    "response_body": e.response.json(),
-                },
-            ) from e
-        except Exception as e:
-            logger.error(f"GET {url} failed: {e}")
-            raise ClientError(f"GET {url} failed: {e}", errors=[str(e)]) from e
+        logger.debug(f"GET {url}")
+        response = await self._http_client.get(url, **kwargs)
+        response.raise_for_status()
+        logger.debug(f"GET {url} successful")
+        return response.json()
 
     async def post_json(self, url: str, **kwargs) -> Any:
         """Post JSON to URL.
@@ -92,40 +69,18 @@ class Gen3Client:
             Parsed JSON response data.
 
         Raises:
-            ClientError: For all HTTP, network, and JSON parsing errors.
-                Raised from the following underlying exceptions:
-                - httpx.HTTPStatusError: HTTP 4xx/5xx responses
-                - httpx.RequestError (Network error, timeouts etc)
-                - ValueError: JSON parsing errors from response.json()
-                - Exception: Any other unexpected errors
+            ConfigError: From auth if there is a config issue.
+            Gen3MCPError: From auth if server response format unexpected.
+            httpx.HTTPStatusError: For HTTP 4xx/5xx responses.
+            httpx.RequestError: For network errors, timeouts, DNS failures.
         """
-        try:
-            await self._auth_manager.ensure_valid_token()
+        await self._auth_manager.ensure_valid_token()
 
-            logger.debug(f"POST {url}")
-            response = await self._http_client.post(url, **kwargs)
-            response.raise_for_status()
-            data = response.json()
-            logger.debug(f"POST {url} successful")
-            return data
-
-        # e.g. from failed ensure_valid_token
-        except ClientError:
-            raise
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error for POST {url}: {e.response.status_code}")
-            raise ClientError(
-                f"HTTP request failed with status {e.response.status_code}",
-                context={
-                    "status_code": e.response.status_code,
-                    "method": e.request.method,
-                    "url": str(e.response.url),
-                    "response_body": e.response.json(),
-                },
-            ) from e
-        except Exception as e:
-            logger.error(f"POST {url} failed: {e}")
-            raise ClientError(f"POST {url} failed: {e}", errors=[str(e)]) from e
+        logger.debug(f"POST {url}")
+        response = await self._http_client.post(url, **kwargs)
+        response.raise_for_status()
+        logger.debug(f"POST {url} successful")
+        return response.json()
 
 
 @cache

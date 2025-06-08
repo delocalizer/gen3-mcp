@@ -3,7 +3,9 @@
 import logging
 from functools import cache
 
-from .exceptions import ClientError, EntityError, GraphQLError
+import httpx
+
+from .exceptions import ConfigError, NoSuchEntityError, GraphQLError, ParseError
 from .graphql_validator import validate_graphql
 from .schema import SchemaManager
 from .utils import suggest_similar_strings
@@ -38,7 +40,9 @@ class QueryService:
             Query results data from GraphQL endpoint.
 
         Raises:
-            ClientError: For network/HTTP/auth failures.
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPStatusError: For HTTP errors during GraphQL execution.
+            httpx.RequestError: For network errors during GraphQL execution.
             GraphQLError: For GraphQL validation/execution failures.
         """
         logger.info("Executing GraphQL query")
@@ -52,7 +56,7 @@ class QueryService:
             logger.debug("GraphQL query executed successfully")
             return data
 
-        except ClientError as e:
+        except httpx.HTTPStatusError as e:
             # Check if this is a GraphQL validation error (HTTP 400 with GraphQL errors)
             # Gen3 GraphQL error response format:
             # {
@@ -61,29 +65,38 @@ class QueryService:
             #     "Cannot query field \"demographic\" on type \"subject\"."
             #   ]
             # }
-            if e.context.get("status_code") == 400:
-                response_data = e.context.get("response_body", {})
-                if isinstance(response_data, dict) and "errors" in response_data:
-                    # Gen3 returns errors as a list of strings:
-                    # {"data": null, "errors": ["Cannot query field \"demographic\" on type \"subject\"."]}
-                    errors_list = response_data["errors"]
-                    if isinstance(errors_list, list):
-                        graphql_errors = [
-                            err if isinstance(err, str) else str(err)
-                            for err in errors_list
-                        ]
-                        raise GraphQLError(
-                            "GraphQL query execution failed",
-                            errors=graphql_errors,
-                            suggestions=[
-                                "Use validate_query() before executing",
-                                "Check field names against schema",
-                                "Verify entity relationships exist",
-                            ],
-                            context={"query": query[:200], **e.context},
-                        ) from e
-
-            # Not a GraphQL error, re-raise ClientError as-is
+            if e.response.status_code == 400:
+                try:
+                    response_data = e.response.json()
+                    if isinstance(response_data, dict) and "errors" in response_data:
+                        # Gen3 returns errors as a list of strings:
+                        # {"data": null, "errors": ["Cannot query field \"demographic\" on type \"subject\"."]}
+                        errors_list = response_data["errors"]
+                        if isinstance(errors_list, list):
+                            graphql_errors = [
+                                err if isinstance(err, str) else str(err)
+                                for err in errors_list
+                            ]
+                            raise GraphQLError(
+                                "GraphQL query execution failed",
+                                errors=graphql_errors,
+                                suggestions=[
+                                    "Use validate_query() before executing",
+                                    "Check field names against schema",
+                                    "Verify entity relationships exist",
+                                ],
+                                context={
+                                    "query": query[:200],
+                                    "status_code": e.response.status_code,
+                                    "method": e.request.method,
+                                    "url": str(e.response.url)
+                                }
+                            ) from e
+                except Exception:
+                    # If we can't parse the response, just let the original HTTP error bubble
+                    pass
+            
+            # Not a GraphQL error or couldn't parse response, re-raise HTTP error as-is
             raise
 
     async def generate_query_template(
@@ -100,13 +113,15 @@ class QueryService:
             Template data with entity_name, template, and generation parameters.
 
         Raises:
-            ClientError: If schema fetch fails due to client/network issues.
-            SchemaError: If schema processing fails.
-            EntityError: If entity doesn't exist in schema.
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPStatusError: For HTTP errors during schema fetch.
+            httpx.RequestError: For network errors during schema fetch.
+            ParseError: If schema processing fails.
+            NoSuchEntityError: If entity doesn't exist in schema.
         """
         logger.info(f"Generating query template for {entity_name}")
 
-        # Get schema extract (may raise ClientError or SchemaError)
+        # Get schema extract (may raise ConfigError, httpx errors, or ParseError)
         schema_extract = await self.schema_manager.get_schema_extract()
 
         if entity_name not in schema_extract:
@@ -119,7 +134,7 @@ class QueryService:
             )
 
             logger.warning(f"Entity '{entity_name}' not found")
-            raise EntityError(
+            raise NoSuchEntityError(
                 f"Entity '{entity_name}' not found in schema",
                 suggestions=[
                     f"Try '{suggestion}' instead" for suggestion in suggestions
@@ -189,13 +204,15 @@ class QueryService:
             appropriate response objects as needed.
 
         Raises:
-            ClientError: If schema fetch fails due to client/network issues.
-            SchemaError: If schema processing fails.
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPStatusError: For HTTP errors during schema fetch.
+            httpx.RequestError: For network errors during schema fetch.
+            ParseError: If schema processing fails.
             GraphQLError: If query validation fails.
         """
         logger.info("Validating GraphQL query")
 
-        # Get schema extract (may raise ClientError or SchemaError)
+        # Get schema extract (may raise ConfigError, httpx errors, or ParseError)
         schema_extract = await self.schema_manager.get_schema_extract()
 
         # Validate using the graphql_validator function
