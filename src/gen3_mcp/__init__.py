@@ -8,9 +8,11 @@ from .client import Gen3Client, get_client
 from .config import Config, get_config
 from .consts import PACKAGE_VERSION
 from .exceptions import (
-    Gen3ClientError,
+    ConfigError,
     Gen3MCPError,
-    Gen3SchemaError,
+    GraphQLError,
+    NoSuchEntityError,
+    ParseError,
 )
 from .query import QueryService, get_query_service
 from .schema import SchemaManager, get_schema_manager
@@ -28,6 +30,8 @@ __all__ = [
     "SchemaManager",
     "QueryService",
     "Gen3MCPError",
-    "Gen3ClientError",
-    "Gen3SchemaError",
+    "ParseError",
+    "ConfigError",
+    "NoSuchEntityError",
+    "GraphQLError",
 ]

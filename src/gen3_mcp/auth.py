@@ -98,12 +98,14 @@ class AuthManager:
                 suggestions=[
                     "This may indicate an auth server bug or API change",
                     "Contact system administrator",
-                    "Check if auth server implementation has changed"
+                    "Check if auth server implementation has changed",
                 ],
                 context={
                     "auth_url": self.config.auth_url,
-                    "response_keys": list(token_data.keys()) if 'token_data' in locals() else []
-                }
+                    "response_keys": (
+                        list(token_data.keys()) if "token_data" in locals() else []
+                    ),
+                },
             ) from e
 
     def _load_credentials(self) -> dict[str, Any]:
@@ -124,16 +126,18 @@ class AuthManager:
             logger.debug("Credentials loaded successfully")
             return credentials
 
-        except FileNotFoundError as e:
-            logger.error(f"Credentials file not found: {self.config.credentials_file}")
+        except (FileNotFoundError, PermissionError) as e:
+            logger.error(
+                f"Credentials file not found or not readable: {self.config.credentials_file}"
+            )
             raise ConfigError(
-                f"Credentials file not found: {self.config.credentials_file}",
+                f"Credentials file not found or not readable: {self.config.credentials_file}",
                 suggestions=[
                     f"Create credentials file at {self.config.credentials_file}",
                     "Check file path configuration",
-                    "Ensure file exists and is readable"
+                    "Ensure file exists and is readable",
                 ],
-                context={"credentials_path": self.config.credentials_file}
+                context={"credentials_path": self.config.credentials_file},
             ) from e
         except json.JSONDecodeError as e:
             logger.error(
@@ -144,12 +148,12 @@ class AuthManager:
                 errors=[f"JSON error: {e.msg} at line {e.lineno}, column {e.colno}"],
                 suggestions=[
                     "Fix JSON syntax in credentials file",
-                    "Validate JSON format with a JSON checker", 
-                    "Ensure all quotes and brackets are properly closed"
+                    "Validate JSON format with a JSON checker",
+                    "Ensure all quotes and brackets are properly closed",
                 ],
                 context={
                     "credentials_path": self.config.credentials_file,
                     "json_error_line": e.lineno,
-                    "json_error_column": e.colno
-                }
+                    "json_error_column": e.colno,
+                },
             ) from e

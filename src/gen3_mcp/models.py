@@ -1,26 +1,10 @@
 from enum import StrEnum
 from typing import Any, Literal
 
+import httpx
 from pydantic import BaseModel, Field, computed_field
 
 from .exceptions import Gen3MCPError
-
-# =============================================================================
-# ERROR CATEGORIZATION
-# =============================================================================
-
-
-class ErrorCategory(StrEnum):
-    """Categories of errors that can occur during operations."""
-
-    NETWORK = "NETWORK"  # Connection errors, timeouts, DNS failures
-    HTTP_SERVER = "HTTP_SERVER"  # 5xx errors (server errors)
-    HTTP_CLIENT = "HTTP_CLIENT"  # 4xx errors (client errors)
-    JSON_PARSE = "JSON_PARSE"  # Response isn't valid JSON
-    SCHEMA = "SCHEMA"  # Schema processing errors
-    GRAPHQL = "GRAPHQL"  # GraphQL validation or execution errors
-    OTHER = "OTHER"  # Any other unexpected errors
-
 
 # =============================================================================
 # UNIFIED RESPONSE MODEL
@@ -49,34 +33,87 @@ class Response(BaseModel):
         None, description="Additional context and domain-specific information"
     )
 
-    # Utility properties
-    @property
-    def is_success(self) -> bool:
-        """Check if response indicates success."""
-        return self.status == "success"
-
-    @property
-    def is_error(self) -> bool:
-        """Check if response indicates error."""
-        return self.status == "error"
-
     @classmethod
-    def from_error(cls, error: Gen3MCPError) -> "Response":
-        """Create Response from Gen3MCPError.
+    def from_error(cls, error: Exception) -> "Response":
+        """Create Response from any Exception, with potentially helpful info for recovery.
 
         Args:
-            error: Gen3MCPError instance
+            error: Any Exception instance
 
         Returns:
             Response object with error details
         """
-        return cls(
-            status="error",
-            message=error.message,
-            errors=error.errors,
-            suggestions=error.suggestions,
-            metadata={**error.context, "exception_type": type(error).__name__},
-        )
+        if isinstance(error, Gen3MCPError):
+            # Use rich context from Gen3MCPError
+            return cls(
+                status="error",
+                message=error.message,
+                errors=error.errors,
+                suggestions=error.suggestions,
+                metadata={**error.context, "exception_type": type(error).__name__},
+            )
+        else:
+            # Handle specific library exceptions
+            if isinstance(error, httpx.HTTPStatusError):
+                # HTTP errors get user-friendly messaging
+                status_code = error.response.status_code
+                if status_code >= 500:
+                    message = f"Gen3 server error ({status_code}): {str(error)}"
+                    suggestions = []
+                elif status_code == 401:
+                    message = f"Authentication failed ({status_code}): {str(error)}"
+                    suggestions = [
+                        "Verify your credentials file is correct",
+                    ]
+                elif status_code == 404:
+                    message = f"Resource not found ({status_code}): {str(error)}"
+                    suggestions = [
+                        "Check your Gen3 endpoint configuration",
+                    ]
+                else:
+                    message = f"HTTP error ({status_code}): {str(error)}"
+                    suggestions = ["Check the request and try again"]
+
+                return cls(
+                    status="error",
+                    message=message,
+                    errors=[str(error)],
+                    suggestions=suggestions,
+                    metadata={
+                        "exception_type": type(error).__name__,
+                        "status_code": status_code,
+                        "url": str(error.response.url),
+                    },
+                )
+            elif isinstance(error, httpx.RequestError):
+                # Network/connection errors
+                metadata = {"exception_type": type(error).__name__}
+                if hasattr(error, "request") and hasattr(error.request, "url"):
+                    metadata["url"] = str(error.request.url)
+
+                return cls(
+                    status="error",
+                    message=f"Network error: {str(error)}",
+                    errors=[str(error)],
+                    suggestions=[
+                        "Check your internet connection",
+                        "Verify the Gen3 endpoint URL is correct",
+                        "Try again - this may be a temporary network issue",
+                    ],
+                    metadata=metadata,
+                )
+            else:
+                # Generic exception handling
+                return cls(
+                    status="error",
+                    message=f"Unexpected error: {str(error)}",
+                    errors=[str(error)],
+                    suggestions=[
+                        "Check server logs for detailed information",
+                        "Try again - this may be a temporary issue",
+                    ],
+                    metadata={"exception_type": type(error).__name__},
+                )
 
 
 # =============================================================================
@@ -180,3 +217,17 @@ class SchemaExtract(dict[str, EntitySchema]):
     def to_json(self) -> dict[str, dict]:
         """Convert to JSON-serializable dict."""
         return {k: v.model_dump() for k, v in self.items()}
+
+    def to_summary_json(self) -> dict[str, dict]:
+        """Convert to JSON-serializable dict without field details for conciseness.
+
+        Fields are omitted from the summary to keep the response size manageable
+        for MCP transport. Use get_schema_entity() to retrieve detailed field
+        information for specific entities.
+        """
+        result = {}
+        for k, v in self.items():
+            entity_data = v.model_dump()
+            entity_data.pop("fields", None)  # Remove fields key entirely
+            result[k] = entity_data
+        return result

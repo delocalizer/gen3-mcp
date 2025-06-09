@@ -5,7 +5,7 @@ from functools import cache
 
 import httpx
 
-from .exceptions import ConfigError, NoSuchEntityError, GraphQLError, ParseError
+from .exceptions import GraphQLError, NoSuchEntityError
 from .graphql_validator import validate_graphql
 from .schema import SchemaManager
 from .utils import suggest_similar_strings
@@ -41,8 +41,7 @@ class QueryService:
 
         Raises:
             ConfigError: From auth if there is a config issue.
-            httpx.HTTPStatusError: For HTTP errors during GraphQL execution.
-            httpx.RequestError: For network errors during GraphQL execution.
+            httpx.HTTPError: For HTTP/network errors during GraphQL execution.
             GraphQLError: For GraphQL validation/execution failures.
         """
         logger.info("Executing GraphQL query")
@@ -66,37 +65,27 @@ class QueryService:
             #   ]
             # }
             if e.response.status_code == 400:
-                try:
-                    response_data = e.response.json()
-                    if isinstance(response_data, dict) and "errors" in response_data:
-                        # Gen3 returns errors as a list of strings:
-                        # {"data": null, "errors": ["Cannot query field \"demographic\" on type \"subject\"."]}
-                        errors_list = response_data["errors"]
-                        if isinstance(errors_list, list):
-                            graphql_errors = [
-                                err if isinstance(err, str) else str(err)
-                                for err in errors_list
-                            ]
-                            raise GraphQLError(
-                                "GraphQL query execution failed",
-                                errors=graphql_errors,
-                                suggestions=[
-                                    "Use validate_query() before executing",
-                                    "Check field names against schema",
-                                    "Verify entity relationships exist",
-                                ],
-                                context={
-                                    "query": query[:200],
-                                    "status_code": e.response.status_code,
-                                    "method": e.request.method,
-                                    "url": str(e.response.url)
-                                }
-                            ) from e
-                except Exception:
-                    # If we can't parse the response, just let the original HTTP error bubble
-                    pass
-            
-            # Not a GraphQL error or couldn't parse response, re-raise HTTP error as-is
+                response_data = e.response.json()
+                if "errors" in response_data:
+                    # Gen3 returns errors as a list of strings
+                    graphql_errors = response_data["errors"]
+                    raise GraphQLError(
+                        "GraphQL query execution failed",
+                        errors=graphql_errors,
+                        suggestions=[
+                            "Use validate_query() before executing",
+                            "Check field names against schema",
+                            "Verify entity relationships exist",
+                        ],
+                        context={
+                            "query": query,
+                            "status_code": e.response.status_code,
+                            "method": e.request.method,
+                            "url": str(e.response.url),
+                        },
+                    ) from e
+
+            # Not a GraphQL error, re-raise HTTP error as-is
             raise
 
     async def generate_query_template(
@@ -114,8 +103,7 @@ class QueryService:
 
         Raises:
             ConfigError: From auth if there is a config issue.
-            httpx.HTTPStatusError: For HTTP errors during schema fetch.
-            httpx.RequestError: For network errors during schema fetch.
+            httpx.HTTPError: For HTTP/network errors during API calls.
             ParseError: If schema processing fails.
             NoSuchEntityError: If entity doesn't exist in schema.
         """
@@ -205,8 +193,7 @@ class QueryService:
 
         Raises:
             ConfigError: From auth if there is a config issue.
-            httpx.HTTPStatusError: For HTTP errors during schema fetch.
-            httpx.RequestError: For network errors during schema fetch.
+            httpx.HTTPError: For HTTP/network errors during API calls.
             ParseError: If schema processing fails.
             GraphQLError: If query validation fails.
         """

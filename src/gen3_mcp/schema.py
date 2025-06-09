@@ -5,7 +5,7 @@ from functools import cache
 from typing import Any
 
 from .client import Gen3Client, get_client
-from .exceptions import ConfigError, ParseError
+from .exceptions import NoSuchEntityError, ParseError
 from .models import (
     EntitySchema,
     EntitySummary,
@@ -47,8 +47,7 @@ class SchemaManager:
 
         Raises:
             ConfigError: From auth if there is a config issue.
-            httpx.HTTPStatusError: For HTTP errors during schema fetch.
-            httpx.RequestError: For network errors during schema fetch.
+            httpx.HTTPError: For HTTP/network errors during schema fetch.
         """
         cache_key = "full_schema"
 
@@ -58,9 +57,7 @@ class SchemaManager:
 
         logger.info(f"Fetching full schema from {self.config.schema_url}")
 
-        schema = await self.client.get_json(
-            self.config.schema_url, authenticated=False
-        )
+        schema = await self.client.get_json(self.config.schema_url, authenticated=False)
         logger.info("Fetched full schema")
         self._cache[cache_key] = schema
         return schema
@@ -74,8 +71,7 @@ class SchemaManager:
 
         Raises:
             ConfigError: From auth if there is a config issue.
-            httpx.HTTPStatusError: For HTTP errors during schema fetch.
-            httpx.RequestError: For network errors during schema fetch.
+            httpx.HTTPError: For HTTP/network errors during schema fetch.
             ParseError: If schema processing fails due to unexpected schema format.
         """
         cache_key = "extract"
@@ -95,6 +91,47 @@ class SchemaManager:
         logger.info("Created new schema extract")
         self._cache[cache_key] = extract
         return extract
+
+    async def get_entity(self, entity_name: str) -> EntitySchema:
+        """Get a specific entity from the schema extract.
+
+        Args:
+            entity_name: Name of the entity to retrieve.
+
+        Returns:
+            EntitySchema instance for the requested entity.
+
+        Raises:
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPError: For HTTP/network errors during schema fetch.
+            ParseError: If schema processing fails due to unexpected schema format.
+            NoSuchEntityError: If entity doesn't exist in schema.
+        """
+        # Get the full schema extract (may raise ConfigError, httpx errors, or ParseError)
+        schema_extract = await self.get_schema_extract()
+
+        if entity_name not in schema_extract:
+            from .utils import suggest_similar_strings
+
+            suggestions = suggest_similar_strings(
+                entity_name,
+                set(schema_extract.keys()),
+                threshold=0.5,
+                max_results=3,
+            )
+
+            raise NoSuchEntityError(
+                f"Entity '{entity_name}' not found in schema",
+                suggestions=[
+                    f"Try '{suggestion}' instead" for suggestion in suggestions
+                ],
+                context={
+                    "attempted_entity": entity_name,
+                    "available_suggestions": suggestions,
+                },
+            )
+
+        return schema_extract[entity_name]
 
     def _create_extract(self, full_schema: dict[str, Any]) -> SchemaExtract:
         """Create SchemaExtract from full schema dict.
@@ -185,13 +222,13 @@ class SchemaManager:
                         suggestions=[
                             "Check if Gen3 schema format has changed",
                             "Update parsing logic to handle new property types",
-                            "Contact system administrator about schema format"
+                            "Contact system administrator about schema format",
                         ],
                         context={
                             "entity_name": entity_name,
                             "property_name": prop_name,
-                            "property_type": prop_def.get('type', 'unknown')
-                        }
+                            "property_type": prop_def.get("type", "unknown"),
+                        },
                     ) from e
 
             extract[entity_name] = EntitySchema(
