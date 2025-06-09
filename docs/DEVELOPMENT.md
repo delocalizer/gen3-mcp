@@ -25,31 +25,38 @@ mypy src/
 
 ## Project Architecture
 
+### Design Principles
+
+This project follows [awslabs MCP design guidelines](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
+
 ### Core Components
 
-- **`main.py`** - MCP server setup and tool definitions
+- **`server.py`** - MCP server setup and tool definitions
 - **`client.py`** - Gen3 HTTP client
-- **`data.py`** - Gen3 data operations and schema caching
+- **`schema.py`** - Gen3 schema operations
 - **`query.py`** - GraphQL validation and execution
+- **`models.py`** - Pydantic domain models
 - **`config.py`** - Configuration management
 
 ### Project Structure
 
 ```
 gen3-mcp/
-├── src/gen3_mcp/           # Main package
-│   ├── __init__.py         # Package exports
-│   ├── main.py             # MCP server & tool definitions
-│   ├── client.py           # Gen3 HTTP client
-│   ├── auth.py             # Authentication management
-│   ├── data.py             # Gen3 data service operations
-│   ├── query.py            # GraphQL operations & validation
-│   ├── graphql_parser.py   # GraphQL AST parsing
-│   ├── config.py           # Configuration management
-│   └── exceptions.py       # Custom exceptions
-├── tests/                  # Test suite
-├── docs/                   # Documentation
-└── pyproject.toml          # Project configuration
+├── src/gen3_mcp
+│   ├── auth.py              # Token management
+│   ├── client.py            # Gen3 HTTP client
+│   ├── config.py            # Configuration management
+│   ├── consts.py            # Constants
+│   ├── exceptions.py        # Custom Exceptions
+│   ├── graphql_validator.py # GraphQL query validation
+│   ├── models.py            # Domain models
+│   ├── query.py             # GraphQL operations
+│   ├── schema.py            # Gen3 schema operations
+│   ├── server.py            # MCP server & tool defs
+│   └── utils.py             # Package utilities
+├── tests/                   # Test suite
+├── docs/                    # Documentation
+└── pyproject.toml           # Project configuration
 ```
 
 ### Testing

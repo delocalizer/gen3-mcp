@@ -1,13 +1,14 @@
 """GraphQL Query service for validation, building, and execution."""
 
 import logging
-from typing import Any
+from functools import cache
 
-from .client import Gen3Client
-from .config import Gen3Config
+import httpx
+
+from .exceptions import GraphQLError, NoSuchEntityError
 from .graphql_validator import validate_graphql
-from .schema import SchemaService
-from .schema_extract import SchemaExtract
+from .schema import SchemaManager
+from .utils import suggest_similar_strings
 
 logger = logging.getLogger("gen3-mcp.query")
 
@@ -15,71 +16,81 @@ logger = logging.getLogger("gen3-mcp.query")
 class QueryService:
     """Query operations: validation, building, and execution."""
 
-    def __init__(
-        self, client: Gen3Client, config: Gen3Config, gen3_service: SchemaService
-    ):
+    def __init__(self, schema_manager: SchemaManager):
         """Initialize QueryService.
 
         Args:
-            client: Gen3Client instance for API calls.
-            config: Gen3Config instance with settings.
-            gen3_service: SchemaService instance for schema operations.
-        """
-        self.client = client
-        self.config = config
-        self.gen3_service = gen3_service
-        self._schema_extract: SchemaExtract | None = None
+            schema_manager: SchemaManager instance for schema operations.
 
-    async def execute_graphql(self, query: str) -> dict[str, Any] | None:
+        Raises:
+            No exceptions raised during initialization.
+        """
+        self.schema_manager = schema_manager
+        # Access client and config through schema_manager
+        self.client = schema_manager.client
+        self.config = schema_manager.client.config
+
+    async def execute_graphql(self, query: str) -> dict:
         """Execute GraphQL query.
 
         Args:
             query: GraphQL query string.
 
         Returns:
-            Query results dict or None if execution fails. May include errors
-            and suggestions for fixing them.
+            Query results data from GraphQL endpoint.
+
+        Raises:
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPError: For HTTP/network errors during GraphQL execution.
+            GraphQLError: For GraphQL validation/execution failures.
         """
         logger.info("Executing GraphQL query")
         logger.debug(f"Query: {query[:200]}{'...' if len(query) > 200 else ''}")
 
-        result = await self.client.post_json(
-            self.config.graphql_url,
-            json={"query": query},
-        )
+        try:
+            data = await self.client.post_json(
+                self.config.graphql_url,
+                json={"query": query},
+            )
+            logger.debug("GraphQL query executed successfully")
+            return data
 
-        if result is None:
-            logger.error("GraphQL query execution failed - network error")
-            return {
-                "errors": ["Network error - unable to connect to Gen3 server"],
-                "suggestion": "Check your internet connection and Gen3 server availability",
-            }
+        except httpx.HTTPStatusError as e:
+            # Check if this is a GraphQL validation error (HTTP 400 with GraphQL errors)
+            # Gen3 GraphQL error response format:
+            # {
+            #   "data": null,
+            #   "errors": [
+            #     "Cannot query field \"demographic\" on type \"subject\"."
+            #   ]
+            # }
+            if e.response.status_code == 400:
+                response_data = e.response.json()
+                if "errors" in response_data:
+                    # Gen3 returns errors as a list of strings
+                    graphql_errors = response_data["errors"]
+                    raise GraphQLError(
+                        "GraphQL query execution failed",
+                        errors=graphql_errors,
+                        suggestions=[
+                            "Use validate_query() before executing",
+                            "Check field names against schema",
+                            "Verify entity relationships exist",
+                        ],
+                        context={
+                            "query": query,
+                            "status_code": e.response.status_code,
+                            "method": e.request.method,
+                            "url": str(e.response.url),
+                        },
+                    ) from e
 
-        # Extract HTTP error context if present
-        http_error_context = result.pop("_http_error_context", None)
-
-        if http_error_context:
-            logger.warning("GraphQL query returned an error")
-            # 400 error = bad query
-            if http_error_context["error_category"] == "BAD_REQUEST":
-                result["suggestion"] = {
-                    "recommended_workflow": [
-                        "1. Inspect errors key to understand the cause of the bad query",
-                        "2. Use validate_query() to check your query syntax and field names",
-                        "3. If validation fails, use the suggestions to fix errors",
-                        "4. Use execute_graphql() to run the validated query",
-                    ],
-                }
-
-            return result
-
-        # Success case
-        logger.info("GraphQL query executed successfully")
-        return result
+            # Not a GraphQL error, re-raise HTTP error as-is
+            raise
 
     async def generate_query_template(
         self, entity_name: str, include_relationships: bool = True, max_fields: int = 20
-    ) -> dict[str, Any]:
+    ) -> dict:
         """Generate a safe GraphQL query template with only confirmed valid fields.
 
         Args:
@@ -88,38 +99,54 @@ class QueryService:
             max_fields: Maximum number of fields to include.
 
         Returns:
-            Dict with template info including the query template string,
-            or error info if entity doesn't exist.
+            Template data with entity_name, template, and generation parameters.
+
+        Raises:
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPError: For HTTP/network errors during API calls.
+            ParseError: If schema processing fails.
+            NoSuchEntityError: If entity doesn't exist in schema.
         """
         logger.info(f"Generating query template for {entity_name}")
 
-        # Get schema extract to check entity exists
-        schema_extract = await self._get_schema_extract()
+        # Get schema extract (may raise ConfigError, httpx errors, or ParseError)
+        schema_extract = await self.schema_manager.get_schema_extract()
 
-        if entity_name not in schema_extract.entities:
+        if entity_name not in schema_extract:
             # Suggest similar entity names
-            suggestions = self._find_similar_entities(entity_name, schema_extract)
+            suggestions = suggest_similar_strings(
+                entity_name,
+                set(schema_extract.keys()),
+                threshold=0.5,
+                max_results=3,
+            )
 
             logger.warning(f"Entity '{entity_name}' not found")
-            return {
-                "entity_name": entity_name,
-                "exists": False,
-                "template": None,
-                "error": f"Entity '{entity_name}' does not exist",
-                "suggestions": suggestions[:3],
-            }
+            raise NoSuchEntityError(
+                f"Entity '{entity_name}' not found in schema",
+                suggestions=[
+                    f"Try '{suggestion}' instead" for suggestion in suggestions
+                ],
+                context={
+                    "attempted_entity": entity_name,
+                    "available_suggestions": suggestions,
+                },
+            )
 
         # Get entity schema
-        entity = schema_extract.entities[entity_name]
+        entity = schema_extract[entity_name]
 
         # Build template fields
         required = entity.schema_summary.required_fields
         relations = list(entity.relationships)
         basic_fields = ["id"] + [f for f in required if f not in relations]
-        entity_fields = [
-            f for f in entity.schema_summary.enum_fields if f not in basic_fields
-        ][: max_fields - len(basic_fields)]
-        template_fields = basic_fields + entity_fields
+        remaining_slots = max_fields - len(basic_fields)
+        template_fields = (
+            basic_fields
+            + [f for f in entity.schema_summary.enum_fields if f not in basic_fields][
+                :remaining_slots
+            ]
+        )
 
         # Generate the template
         template_lines = [f"{entity_name}(first: 10) {{"]
@@ -145,102 +172,51 @@ class QueryService:
         logger.info(
             f"Template generated for {entity_name} with {len(template_fields)} fields"
         )
+
         return {
             "entity_name": entity_name,
-            "exists": True,
             "template": full_template,
+            "included_relationships": include_relationships,
+            "max_fields_used": max_fields,
         }
 
-    async def validate_query(self, query: str) -> dict[str, Any]:
+    async def validate_query(self, query: str) -> None:
         """Validate GraphQL query.
 
         Args:
             query: GraphQL query string to validate.
 
         Returns:
-            Dict with validation results including validity status, errors,
-            and suggestions for fixing any issues.
+            None: Validation functions follow the Pythonic pattern of returning None on
+            success. The caller has the original query for context and can construct
+            appropriate response objects as needed.
+
+        Raises:
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPError: For HTTP/network errors during API calls.
+            ParseError: If schema processing fails.
+            GraphQLError: If query validation fails.
         """
         logger.info("Validating GraphQL query")
 
-        schema_extract = await self._get_schema_extract()
-        result = validate_graphql(query, schema_extract)
+        # Get schema extract (may raise ConfigError, httpx errors, or ParseError)
+        schema_extract = await self.schema_manager.get_schema_extract()
 
-        # Convert to expected MCP response format
-        response = {
-            "valid": result.is_valid,
-            "errors": [
-                {
-                    "entity": err.entity,
-                    "field": err.field,
-                    "message": err.message,
-                    "suggestions": err.suggestions or [],
-                }
-                for err in result.errors
-            ],
-        }
+        # Validate using the graphql_validator function
+        # validate_graphql returns None on success, raises GraphQLError on failure
+        validate_graphql(query, schema_extract)
 
-        # Add workflow guidance
-        if not result.is_valid:
-            logger.warning(f"Query validation failed with {len(result.errors)} errors")
-            response["next_steps"] = {
-                "suggestions": [
-                    "Fix the validation errors using the suggestions above",
-                    "Use annotated_schema_structure() to see available entities and fields",
-                ],
-                "workflow": [
-                    "1. Fix the validation errors using the suggestions above",
-                    "2. Re-run validate_query() to confirm fixes",
-                    "3. Use execute_graphql() to run the validated query",
-                ],
-                "alternative": "Start fresh with query_template() for a guaranteed valid query",
-            }
-        else:
-            logger.info("Query validation successful")
-            response["next_steps"] = {
-                "ready_to_execute": True,
-                "suggestion": "Query is valid! Use execute_graphql() to run it.",
-            }
 
-        return response
+@cache
+def get_query_service() -> QueryService:
+    """Get a cached QueryService instance using the default schema manager.
 
-    async def _get_schema_extract(self) -> SchemaExtract:
-        """Get or create SchemaExtract from full schema.
+    Returns:
+        QueryService instance with default dependencies.
 
-        Returns:
-            SchemaExtract instance.
+    Raises:
+        May propagate exceptions from get_schema_manager() initialization chain.
+    """
+    from .schema import get_schema_manager
 
-        Raises:
-            Gen3SchemaError: If schema fetch fails.
-        """
-        if self._schema_extract is None:
-            logger.debug("Creating SchemaExtract")
-            full_schema = await self.gen3_service.get_schema_full()
-            self._schema_extract = SchemaExtract.from_full_schema(full_schema)
-            logger.debug("SchemaExtract created")
-
-        return self._schema_extract
-
-    def _find_similar_entities(
-        self, entity_name: str, schema_extract: SchemaExtract
-    ) -> list[dict[str, Any]]:
-        """Find entities with similar names.
-
-        Args:
-            entity_name: Entity name to match against.
-            schema_extract: SchemaExtract with available entities.
-
-        Returns:
-            List of dicts with entity name and similarity score.
-        """
-        from difflib import SequenceMatcher
-
-        suggestions = []
-        for available_entity in schema_extract.entities:
-            similarity = SequenceMatcher(
-                None, entity_name.lower(), available_entity.lower()
-            ).ratio()
-            if similarity > 0.5:
-                suggestions.append({"name": available_entity, "similarity": similarity})
-
-        return sorted(suggestions, key=lambda x: x["similarity"], reverse=True)
+    return QueryService(get_schema_manager())

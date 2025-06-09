@@ -1,12 +1,15 @@
 """Pytest configuration and shared fixtures"""
 
 import json
+import os
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from gen3_mcp.config import Gen3Config
+from gen3_mcp.config import Config
+from gen3_mcp.consts import SCHEMA_URL_PATH
+from gen3_mcp.schema import SchemaManager
 
 # Configure pytest-asyncio
 pytest_plugins = ("pytest_asyncio",)
@@ -19,42 +22,42 @@ def load_test_schema():
         return json.load(f)
 
 
-@pytest.fixture(autouse=True)
-def reset_global_state():
-    """Reset global state before each test"""
-    from gen3_mcp import main
-
-    # Reset global state
-    main._config = None
-    main._client = None
-
-    yield
-
-    # Clean up after test
-    main._config = None
-    main._client = None
+def load_reference_extract():
+    """Load the reference schema extract from ex_schema_extract.json"""
+    extract_path = Path(__file__).parent / "ex_schema_extract.json"
+    with open(extract_path) as f:
+        return f.read()
 
 
-@pytest.fixture
-def config():
-    """Test configuration"""
-    return Gen3Config(
-        base_url="https://test.gen3.io",
-        credentials_file="/tmp/test_creds.json",
-        log_level="DEBUG",
-        schema_cache_ttl=60,  # Shorter TTL for testing
-    )
-
-
-# Load the schema from ex_schema.json
+# Load the schema and reference data
 FULL_SCHEMA = load_test_schema()
+REFERENCE_EXTRACT = load_reference_extract()
+
+
+@pytest.fixture(scope="session")
+def test_schema():
+    """Test schema fixture"""
+    return FULL_SCHEMA
+
+
+@pytest.fixture(scope="session")
+def reference_extract_json():
+    """Reference extract JSON string fixture"""
+    return REFERENCE_EXTRACT
 
 
 def mock_get_json_side_effect(url, **kwargs):
-    """Mock side effect that may return different responses based on URL"""
-    if url.endswith("/_all"):
-        # Full schema request
+    """Mock side effect that returns raw data based on URL"""
+    if url.endswith(SCHEMA_URL_PATH):
+
         return FULL_SCHEMA
+    # For any other URL, raise appropriate exception
+    import httpx
+
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mock_response.url = url
+    raise httpx.HTTPStatusError("Not found", request=Mock(), response=mock_response)
 
 
 @pytest.fixture
@@ -62,114 +65,84 @@ def mock_client():
     """Mock Gen3 client for testing"""
     from gen3_mcp.client import Gen3Client
 
-    client = AsyncMock(spec=Gen3Client)
+    client = Mock(spec=Gen3Client)
+    # Create a default config for the client
+    client.config = Config(
+        base_url="https://test.gen3.io",
+        credentials_file="/tmp/test_creds.json",
+        log_level="DEBUG",
+    )
 
-    # Configure mock to return different responses based on URL
-    client.get_json.side_effect = mock_get_json_side_effect
+    # Configure mock to return raw data
+    client.get_json = AsyncMock(side_effect=mock_get_json_side_effect)
 
     # Mock GraphQL responses with realistic data
-    client.post_json.return_value = {
-        "data": {
-            "subject": [
-                {
-                    "id": "123e4567-e89b-12d3-a456-426614174000",
-                    "submitter_id": "test_subject_001",
-                    "type": "subject",
-                    "gender": "Female",
-                    "age_at_enrollment": 45,
-                    "race": "White",
-                    "ethnicity": "Not Hispanic or Latino",
-                }
-            ]
+    def mock_post_json_side_effect(url, **kwargs):
+        # Return raw data
+        return {
+            "data": {
+                "subject": [
+                    {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "submitter_id": "test_subject_001",
+                        "type": "subject",
+                        "gender": "Female",
+                        "age_at_enrollment": 45,
+                        "race": "White",
+                        "ethnicity": "Not Hispanic or Latino",
+                    }
+                ]
+            }
         }
-    }
+
+    client.post_json = AsyncMock(side_effect=mock_post_json_side_effect)
 
     return client
 
 
-def create_test_services():
-    """Helper to create mock services for testing"""
-    mock_gen3_service = AsyncMock()
-    mock_query_service = AsyncMock()
-
-    # Load schema to get realistic data
-    schema = load_test_schema()
-
-    mock_gen3_service.get_schema_full.return_value = schema
-
-    # QueryService has 3 methods: generate_query_template, validate_query, execute_graphql
-    mock_query_service.generate_query_template.return_value = {
-        "entity_name": "subject",
-        "exists": True,
-        "template": "{ subject { id submitter_id } }",
-        "basic_fields": ["id", "submitter_id", "type"],
-        "entity_fields": ["gender", "age_at_enrollment"],
-        "relationship_fields": [],
-        "total_fields": 5,
-    }
-
-    mock_query_service.validate_query.return_value = {
-        "valid": True,
-        "errors": [],
-        "next_steps": {
-            "ready_to_execute": True,
-            "suggestion": "Query is valid! Use execute_graphql() to run it.",
-        },
-    }
-
-    mock_query_service.execute_graphql.return_value = {
-        "data": {
-            "subject": [
-                {
-                    "id": "123e4567-e89b-12d3-a456-426614174000",
-                    "submitter_id": "subject_001",
-                    "gender": "Female",
-                    "age_at_enrollment": 45,
-                }
-            ]
-        }
-    }
-
-    return mock_gen3_service, mock_query_service
+@pytest.fixture
+async def schema_manager(mock_client):
+    """SchemaManager fixture with mock client"""
+    manager = SchemaManager(mock_client)
+    manager.clear_cache()  # Ensure clean state
+    return manager
 
 
 @pytest.fixture
-async def mcp_test_setup():
-    """Fixture that handles MCP test setup and teardown"""
-    from gen3_mcp import main
-    from gen3_mcp.main import create_mcp_server
+async def schema_extract(schema_manager):
+    """Schema extract fixture using SchemaManager"""
+    return await schema_manager.get_schema_extract()
 
-    # Store original state
-    original_config = main._config
-    original_client = main._client
-    original_gen3_service = main._gen3_service
-    original_query_service = main._query_service
 
-    # Reset state (this is already done by reset_global_state, but being explicit)
-    main._config = None
-    main._client = None
-    main._gen3_service = None
-    main._query_service = None
+@pytest.fixture
+def clean_env():
+    """Fixture that temporarily clears GEN3MCP_* environment variables.
 
-    # Create test services
-    mock_gen3_service, mock_query_service = create_test_services()
+    This ensures Config tests see the true defaults without interference
+    from environment variables that might be set in the user's shell.
+    """
+    # Find all GEN3MCP_* environment variables
+    gen3mcp_vars = {
+        key: value for key, value in os.environ.items() if key.startswith("GEN3MCP_")
+    }
+
+    # Temporarily remove them
+    for key in gen3mcp_vars:
+        os.environ.pop(key, None)
 
     try:
-        with (
-            patch("gen3_mcp.main.get_gen3_service", return_value=mock_gen3_service),
-            patch("gen3_mcp.main.get_query_service", return_value=mock_query_service),
-        ):
-
-            mcp_server = create_mcp_server()
-
-            yield {
-                "mcp_server": mcp_server,
-                "mock_gen3_service": mock_gen3_service,
-                "mock_query_service": mock_query_service,
-            }
+        yield
     finally:
-        # Restore original state
-        main._config = original_config
-        main._client = original_client
-        main._gen3_service = original_gen3_service
-        main._query_service = original_query_service
+        # Restore original environment variables
+        for key, value in gen3mcp_vars.items():
+            os.environ[key] = value
+
+
+@pytest.fixture
+def clean_config(clean_env):
+    """Fixture that provides a Config instance with clean environment.
+
+    This ensures tests can verify default values without environment
+    variable interference.
+    """
+    return Config()

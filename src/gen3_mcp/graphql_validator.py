@@ -9,7 +9,9 @@ from dataclasses import dataclass
 from graphql import FieldNode, Visitor, parse, visit
 from graphql.error import GraphQLSyntaxError
 
-from .schema_extract import EntitySchema, SchemaExtract
+from .exceptions import GraphQLError
+from .models import EntitySchema, SchemaExtract
+from .utils import suggest_similar_strings
 
 logger = logging.getLogger("gen3-mcp.graphql_validator")
 
@@ -25,28 +27,24 @@ class EntityPath:
 
 @dataclass
 class ValidationError:
-    """Represents a validation error."""
+    """Simple validation error for internal use."""
 
     entity: str
     field: str
-    error_type: str  # "syntax error", "unknown_entity", "unknown_field"
+    error_type: str
     message: str
-    suggestions: list[str] = None
-
-
-@dataclass
-class ValidationResult:
-    """Result of GraphQL query validation."""
-
-    is_valid: bool
-    errors: list[ValidationError]
+    suggestions: list[str]
 
 
 class GraphQLFieldExtractor(Visitor):
     """Extract field information with path context from GraphQL AST."""
 
     def __init__(self):
-        """Initialize GraphQLFieldExtractor."""
+        """Initialize GraphQLFieldExtractor.
+
+        Raises:
+            No exceptions raised during initialization.
+        """
         super().__init__()
         self.entity_paths: dict[str, EntityPath] = {}
         self.path_stack: list[str] = []
@@ -57,6 +55,9 @@ class GraphQLFieldExtractor(Visitor):
         Args:
             node: GraphQL field node.
             *_: Unused visitor arguments.
+
+        Raises:
+            AttributeError: If node structure is unexpected (defensive programming).
         """
         field_name = node.name.value
 
@@ -83,12 +84,15 @@ class GraphQLFieldExtractor(Visitor):
         Args:
             node: GraphQL field node.
             *_: Unused visitor arguments.
+
+        Raises:
+            IndexError: If path_stack is empty when popping (defensive programming).
         """
         if node.selection_set and self.path_stack:
             self.path_stack.pop()
 
 
-def validate_graphql(query: str, schema: SchemaExtract) -> ValidationResult:
+def validate_graphql(query: str, schema: SchemaExtract) -> None:
     """Validate a GraphQL query against the minimal schema using path-based validation.
 
     Args:
@@ -96,70 +100,71 @@ def validate_graphql(query: str, schema: SchemaExtract) -> ValidationResult:
         schema: SchemaExtract containing entity and field definitions.
 
     Returns:
-        ValidationResult with validation status and any errors found.
+        None: Validation functions follow the Pythonic pattern of returning None on
+        success (similar to jsonschema.validate(), ast.parse()). Success is indicated
+        by the absence of exceptions. This avoids creating artificial return values
+        when the only meaningful outcome is "validation passed" vs "validation failed".
+
+    Raises:
+        GraphQLError: For GraphQL syntax errors or validation failures.
+            - GraphQL syntax errors: Invalid query syntax
+            - Validation errors: Unknown entities, fields, or relationships
     """
     logger.debug("Starting GraphQL validation")
 
-    # First check GraphQL syntax and extract paths
+    # Parse GraphQL and extract entity paths
     try:
         ast = parse(query)
         extractor = GraphQLFieldExtractor()
         visit(ast, extractor)
     except GraphQLSyntaxError as e:
         logger.error(f"GraphQL syntax error: {e}")
-        return ValidationResult(
-            is_valid=False,
-            errors=[
-                ValidationError(
-                    entity="",
-                    field="",
-                    error_type="syntax_error",
-                    message=f"GraphQL syntax error: {e}",
-                    suggestions=[],
-                )
+        raise GraphQLError(
+            "GraphQL syntax error",
+            errors=[f"GraphQL syntax error: {e}"],
+            suggestions=[
+                "Check query syntax",
+                "Ensure all braces and quotes are properly closed",
             ],
-        )
-
-    errors = []
+            context={
+                "query": query,
+                "error_type": "syntax_error",
+            },
+        ) from e
 
     # Validate each entity path
+    errors = []
+    all_suggestions = set()
+
     for entity_path in extractor.entity_paths.values():
-        # NOTE this collects all errors; a more efficient but less informative
-        # approach is to start at the shortest path and bail at the first error
         path_errors = _validate_entity_path(entity_path, schema)
         errors.extend(path_errors)
+        for error in path_errors:
+            all_suggestions.update(error.suggestions)
 
-    is_valid = len(errors) == 0
-    logger.info(f"Validation complete - valid: {is_valid}, errors: {len(errors)}")
+    if errors:
+        # Format error messages for the errors list
+        error_messages = []
+        for err in errors:
+            if err.field:
+                error_messages.append(f"{err.entity}.{err.field}: {err.message}")
+            else:
+                error_messages.append(f"{err.entity}: {err.message}")
 
-    return ValidationResult(is_valid=is_valid, errors=errors)
+        raise GraphQLError(
+            f"GraphQL query validation failed with {len(errors)} errors",
+            errors=error_messages,
+            suggestions=list(all_suggestions)
+            + [
+                "Use get_schema_summary() to see available entities and fields",
+            ],
+            context={
+                "query": query,
+                "error_count": len(errors),
+            },
+        )
 
-
-def _suggest_similar_strings(
-    target: str, candidates: set[str], threshold: float = 0.6, number=3
-) -> list[str]:
-    """Suggest similar strings using basic similarity scoring.
-
-    Args:
-        target: String to match against.
-        candidates: Set of candidate strings.
-        threshold: Minimum similarity threshold.
-        number: Maximum number of suggestions
-
-    Returns:
-        List of similar strings.
-    """
-    from difflib import SequenceMatcher
-
-    suggestions = []
-    for candidate in candidates:
-        similarity = SequenceMatcher(None, target.lower(), candidate.lower()).ratio()
-        if similarity >= threshold:
-            suggestions.append((candidate, similarity))
-
-    # Sort by similarity (descending) and return just the strings
-    suggestions.sort(key=lambda x: x[1], reverse=True)
-    return [s[0] for s in suggestions[:number]]
+    logger.info("Validation successful")
 
 
 def _validate_entity_path(
@@ -172,7 +177,13 @@ def _validate_entity_path(
         schema: SchemaExtract containing entity definitions.
 
     Returns:
-        List of validation errors.
+        List of validation errors found. Empty list indicates no errors.
+
+    Raises:
+        KeyError: If schema structure is unexpected.
+        IndexError: If path indexing fails.
+        AttributeError: If entity schema structure is malformed.
+        (In practice, these would indicate bugs in schema processing)
     """
     logger.debug(f"Validating entity path: {'/'.join(entity_path.path)}")
     errors = []
@@ -183,9 +194,9 @@ def _validate_entity_path(
     for i, entity_name in enumerate(entity_path.path):
         if i == 0:
             # Root entity - must exist directly in schema
-            if entity_name not in schema.entities:
-                entity_suggestions = _suggest_similar_strings(
-                    entity_name, set(schema.entities.keys())
+            if entity_name not in schema:
+                entity_suggestions = suggest_similar_strings(
+                    entity_name, set(schema.keys())
                 )
                 errors.append(
                     ValidationError(
@@ -193,11 +204,15 @@ def _validate_entity_path(
                         field="",
                         error_type="unknown_entity",
                         message=f"Root entity '{entity_name}' does not exist",
-                        suggestions=entity_suggestions,
+                        suggestions=(
+                            [f"Try '{s}' instead" for s in entity_suggestions]
+                            if entity_suggestions
+                            else []
+                        ),
                     )
                 )
                 return errors  # Can't continue without valid root
-            current_entity_schema = schema.entities[entity_name]
+            current_entity_schema = schema[entity_name]
         else:
             # Relationship entity - must be accessible from parent
             parent_entity = entity_path.path[i - 1]
@@ -209,10 +224,10 @@ def _validate_entity_path(
             if entity_name in current_entity_schema.relationships:
                 relationship = current_entity_schema.relationships[entity_name]
                 # by schema extract construction, relationship.target_type is a valid key
-                current_entity_schema = schema.entities[relationship.target_type]
+                current_entity_schema = schema[relationship.target_type]
             else:
                 # Relationship not found
-                relationship_suggestions = _suggest_similar_strings(
+                relationship_suggestions = suggest_similar_strings(
                     entity_name, set(current_entity_schema.relationships.keys())
                 )
                 errors.append(
@@ -221,7 +236,11 @@ def _validate_entity_path(
                         field="",
                         error_type="unknown_entity",
                         message=f"Relationship '{entity_name}' does not exist in entity '{parent_entity}'",
-                        suggestions=relationship_suggestions,
+                        suggestions=(
+                            [f"Try '{s}' instead" for s in relationship_suggestions]
+                            if relationship_suggestions
+                            else []
+                        ),
                     )
                 )
                 current_entity_schema = None
@@ -246,21 +265,30 @@ def _validate_direct_entity_fields(
         field_names: List of field names to validate.
 
     Returns:
-        List of validation errors.
+        List of validation errors found. Empty list indicates all fields are valid.
+
+    Raises:
+        AttributeError: If entity_schema structure is unexpected.
+        TypeError: If field operations fail unexpectedly.
+        (In practice, these would indicate bugs in schema processing)
     """
     errors = []
-    all_valid_fields = entity_schema.fields | set(entity_schema.relationships.keys())
+    all_valid_fields = set(entity_schema.fields) | set(entity_schema.relationships)
 
     for field_name in field_names:
         if field_name not in all_valid_fields:
-            suggestions = _suggest_similar_strings(field_name, all_valid_fields)
+            suggestions = suggest_similar_strings(field_name, all_valid_fields)
             errors.append(
                 ValidationError(
                     entity=entity_schema.name,
                     field=field_name,
                     error_type="unknown_field",
                     message=f"Field '{field_name}' does not exist in entity '{entity_schema.name}'",
-                    suggestions=suggestions,
+                    suggestions=(
+                        [f"Try '{s}' instead" for s in suggestions]
+                        if suggestions
+                        else []
+                    ),
                 )
             )
 

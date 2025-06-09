@@ -1,161 +1,159 @@
 """Authentication management with token refresh."""
 
-import asyncio
 import json
 import logging
 import os
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx
 
-from .config import Gen3Config
-from .exceptions import Gen3ClientError
+from .config import Config
+from .consts import DEFAULT_TOKEN_EXPIRY_SECONDS, TOKEN_REFRESH_BUFFER_MINUTES
+from .exceptions import ConfigError, Gen3MCPError
 
 logger = logging.getLogger("gen3-mcp.auth")
-
-
-@dataclass
-class TokenInfo:
-    """Container for access token and its metadata."""
-
-    access_token: str
-    expires_at: datetime
-    refresh_threshold: datetime
-
-    @classmethod
-    def from_response(
-        cls, token_data: dict, refresh_margin_seconds: int = 300
-    ) -> "TokenInfo":
-        """Create TokenInfo from API response.
-
-        Args:
-            token_data: Response from token endpoint containing access_token and expires_in.
-            refresh_margin_seconds: Seconds before expiry to trigger refresh.
-
-        Returns:
-            TokenInfo instance with calculated expiry times.
-        """
-        expires_in = token_data.get("expires_in", 1800)  # Default 30 minutes
-        issued_at = datetime.now(UTC)
-        expires_at = issued_at + timedelta(seconds=expires_in)
-        refresh_threshold = expires_at - timedelta(seconds=refresh_margin_seconds)
-
-        return cls(
-            access_token=token_data["access_token"],
-            expires_at=expires_at,
-            refresh_threshold=refresh_threshold,
-        )
-
-    def is_expired(self) -> bool:
-        """Check if token is expired.
-
-        Returns:
-            True if token has expired, False otherwise.
-        """
-        return datetime.now(UTC) >= self.expires_at
-
-    def needs_refresh(self) -> bool:
-        """Check if token needs to be refreshed.
-
-        Returns:
-            True if token should be refreshed, False otherwise.
-        """
-        return datetime.now(UTC) >= self.refresh_threshold
 
 
 class AuthManager:
     """Manages authentication tokens using config endpoints."""
 
-    def __init__(self, config: Gen3Config, http_client: httpx.AsyncClient):
+    def __init__(self, config: Config, http_client: httpx.AsyncClient):
         """Initialize AuthManager.
 
         Args:
-            config: Gen3Config instance with auth settings.
+            config: Config instance with auth settings.
             http_client: Async HTTP client for API calls.
+
+        Raises:
+            No exceptions raised during initialization.
         """
         self.config = config
         self.http_client = http_client
-        self.token_info: TokenInfo | None = None
-        self.credentials: dict | None = None
-        self._credentials_loaded = False
-        self._lock = asyncio.Lock()  # Prevent concurrent token refreshes
+        self.token_expires_at: datetime | None = None
 
     async def ensure_valid_token(self) -> None:
         """Ensure we have a valid token, refreshing if necessary.
 
         Raises:
-            Gen3ClientError: If credentials cannot be loaded or token refresh fails.
+            ConfigError: If credentials cannot be loaded.
+            httpx.HTTPStatusError: If HTTP errors occur during token request.
+            Gen3MCPError: If auth server response format is unexpected.
         """
-        async with self._lock:
-            logger.debug("Checking token validity")
+        # Check if we need a new token
+        if self._needs_token():
+            await self._get_new_token()
 
-            if not self._credentials_loaded:
-                await self._load_credentials()
-
-            if not self.token_info or self.token_info.needs_refresh():
-                logger.info("Token needs refresh")
-                await self._refresh_token()
-
-    async def _load_credentials(self) -> None:
-        """Load credentials from file.
+    def _needs_token(self) -> bool:
+        """Check if we need to get a new token.
 
         Raises:
-            Gen3ClientError: If credentials file not found or contains invalid JSON.
+            No exceptions raised.
+        """
+        if self.token_expires_at is None:
+            return True
+
+        # Refresh 5 minutes before expiry
+        refresh_time = self.token_expires_at - timedelta(
+            minutes=TOKEN_REFRESH_BUFFER_MINUTES
+        )
+        return datetime.now(UTC) >= refresh_time
+
+    async def _get_new_token(self) -> None:
+        """Get a new access token.
+
+        Raises:
+            ConfigError: If credentials cannot be loaded.
+            httpx.HTTPStatusError: If HTTP errors occur during token request.
+            Gen3MCPError: If auth server response format is unexpected.
+        """
+        logger.debug("Getting new token")
+
+        # Load credentials
+        credentials = self._load_credentials()
+
+        # Request token
+        try:
+            response = await self.http_client.post(
+                self.config.auth_url, json=credentials
+            )
+            response.raise_for_status()
+            token_data = response.json()
+
+            # Extract token and calculate expiry
+            access_token = token_data["access_token"]
+            expires_in = token_data.get("expires_in", DEFAULT_TOKEN_EXPIRY_SECONDS)
+            self.token_expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
+
+            # Update client headers
+            self.http_client.headers.update({"Authorization": f"bearer {access_token}"})
+
+            logger.info("Token obtained successfully")
+
+        except KeyError as e:
+            logger.error("Missing access_token in response")
+            raise Gen3MCPError(
+                "Auth server returned response without access_token",
+                errors=[f"Missing required field: {e}"],
+                suggestions=[
+                    "This may indicate an auth server bug or API change",
+                    "Contact system administrator",
+                    "Check if auth server implementation has changed",
+                ],
+                context={
+                    "auth_url": self.config.auth_url,
+                    "response_keys": (
+                        list(token_data.keys()) if "token_data" in locals() else []
+                    ),
+                },
+            ) from e
+
+    def _load_credentials(self) -> dict[str, Any]:
+        """Load credentials from file.
+
+        Returns:
+            Credentials dictionary.
+
+        Raises:
+            ConfigError: If credentials file not found or contains invalid JSON.
         """
         logger.debug(f"Loading credentials from {self.config.credentials_file}")
 
         try:
             credentials_path = os.path.expanduser(self.config.credentials_file)
             with open(credentials_path) as f:
-                self.credentials = json.load(f)
-            self._credentials_loaded = True
-            logger.info("Credentials loaded successfully")
-        except FileNotFoundError as e:
-            logger.error(f"Credentials file not found: {self.config.credentials_file}")
-            raise Gen3ClientError(
-                f"Credentials file not found: {self.config.credentials_file}"
+                credentials = json.load(f)
+            logger.debug("Credentials loaded successfully")
+            return credentials
+
+        except (FileNotFoundError, PermissionError) as e:
+            logger.error(
+                f"Credentials file not found or not readable: {self.config.credentials_file}"
+            )
+            raise ConfigError(
+                f"Credentials file not found or not readable: {self.config.credentials_file}",
+                suggestions=[
+                    f"Create credentials file at {self.config.credentials_file}",
+                    "Check file path configuration",
+                    "Ensure file exists and is readable",
+                ],
+                context={"credentials_path": self.config.credentials_file},
             ) from e
         except json.JSONDecodeError as e:
             logger.error(
                 f"Invalid JSON in credentials file: {self.config.credentials_file}"
             )
-            raise Gen3ClientError(
-                f"Invalid JSON in credentials file: {self.config.credentials_file}"
+            raise ConfigError(
+                f"Invalid JSON in credentials file: {self.config.credentials_file}",
+                errors=[f"JSON error: {e.msg} at line {e.lineno}, column {e.colno}"],
+                suggestions=[
+                    "Fix JSON syntax in credentials file",
+                    "Validate JSON format with a JSON checker",
+                    "Ensure all quotes and brackets are properly closed",
+                ],
+                context={
+                    "credentials_path": self.config.credentials_file,
+                    "json_error_line": e.lineno,
+                    "json_error_column": e.colno,
+                },
             ) from e
-
-    async def _refresh_token(self) -> None:
-        """Refresh the access token using config.auth_url.
-
-        Raises:
-            Gen3ClientError: If no credentials available or token refresh fails.
-        """
-        if not self.credentials:
-            logger.error("No credentials available for token refresh")
-            raise Gen3ClientError("No credentials available")
-
-        logger.debug(f"Refreshing token via {self.config.auth_url}")
-
-        try:
-            response = await self.http_client.post(
-                self.config.auth_url, json=self.credentials
-            )
-            response.raise_for_status()
-            token_data = response.json()
-
-            self.token_info = TokenInfo.from_response(token_data)
-
-            # Update client headers
-            self.http_client.headers.update(
-                {"Authorization": f"bearer {self.token_info.access_token}"}
-            )
-
-            logger.info("Token refreshed successfully")
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error during token refresh: {e.response.status_code}")
-            raise Gen3ClientError(
-                f"HTTP error during token refresh: {e.response.status_code}"
-            ) from e
-        except Exception as e:
-            logger.error(f"Failed to refresh token: {e}")
-            raise Gen3ClientError(f"Failed to refresh token: {e}") from e

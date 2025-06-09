@@ -4,26 +4,34 @@ A Model Context Protocol (MCP) server for interacting with Gen3 data commons,
 with GraphQL query validation to reduce field name hallucinations.
 """
 
-from .client import Gen3Client
-from .config import Gen3Config, setup_logging
+from .client import Gen3Client, get_client
+from .config import Config, get_config
+from .consts import PACKAGE_VERSION
 from .exceptions import (
-    Gen3ClientError,
+    ConfigError,
     Gen3MCPError,
-    Gen3SchemaError,
+    GraphQLError,
+    NoSuchEntityError,
+    ParseError,
 )
-from .query import QueryService
-from .schema import SchemaService
+from .query import QueryService, get_query_service
+from .schema import SchemaManager, get_schema_manager
 
-__version__ = "1.2.0"
+__version__ = PACKAGE_VERSION
 
 __all__ = [
     "__version__",
-    "Gen3Config",
-    "setup_logging",
+    "get_config",
+    "get_client",
+    "get_schema_manager",
+    "get_query_service",
+    "Config",
     "Gen3Client",
-    "SchemaService",
+    "SchemaManager",
     "QueryService",
     "Gen3MCPError",
-    "Gen3ClientError",
-    "Gen3SchemaError",
+    "ParseError",
+    "ConfigError",
+    "NoSuchEntityError",
+    "GraphQLError",
 ]
