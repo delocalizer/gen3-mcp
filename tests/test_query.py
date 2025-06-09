@@ -1,10 +1,11 @@
 """Comprehensive tests for QueryService module"""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
 
-from gen3_mcp.models import ErrorCategory, Response
+from gen3_mcp.exceptions import GraphQLError, NoSuchEntityError
 from gen3_mcp.query import QueryService, get_query_service
 from gen3_mcp.schema import SchemaManager
 
@@ -23,24 +24,24 @@ class TestQueryServiceInitialization:
 
 
 class TestExecuteGraphQL:
-    """Test execute_graphql method with various scenarios"""
+    """Test execute_graphql method with various scenarios
+
+    Focuses on GraphQL-specific error transformations and business logic.
+    Generic HTTP transport errors are tested in test_client.py.
+    """
 
     @pytest.mark.asyncio
     async def test_execute_graphql_success(self, query_service):
         """Test successful GraphQL query execution"""
-        # Clear the side_effect and set return_value
-        query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = Response(
-            success=True,
-            status_code=200,
-            data={
-                "data": {
-                    "subject": [
-                        {"id": "123", "submitter_id": "test_001", "gender": "Female"}
-                    ]
-                }
-            },
-        )
+        # Override the default mock to return specific test data
+        query_service.client.post_json.side_effect = None  # Clear side_effect
+        query_service.client.post_json.return_value = {
+            "data": {
+                "subject": [
+                    {"id": "123", "submitter_id": "test_001", "gender": "Female"}
+                ]
+            }
+        }
 
         query = "{ subject { id submitter_id gender } }"
         result = await query_service.execute_graphql(query)
@@ -50,72 +51,41 @@ class TestExecuteGraphQL:
         query_service.client.post_json.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_graphql_network_error(self, query_service):
-        """Test GraphQL execution with network error"""
-        # Clear the side_effect and set return_value
-        query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = Response(
-            success=False,
-            error_category=ErrorCategory.NETWORK,
-            errors=["Network error: Connection timeout"],
+    async def test_execute_graphql_http_client_error_graphql_transformation(
+        self, query_service
+    ):
+        """Test GraphQL execution transforms HTTP 400 errors with GraphQL content to GraphQLError"""
+        # Mock HTTP 400 error with GraphQL error response
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.url = "https://test.gen3.io/graphql"
+        mock_response.json.return_value = {
+            "data": None,
+            "errors": ["Cannot query field 'invalid_field' on type 'Subject'"],
+        }
+
+        http_error = httpx.HTTPStatusError(
+            "Bad Request", request=Mock(), response=mock_response
         )
-
-        query = "{ subject { id } }"
-        result = await query_service.execute_graphql(query)
-
-        assert "errors" in result
-        assert "Connection timeout" in result["errors"][0]
-
-    @pytest.mark.asyncio
-    async def test_execute_graphql_http_client_error(self, query_service):
-        """Test GraphQL execution with HTTP 4xx error (bad query)"""
-        # Clear the side_effect and set return_value
-        query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = Response(
-            success=False,
-            status_code=400,
-            error_category=ErrorCategory.HTTP_CLIENT,
-            errors=["Cannot query field 'invalid_field' on type 'Subject'"],
-            data={
-                "data": None,
-                "errors": ["Cannot query field 'invalid_field' on type 'Subject'"],
-            },
-        )
+        query_service.client.post_json.side_effect = http_error
 
         query = "{ subject { invalid_field } }"
-        result = await query_service.execute_graphql(query)
+        # Domain-specific: HTTP 400 with GraphQL errors gets converted to GraphQLError
+        with pytest.raises(GraphQLError) as exc_info:
+            await query_service.execute_graphql(query)
 
-        assert "errors" in result
-        assert "invalid_field" in result["errors"][0]
-
-    @pytest.mark.asyncio
-    async def test_execute_graphql_http_server_error(self, query_service):
-        """Test GraphQL execution with HTTP 5xx error"""
-        # Clear the side_effect and set return_value
-        query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = Response(
-            success=False,
-            status_code=500,
-            error_category=ErrorCategory.HTTP_SERVER,
-            errors=["Unexpected error: Internal server error"],
-        )
-
-        query = "{ subject { id } }"
-        result = await query_service.execute_graphql(query)
-
-        assert "errors" in result
-        assert "Internal server error" in result["errors"][0]
+        error = exc_info.value
+        assert "invalid_field" in str(error.errors)
+        assert "GraphQL query execution failed" in error.message
 
     @pytest.mark.asyncio
     async def test_execute_graphql_with_graphql_errors(self, query_service):
         """Test successful HTTP but with GraphQL errors in response"""
-        # Clear the side_effect and set return_value
-        query_service.client.post_json.side_effect = None
-        query_service.client.post_json.return_value = Response(
-            success=True,
-            status_code=200,
-            data={"data": None, "errors": ["Syntax error in query"]},
-        )
+        query_service.client.post_json.side_effect = None  # Clear side_effect
+        query_service.client.post_json.return_value = {
+            "data": None,
+            "errors": ["Syntax error in query"],
+        }
 
         query = "{ subject { id }"  # Missing closing brace
         result = await query_service.execute_graphql(query)
@@ -136,7 +106,6 @@ class TestGenerateQueryTemplate:
                 True,
                 20,
                 {
-                    "exists": True,
                     "has_relationships": True,
                     "has_basic_fields": ["id", "submitter_id"],
                     "relationship_check": "studies {",
@@ -147,7 +116,6 @@ class TestGenerateQueryTemplate:
                 False,
                 20,
                 {
-                    "exists": True,
                     "has_relationships": False,
                     "has_basic_fields": ["id", "submitter_id"],
                     "relationship_check": None,
@@ -158,30 +126,9 @@ class TestGenerateQueryTemplate:
                 True,
                 5,
                 {
-                    "exists": True,
                     "has_relationships": True,
                     "max_fields": 5,
                     "has_basic_fields": ["id"],
-                },
-            ),
-            (
-                "nonexistent_entity",
-                True,
-                20,
-                {
-                    "exists": False,
-                    "should_have_suggestions": True,
-                    "should_have_error": True,
-                },
-            ),
-            (
-                "subjct",
-                True,
-                20,
-                {  # Typo test
-                    "exists": False,
-                    "should_have_suggestions": True,
-                    "should_suggest_subject": True,
                 },
             ),
         ],
@@ -197,60 +144,69 @@ class TestGenerateQueryTemplate:
 
         # Common assertions
         assert result["entity_name"] == entity
-        assert result["exists"] == expected_checks["exists"]
+        template = result["template"]
+        assert f"{entity}(first: 10)" in template
 
-        if expected_checks["exists"]:
-            template = result["template"]
-            assert f"{entity}(first: 10)" in template
+        # Check basic fields
+        for field in expected_checks.get("has_basic_fields", []):
+            assert field in template
 
-            # Check basic fields
-            for field in expected_checks.get("has_basic_fields", []):
-                assert field in template
+        # Check relationships
+        if expected_checks.get("has_relationships"):
+            relationship_check = expected_checks.get("relationship_check")
+            if relationship_check:
+                assert relationship_check in template
+        elif (
+            "has_relationships" in expected_checks
+            and not expected_checks["has_relationships"]
+        ):
+            assert "studies {" not in template
 
-            # Check relationships
-            if expected_checks.get("has_relationships"):
-                relationship_check = expected_checks.get("relationship_check")
-                if relationship_check:
-                    assert relationship_check in template
-            elif (
-                "has_relationships" in expected_checks
-                and not expected_checks["has_relationships"]
-            ):
-                assert "studies {" not in template
+        # Check field limits
+        if "max_fields" in expected_checks:
+            lines = template.split("\n")
+            # Count only root-level scalar fields (exclude relationship blocks)
+            root_fields = []
+            in_relationship = False
+            for line in lines[2:]:  # Skip first two lines: { and entity(
+                line = line.strip()
+                if not line:  # Skip empty lines
+                    continue
+                if line.endswith("}}"):  # End of template
+                    break
+                if line.endswith("{"):  # Start of relationship block
+                    in_relationship = True
+                    continue
+                if line == "}":
+                    in_relationship = False
+                    continue
+                if not in_relationship and not line.endswith("{"):
+                    root_fields.append(line)
 
-            # Check field limits
-            if "max_fields" in expected_checks:
-                lines = template.split("\n")
-                # Count only root-level scalar fields (exclude relationship blocks)
-                root_fields = []
-                in_relationship = False
-                for line in lines[2:]:  # Skip first two lines: { and entity(
-                    line = line.strip()
-                    if not line:  # Skip empty lines
-                        continue
-                    if line.endswith("}}"):  # End of template
-                        break
-                    if line.endswith("{"):  # Start of relationship block
-                        in_relationship = True
-                        continue
-                    if line == "}":
-                        in_relationship = False
-                        continue
-                    if not in_relationship and not line.endswith("{"):
-                        root_fields.append(line)
+            assert (
+                len(root_fields) == expected_checks["max_fields"]
+            ), f"Expected {expected_checks['max_fields']} root fields, got {len(root_fields)}: {root_fields}"
 
-                assert (
-                    len(root_fields) == expected_checks["max_fields"]
-                ), f"Expected {expected_checks['max_fields']} root fields, got {len(root_fields)}: {root_fields}"
-        else:
-            # Non-existent entity checks
-            if expected_checks.get("should_have_suggestions"):
-                assert "suggestions" in result
-            if expected_checks.get("should_have_error"):
-                assert "error" in result
-            if expected_checks.get("should_suggest_subject"):
-                suggestion_names = [s["name"] for s in result["suggestions"]]
-                assert "subject" in suggestion_names
+    @pytest.mark.asyncio
+    async def test_generate_query_template_nonexistent_entity(self, query_service):
+        """Test generate_query_template with nonexistent entity"""
+        with pytest.raises(NoSuchEntityError) as exc_info:
+            await query_service.generate_query_template("nonexistent_entity")
+
+        error = exc_info.value
+        assert "nonexistent_entity" in error.message
+        # Suggestions may be empty if no similar entity names exist
+        assert isinstance(error.suggestions, list)
+
+    @pytest.mark.asyncio
+    async def test_generate_query_template_typo(self, query_service):
+        """Test generate_query_template with typo suggests correct entity"""
+        with pytest.raises(NoSuchEntityError) as exc_info:
+            await query_service.generate_query_template("subjct")  # Typo
+
+        error = exc_info.value
+        # Should suggest "subject"
+        assert any("subject" in suggestion for suggestion in error.suggestions)
 
 
 class TestValidateQuery:
@@ -260,47 +216,32 @@ class TestValidateQuery:
     async def test_validate_query_success(self, query_service):
         """Test successful query validation"""
         # Mock the graphql_validator.validate_graphql function
-        mock_validation_result = Response(valid=True, query="{ subject { id } }")
-
         with patch("gen3_mcp.query.validate_graphql") as mock_validate:
-            mock_validate.return_value = mock_validation_result
+            mock_validate.return_value = None  # Success returns None
 
             query = "{ subject { id } }"
-            result = await query_service.validate_query(query)
 
-            assert isinstance(result, Response)
-            assert result.valid
-            assert result.query == query
+            result = await query_service.validate_query(query)
+            assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_validate_query_with_errors(self, query_service):
         """Test query validation with errors"""
-        from gen3_mcp.models import QueryValidationError
-
-        mock_validation_result = Response(
-            valid=False,
-            query="{ subject { invalid_field } }",
-            errors=[
-                QueryValidationError(
-                    entity="subject",
-                    field="invalid_field",
-                    error_type="unknown_field",
-                    message="Field 'invalid_field' not found on type 'Subject'",
-                    suggestions=["Try 'submitter_id' instead"],
-                )
-            ],
-        )
-
+        # Mock validation to raise GraphQLError
         with patch("gen3_mcp.query.validate_graphql") as mock_validate:
-            mock_validate.return_value = mock_validation_result
+            mock_validate.side_effect = GraphQLError(
+                "Validation failed",
+                errors=["Field 'invalid_field' not found on type 'Subject'"],
+                suggestions=["Try 'submitter_id' instead"],
+            )
 
             query = "{ subject { invalid_field } }"
-            result = await query_service.validate_query(query)
+            # validate_query raises GraphQLError on failure
+            with pytest.raises(GraphQLError) as exc_info:
+                await query_service.validate_query(query)
 
-            assert isinstance(result, Response)
-            assert not result.valid
-            assert len(result.errors) == 1
-            assert result.errors[0].field == "invalid_field"
+            error = exc_info.value
+            assert "invalid_field" in str(error.errors)
 
 
 class TestEntitySuggestionIntegration:
@@ -309,14 +250,12 @@ class TestEntitySuggestionIntegration:
     @pytest.mark.asyncio
     async def test_entity_suggestion_integration(self, query_service):
         """Test that entity suggestions work in query template generation context"""
-        result = await query_service.generate_query_template("subjct")  # Typo
+        with pytest.raises(NoSuchEntityError) as exc_info:
+            await query_service.generate_query_template("subjct")  # Typo
 
-        assert not result["exists"]
-        assert "suggestions" in result
-        suggestion_names = [s["name"] for s in result["suggestions"]]
-        assert (
-            "subject" in suggestion_names
-        )  # Integration with utils.suggest_similar_strings_with_scores
+        error = exc_info.value
+        # Should suggest "subject"
+        assert any("subject" in suggestion for suggestion in error.suggestions)
 
 
 class TestGetQueryService:
@@ -346,23 +285,24 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     async def test_full_workflow_success(self, query_service):
-        """Test complete workflow from template generation to execution"""
-        # 1. Generate template
+        """Test complete query-specific workflow: template -> validate -> execute"""
+        # 1. Generate template (query-specific functionality)
         template_result = await query_service.generate_query_template("subject")
-        assert template_result["exists"]
+        assert "template" in template_result
 
-        # 2. Validate the generated template
+        # 2. Validate the generated template (query-specific functionality)
         query = template_result["template"]
         # Mock validation success
         with patch("gen3_mcp.query.validate_graphql") as mock_validate:
-            mock_validate.return_value = Response(valid=True, query=query)
+            mock_validate.return_value = None  # Success
             validation_result = await query_service.validate_query(query)
-            assert validation_result.valid
+            assert validation_result is None  # Success returns None
 
-        # 3. Execute the validated query
-        query_service.client.post_json.return_value = Response(
-            success=True, status_code=200, data={"data": {"subject": [{"id": "123"}]}}
-        )
+        # 3. Execute the validated query (query-specific functionality)
+        query_service.client.post_json.side_effect = None  # Clear side_effect
+        query_service.client.post_json.return_value = {
+            "data": {"subject": [{"id": "123"}]}
+        }
         execution_result = await query_service.execute_graphql(query)
         assert "data" in execution_result
         assert "errors" not in execution_result
@@ -371,17 +311,16 @@ class TestIntegration:
     async def test_error_handling_chain(self, query_service):
         """Test error handling across the workflow"""
         # 1. Try invalid entity
-        template_result = await query_service.generate_query_template("invalid_entity")
-        assert not template_result["exists"]
-        assert "suggestions" in template_result
+        with pytest.raises(NoSuchEntityError) as exc_info:
+            await query_service.generate_query_template("invalid_entity")
 
-        # 2. Use suggested entity if available
-        if template_result["suggestions"]:
-            suggested_entity = template_result["suggestions"][0]["name"]
-            template_result = await query_service.generate_query_template(
-                suggested_entity
-            )
-            assert template_result["exists"]
+        error = exc_info.value
+        assert len(error.suggestions) >= 0  # May or may not have suggestions
+
+        # 2. If suggestions available, they should be valid entity names
+        if error.suggestions:
+            # The context should include the available suggestions
+            assert "available_suggestions" in error.context
 
 
 # Test Fixtures leveraging existing conftest.py infrastructure

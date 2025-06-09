@@ -1,6 +1,6 @@
 [project]
 name = "gen3-mcp"
-version = "1.2.0"
+version = "1.3.0"
 description = "A Model Context Protocol (MCP) server for interacting with Gen3 data commons."
 readme = "docs/README.md"
 requires-python = ">=3.11"

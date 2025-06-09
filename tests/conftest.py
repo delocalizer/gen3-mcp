@@ -47,21 +47,17 @@ def reference_extract_json():
 
 
 def mock_get_json_side_effect(url, **kwargs):
-    """Mock side effect that returns Response objects based on URL"""
-    from gen3_mcp.models import Response
-
+    """Mock side effect that returns raw data based on URL"""
     if url.endswith(SCHEMA_URL_PATH):
-        # Full schema request - success
-        return Response(
-            status="success",
-            message="Successfully retrieved schema",
-            metadata={"status_code": 200},
-            data=FULL_SCHEMA,
-        )
-    # For any other URL, return network error
-    return Response(
-        success=False, error_message="Network error", error_category="NETWORK"
-    )
+
+        return FULL_SCHEMA
+    # For any other URL, raise appropriate exception
+    import httpx
+
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mock_response.url = url
+    raise httpx.HTTPStatusError("Not found", request=Mock(), response=mock_response)
 
 
 @pytest.fixture
@@ -77,32 +73,27 @@ def mock_client():
         log_level="DEBUG",
     )
 
-    # Configure mock to return different responses based on URL
+    # Configure mock to return raw data
     client.get_json = AsyncMock(side_effect=mock_get_json_side_effect)
 
     # Mock GraphQL responses with realistic data
     def mock_post_json_side_effect(url, **kwargs):
-        from gen3_mcp.models import Response
-
-        return Response(
-            success=True,
-            status_code=200,
-            data={
-                "data": {
-                    "subject": [
-                        {
-                            "id": "123e4567-e89b-12d3-a456-426614174000",
-                            "submitter_id": "test_subject_001",
-                            "type": "subject",
-                            "gender": "Female",
-                            "age_at_enrollment": 45,
-                            "race": "White",
-                            "ethnicity": "Not Hispanic or Latino",
-                        }
-                    ]
-                }
-            },
-        )
+        # Return raw data
+        return {
+            "data": {
+                "subject": [
+                    {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "submitter_id": "test_subject_001",
+                        "type": "subject",
+                        "gender": "Female",
+                        "age_at_enrollment": 45,
+                        "race": "White",
+                        "ethnicity": "Not Hispanic or Latino",
+                    }
+                ]
+            }
+        }
 
     client.post_json = AsyncMock(side_effect=mock_post_json_side_effect)
 
@@ -118,16 +109,9 @@ async def schema_manager(mock_client):
 
 
 @pytest.fixture
-async def schema_extract_response(schema_manager):
-    """Schema extract fixture using SchemaManager"""
-    return await schema_manager.get_schema_extract()
-
-
-@pytest.fixture
 async def schema_extract(schema_manager):
     """Schema extract fixture using SchemaManager"""
-    response = await schema_manager.get_schema_extract()
-    return response.data
+    return await schema_manager.get_schema_extract()
 
 
 @pytest.fixture

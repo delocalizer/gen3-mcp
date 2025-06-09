@@ -58,10 +58,11 @@ Example for Claude Desktop `~/.config/Claude/claude_desktop_config.json`:
 The MCP server provides the following tools:
 
 ### Schema Discovery Tools
-- `schema_summary()` - Get annotated overview of all entities and their relationships
+- `get_schema_summary()` - Get annotated overview of all entities and their relationships
+- `get_schema_entity(entity)` - Get detailed schema info about a specific entity including all fields
 
 ### Query Building Tools  
-- `query_template(entity_name, include_relationships=True, max_fields=20)` - Generate safe query templates with validated fields
+- `generate_query_template(entity_name, include_relationships=True, max_fields=20)` - Generate safe query templates with validated fields
 - `validate_query(query)` - Validate GraphQL query syntax and field names against schema
 
 ### Query Execution Tool

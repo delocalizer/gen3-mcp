@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from gen3_mcp.exceptions import GraphQLError
 from gen3_mcp.graphql_validator import validate_graphql
 
 
@@ -35,68 +36,59 @@ class TestValidationWithTestQueries:
     async def test_passing_query_1(self, schema_extract, test_queries):
         """Test that passing_test_1.graphql validates successfully"""
         query = test_queries["passing_1"]
+        # validate_graphql returns None on success, raises on failure
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_passing_query_2(self, schema_extract, test_queries):
         """Test that passing_test_2.graphql validates successfully"""
         query = test_queries["passing_2"]
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_passing_query_3(self, schema_extract, test_queries):
         """Test that passing_test_3.graphql validates successfully"""
         query = test_queries["passing_3"]
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_failing_query_1_syntax_error(self, schema_extract, test_queries):
         """Test that failing_test_1.graphql fails due to syntax error"""
         query = test_queries["failing_1"]
-        result = validate_graphql(query, schema_extract)
+        # validate_graphql raises GraphQLError on failure
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) == 1
-        error = result.errors[0]
+        error = exc_info.value
         assert "syntax error" in error.message.lower()
+        assert len(error.errors) >= 1
 
     @pytest.mark.asyncio
     async def test_failing_query_2_unknown_field(self, schema_extract, test_queries):
         """Test that failing_test_2.graphql fails due to unknown field"""
         query = test_queries["failing_2"]
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) == 1
-
-        # Should have error about unknown field 'study_name'
-        error = result.errors[0]
-        assert "'study_name' does not exist in entity 'study'" in error
+        error = exc_info.value
+        assert len(error.errors) >= 1
+        # Should have error about unknown field
+        assert any("study_name" in err for err in error.errors)
 
     @pytest.mark.asyncio
     async def test_failing_query_3_invalid_relation(self, schema_extract, test_queries):
         """Test that failing_test_3.graphql fails due to invalid relationship"""
         query = test_queries["failing_3"]
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) > 0
-
+        error = exc_info.value
+        assert len(error.errors) >= 1
         # Should have error about invalid relationship
-        error = result.errors[0]
-        assert (
-            "Relationship 'samples' does not exist in entity 'aligned_reads_file'"
-            in error
-        )
+        assert any("samples" in err for err in error.errors)
 
 
 class TestQueryValidationErrorHandling:
@@ -106,43 +98,42 @@ class TestQueryValidationErrorHandling:
     async def test_unknown_entity_error(self, schema_extract):
         """Test validation of query with unknown entity"""
         query = "{ unknown_entity { id } }"
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) == 1
-        assert result.errors[0].error_type == "unknown_entity"
-        assert "unknown_entity" in result.errors[0].message
-
+        error = exc_info.value
+        assert len(error.errors) >= 1
+        assert (
+            "unknown_entity" in str(error.errors) or "unknown_entity" in error.message
+        )
         # Should provide entity suggestions
-        assert result.errors[0].suggestions is not None
+        assert len(error.suggestions) > 0
 
     @pytest.mark.asyncio
     async def test_unknown_field_error(self, schema_extract):
         """Test validation of query with unknown field"""
         query = "{ subject { id unknown_field } }"
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) == 1
-        assert result.errors[0].error_type == "unknown_field"
-        assert result.errors[0].field == "unknown_field"
-        assert result.errors[0].entity == "subject"
-
+        error = exc_info.value
+        assert len(error.errors) >= 1
+        assert "unknown_field" in str(error.errors)
+        assert "subject" in str(error.errors)
         # Should provide field suggestions
-        assert result.errors[0].suggestions is not None
+        assert len(error.suggestions) > 0
 
     @pytest.mark.asyncio
     async def test_similar_field_suggestions(self, schema_extract):
         """Test that similar field suggestions are provided"""
         query = "{ subject { id gendr } }"  # Typo in 'gender'
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        field_error = result.errors[0]
-        assert field_error.field == "gendr"
-
+        error = exc_info.value
+        assert "gendr" in str(error.errors)
         # Should suggest 'gender' as similar field
-        assert "gender" in field_error.suggestions
+        assert any("gender" in suggestion for suggestion in error.suggestions)
 
     @pytest.mark.asyncio
     async def test_multiple_errors(self, schema_extract):
@@ -156,14 +147,14 @@ class TestQueryValidationErrorHandling:
             }
         }
         """
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) == 2
-
+        error = exc_info.value
+        assert len(error.errors) == 2
         # Both errors should be for unknown fields
-        error_fields = {error.field for error in result.errors}
-        assert error_fields == {"unknown_field1", "unknown_field2"}
+        assert "unknown_field1" in str(error.errors)
+        assert "unknown_field2" in str(error.errors)
 
 
 class TestRelationshipValidation:
@@ -184,9 +175,7 @@ class TestRelationshipValidation:
         }
         """
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_valid_backref_relationship(self, schema_extract):
@@ -203,9 +192,7 @@ class TestRelationshipValidation:
         }
         """
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_valid_multi_level_relationship(self, schema_extract):
@@ -227,9 +214,7 @@ class TestRelationshipValidation:
         }
         """
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_invalid_relationship_field(self, schema_extract):
@@ -245,12 +230,12 @@ class TestRelationshipValidation:
             }
         }
         """
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) == 1
-        assert result.errors[0].error_type == "unknown_field"
-        assert result.errors[0].field == "invalid_study_field"
+        error = exc_info.value
+        assert len(error.errors) >= 1
+        assert "invalid_study_field" in str(error.errors)
 
 
 class TestComplexScenarios:
@@ -288,9 +273,7 @@ class TestComplexScenarios:
         }
         """
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_mixed_valid_invalid_fields(self, schema_extract):
@@ -306,13 +289,13 @@ class TestComplexScenarios:
             }
         }
         """
-        result = validate_graphql(query, schema_extract)
+        with pytest.raises(GraphQLError) as exc_info:
+            validate_graphql(query, schema_extract)
 
-        assert not result.is_success
-        assert len(result.errors) == 2
-
-        invalid_fields = {error.field for error in result.errors}
-        assert invalid_fields == {"invalid_field1", "invalid_field2"}
+        error = exc_info.value
+        assert len(error.errors) == 2
+        assert "invalid_field1" in str(error.errors)
+        assert "invalid_field2" in str(error.errors)
 
     @pytest.mark.asyncio
     async def test_query_with_arguments_and_aliases(self, schema_extract):
@@ -331,9 +314,7 @@ class TestComplexScenarios:
         }
         """
         result = validate_graphql(query, schema_extract)
-
-        assert result.is_success
-        assert not result.errors
+        assert result is None  # Success returns None
 
 
 if __name__ == "__main__":

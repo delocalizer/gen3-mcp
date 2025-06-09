@@ -1,7 +1,7 @@
 """High-value constants for the Gen3 MCP package."""
 
 # Package metadata
-PACKAGE_VERSION = "1.2.0"
+PACKAGE_VERSION = "1.3.0"
 SERVER_NAME = "gen3-mcp"
 USER_AGENT = f"{SERVER_NAME}/{PACKAGE_VERSION}"
 
