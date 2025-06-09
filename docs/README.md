@@ -68,13 +68,6 @@ The MCP server provides the following tools:
 ### Query Execution Tool
 - `execute_graphql(query)` - Execute validated GraphQL queries against the Gen3 data commons
 
-### Resources
-- `gen3://info` - Information about the Gen3 instance
-- `gen3://endpoints` - Available API endpoints  
-- `gen3://workflow` - Recommended workflow for exploring Gen3 data commons
-- `gen3://tools-by-category` - Tools organized by usage category
-
-
 ## Acknowledgments
 
 Built with [MCP (Model Context Protocol)](https://github.com/modelcontextprotocol) and designed for [Gen3 Data Commons](https://gen3.org/).
