@@ -74,11 +74,11 @@ class TestGen3Client:
         )
 
     @pytest.fixture
-    def mock_auth_manager(self):
-        """Mock auth manager"""
-        mock_auth = Mock()
-        mock_auth.ensure_valid_token = AsyncMock()
-        return mock_auth
+    def mock_token_provider(self):
+        """Mock token provider"""
+        mock_provider = Mock()
+        mock_provider.get_valid_token = AsyncMock(return_value="mock_token")
+        return mock_provider
 
     @pytest.fixture
     def mock_http_client(self):
@@ -86,16 +86,13 @@ class TestGen3Client:
         return Mock(spec=httpx.AsyncClient)
 
     @pytest.fixture
-    def client_with_mocks(
-        self, config, mock_auth_manager, mock_http_client, monkeypatch
-    ):
+    def client_with_mocks(self, config, mock_token_provider, mock_http_client):
         """Gen3Client with mocked dependencies"""
-        client = Gen3Client(config)
-
-        # Replace the real clients with mocks
-        client._http_client = mock_http_client
-        client._auth_manager = mock_auth_manager
-
+        client = Gen3Client(
+            config=config,
+            token_provider=mock_token_provider,
+            http_client=mock_http_client,
+        )
         return client
 
     @pytest.mark.asyncio

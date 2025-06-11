@@ -57,7 +57,7 @@ class SchemaManager:
 
         logger.info(f"Fetching full schema from {self.config.schema_url}")
 
-        schema = await self.client.get_json(self.config.schema_url, authenticated=False)
+        schema = await self.client.get_json(self.config.schema_url)
         logger.info("Fetched full schema")
         self._cache[cache_key] = schema
         return schema

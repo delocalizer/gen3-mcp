@@ -65,15 +65,25 @@ def mock_client():
     """Mock Gen3 client for testing"""
     from gen3_mcp.client import Gen3Client
 
-    client = Mock(spec=Gen3Client)
-    # Create a default config for the client
-    client.config = Config(
-        base_url="https://test.gen3.io",
-        credentials_file="/tmp/test_creds.json",
-        log_level="DEBUG",
+    # Create a mock token provider
+    mock_token_provider = Mock()
+    mock_token_provider.get_valid_token = AsyncMock(return_value="mock_token")
+
+    # Create a mock HTTP client
+    mock_http_client = Mock()
+
+    # Create client with mocked dependencies
+    client = Gen3Client(
+        config=Config(
+            base_url="https://test.gen3.io",
+            credentials_file="/tmp/test_creds.json",
+            log_level="DEBUG",
+        ),
+        token_provider=mock_token_provider,
+        http_client=mock_http_client,
     )
 
-    # Configure mock to return raw data
+    # Override methods with AsyncMocks for easier testing
     client.get_json = AsyncMock(side_effect=mock_get_json_side_effect)
 
     # Mock GraphQL responses with realistic data
