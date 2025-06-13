@@ -34,6 +34,63 @@ FULL_SCHEMA = load_test_schema()
 REFERENCE_EXTRACT = load_reference_extract()
 
 
+@pytest.fixture
+def mock_graphql_schema(schema_extract):
+    """Create GraphQL schema dynamically from our test entity schema extract"""
+    from graphql import build_schema
+
+    # Build schema definition from schema_extract
+    schema_parts = ["type Query {"]
+
+    # Add query fields for each entity
+    for entity_name in schema_extract.keys():
+        type_name = _capitalize(entity_name)
+        schema_parts.append(f"    {entity_name}(first: Int): [{type_name}]")
+
+    schema_parts.append("}")
+
+    # Add type definitions for each entity
+    for entity_name, entity in schema_extract.items():
+        type_name = _capitalize(entity_name)
+        schema_parts.append(f"type {type_name} {{")
+
+        # Add all scalar fields
+        for field_name, field in entity.fields.items():
+            graphql_type = _convert_field_type_to_graphql(field.type_)
+            schema_parts.append(f"    {field_name}: {graphql_type}")
+
+        # Add relationship fields
+        for rel_name, rel in entity.relationships.items():
+            target_type = _capitalize(rel.target_type)
+            schema_parts.append(f"    {rel_name}: [{target_type}]")
+
+        schema_parts.append("}")
+
+    schema_def = "\n".join(schema_parts)
+    return build_schema(schema_def)
+
+
+def _capitalize(name):
+    """Convert snake_case to PascalCase"""
+    return "".join(word.capitalize() for word in name.split("_"))
+
+
+def _convert_field_type_to_graphql(field_type):
+    """Convert Gen3 field type to GraphQL type"""
+    mapping = {
+        "string": "String",
+        "integer": "Int",
+        "number": "Float",
+        "boolean": "Boolean",
+        "enum": "String",  # Simplified - could create actual enums
+        "array": "[String]",
+        "object": "String",  # JSON as string
+        "anyOf": "String",
+        "oneOf": "String",
+    }
+    return mapping.get(field_type.value, "String")
+
+
 @pytest.fixture(scope="session")
 def test_schema():
     """Test schema fixture"""

@@ -34,7 +34,7 @@ This project follows [awslabs MCP design guidelines](https://github.com/awslabs/
 - **`server.py`** - MCP server setup and tool definitions
 - **`client.py`** - Gen3 HTTP client
 - **`schema.py`** - Gen3 schema operations
-- **`query.py`** - GraphQL validation and execution
+- **`query.py`**  - GraphQL validation and execution
 - **`models.py`** - Pydantic domain models
 - **`config.py`** - Configuration management
 
@@ -48,7 +48,6 @@ gen3-mcp/
 │   ├── config.py            # Configuration management
 │   ├── consts.py            # Constants
 │   ├── exceptions.py        # Custom Exceptions
-│   ├── graphql_validator.py # GraphQL query validation
 │   ├── models.py            # Domain models
 │   ├── query.py             # GraphQL operations
 │   ├── schema.py            # Gen3 schema operations

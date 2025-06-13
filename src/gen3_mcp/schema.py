@@ -37,7 +37,8 @@ class SchemaManager:
         self.client = client
         # Access config through client
         self.config = client.config
-        self._cache = {}
+        self._full_schema = None
+        self._schema_extract = None
 
     async def get_schema_full(self) -> dict[str, Any]:
         """Get full schema using config.schema_url.
@@ -49,17 +50,15 @@ class SchemaManager:
             ConfigError: From auth if there is a config issue.
             httpx.HTTPError: For HTTP/network errors during schema fetch.
         """
-        cache_key = "full_schema"
-
-        if cache_key in self._cache:
+        if self._full_schema is not None:
             logger.debug("Using cached full schema")
-            return self._cache[cache_key]
+            return self._full_schema
 
         logger.info(f"Fetching full schema from {self.config.schema_url}")
 
         schema = await self.client.get_json(self.config.schema_url)
         logger.info("Fetched full schema")
-        self._cache[cache_key] = schema
+        self._full_schema = schema
         return schema
 
     async def get_schema_extract(self) -> SchemaExtract:
@@ -74,11 +73,9 @@ class SchemaManager:
             httpx.HTTPError: For HTTP/network errors during schema fetch.
             ParseError: If schema processing fails due to unexpected schema format.
         """
-        cache_key = "extract"
-
-        if cache_key in self._cache:
+        if self._schema_extract is not None:
             logger.debug("Using cached schema extract")
-            return self._cache[cache_key]
+            return self._schema_extract
 
         logger.info("Creating new schema extract")
 
@@ -89,7 +86,7 @@ class SchemaManager:
         extract = self._create_extract(schema)
 
         logger.info("Created new schema extract")
-        self._cache[cache_key] = extract
+        self._schema_extract = extract
         return extract
 
     async def get_entity(self, entity_name: str) -> EntitySchema:
@@ -287,7 +284,8 @@ class SchemaManager:
         Raises:
             No exceptions raised.
         """
-        self._cache.clear()
+        self._full_schema = None
+        self._schema_extract = None
 
 
 @cache

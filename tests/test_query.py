@@ -1,6 +1,6 @@
 """Comprehensive tests for QueryService module"""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
@@ -215,33 +215,24 @@ class TestValidateQuery:
     @pytest.mark.asyncio
     async def test_validate_query_success(self, query_service):
         """Test successful query validation"""
-        # Mock the graphql_validator.validate_graphql function
-        with patch("gen3_mcp.query.validate_graphql") as mock_validate:
-            mock_validate.return_value = None  # Success returns None
+        query = "{ subject { id } }"
 
-            query = "{ subject { id } }"
-
-            result = await query_service.validate_query(query)
-            assert result is None  # Success returns None
+        result = await query_service.validate_query(query)
+        assert result is None  # Success returns None
 
     @pytest.mark.asyncio
     async def test_validate_query_with_errors(self, query_service):
         """Test query validation with errors"""
-        # Mock validation to raise GraphQLError
-        with patch("gen3_mcp.query.validate_graphql") as mock_validate:
-            mock_validate.side_effect = GraphQLError(
-                "Validation failed",
-                errors=["Field 'invalid_field' not found on type 'Subject'"],
-                suggestions=["Try 'submitter_id' instead"],
-            )
+        query = "{ subject { invalid_field } }"  # Invalid field
 
-            query = "{ subject { invalid_field } }"
-            # validate_query raises GraphQLError on failure
-            with pytest.raises(GraphQLError) as exc_info:
-                await query_service.validate_query(query)
+        # validate_query should raise GraphQLError on validation failure
+        with pytest.raises(GraphQLError) as exc_info:
+            await query_service.validate_query(query)
 
-            error = exc_info.value
-            assert "invalid_field" in str(error.errors)
+        error = exc_info.value
+        assert "invalid_field" in str(error.errors) or "Cannot query field" in str(
+            error.errors
+        )
 
 
 class TestEntitySuggestionIntegration:
@@ -292,11 +283,8 @@ class TestIntegration:
 
         # 2. Validate the generated template (query-specific functionality)
         query = template_result["template"]
-        # Mock validation success
-        with patch("gen3_mcp.query.validate_graphql") as mock_validate:
-            mock_validate.return_value = None  # Success
-            validation_result = await query_service.validate_query(query)
-            assert validation_result is None  # Success returns None
+        validation_result = await query_service.validate_query(query)
+        assert validation_result is None  # Success returns None
 
         # 3. Execute the validated query (query-specific functionality)
         query_service.client.post_json.side_effect = None  # Clear side_effect
@@ -325,7 +313,7 @@ class TestIntegration:
 
 # Test Fixtures leveraging existing conftest.py infrastructure
 @pytest.fixture
-async def query_service(mock_client, schema_extract):
+async def query_service(mock_client, schema_extract, mock_graphql_schema):
     """QueryService fixture using existing test infrastructure from conftest.py"""
     # Create SchemaManager with the properly configured mock_client from conftest.py
     schema_manager = SchemaManager(mock_client)
@@ -336,5 +324,8 @@ async def query_service(mock_client, schema_extract):
 
     # Create QueryService with the mocked schema manager
     service = QueryService(schema_manager)
+
+    # Mock the _get_graphql_schema method to return our test GraphQL schema
+    service._get_graphql_schema = AsyncMock(return_value=mock_graphql_schema)
 
     return service

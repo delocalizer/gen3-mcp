@@ -4,9 +4,17 @@ import logging
 from functools import cache
 
 import httpx
+from graphql import (
+    GraphQLSchema,
+    build_client_schema,
+    get_introspection_query,
+    parse,
+    validate,
+)
+from graphql.error import GraphQLError as NativeGraphQLError
+from graphql.error import GraphQLSyntaxError
 
-from .exceptions import GraphQLError, NoSuchEntityError
-from .graphql_validator import validate_graphql
+from .exceptions import Gen3MCPError, GraphQLError, NoSuchEntityError
 from .schema import SchemaManager
 from .utils import suggest_similar_strings
 
@@ -29,6 +37,56 @@ class QueryService:
         # Access client and config through schema_manager
         self.client = schema_manager.client
         self.config = schema_manager.client.config
+        self._graphql_schema = None
+
+    async def _get_graphql_schema(self) -> GraphQLSchema:
+        """Get GraphQL introspection schema.
+
+        This is cached separately from the data dictionary schema in schema_manager.
+        This introspection schema is used for GraphQL query validation.
+        The data dictionary schema is used for understanding entities.
+
+        # performance note:
+        The introspection query used to build the GraphQL schema is deeply
+        nested. It may take several seconds to run, and the result may be
+        on the order of MB in size.
+
+        Returns:
+            GraphQLSchema instance for use with query validation.
+
+        Raises:
+            ConfigError: From auth if there is a config issue.
+            httpx.HTTPError: For HTTP/network errors during introspection.
+        """
+        if self._graphql_schema is not None:
+            logger.debug("Using cached GraphQL introspection schema")
+            return self._graphql_schema
+
+        logger.info("Fetching GraphQL introspection schema")
+
+        try:
+            # Execute introspection query
+            introspection_query = get_introspection_query()
+            result = await self.execute_graphql(introspection_query)
+
+            # Build client schema from introspection result
+            schema = build_client_schema(result["data"])
+
+            logger.info("GraphQL introspection schema cached successfully")
+            self._graphql_schema = schema
+            return schema
+
+        except (NativeGraphQLError, KeyError) as e:
+            raise Gen3MCPError(
+                f"Failed to build GraphQL schema from introspection: {e}",
+                errors=[str(e)],
+                suggestions=[
+                    "Verify introspection is enabled on the GraphQL endpoint",
+                ],
+                context={
+                    "error_type": "schema_build_error",
+                },
+            ) from e
 
     async def execute_graphql(self, query: str) -> dict:
         """Execute GraphQL query.
@@ -188,23 +246,63 @@ class QueryService:
 
         Returns:
             None: Validation functions follow the Pythonic pattern of returning None on
-            success. The caller has the original query for context and can construct
-            appropriate response objects as needed.
+            success. Success is indicated by the absence of exceptions.
 
         Raises:
             ConfigError: From auth if there is a config issue.
             httpx.HTTPError: For HTTP/network errors during API calls.
-            ParseError: If schema processing fails.
             GraphQLError: If query validation fails.
         """
         logger.info("Validating GraphQL query")
 
-        # Get schema extract (may raise ConfigError, httpx errors, or ParseError)
-        schema_extract = await self.schema_manager.get_schema_extract()
+        try:
+            # Parse the query into AST
+            query_ast = parse(query)
+            logger.debug("GraphQL query parsed successfully")
 
-        # Validate using the graphql_validator function
-        # validate_graphql returns None on success, raises GraphQLError on failure
-        validate_graphql(query, schema_extract)
+        except GraphQLSyntaxError as e:
+            logger.error(f"GraphQL syntax error: {e}")
+            raise GraphQLError(
+                "GraphQL syntax error",
+                errors=[f"GraphQL syntax error: {e}, {e.locations}"],
+                suggestions=[
+                    "Inpsect errors to locate the problem",
+                    "Use generate_query_template() to start with a valid query",
+                ],
+                context={
+                    "query": query,
+                    "error_type": "syntax_error",
+                    "location": getattr(e, "locations", None),
+                },
+            ) from e
+
+        # Get the GraphQL schema for validation
+        schema = await self._get_graphql_schema()
+
+        # Validate query against schema
+        errors = validate(schema, query_ast)
+
+        if errors:
+            logger.warning(f"GraphQL validation failed with {len(errors)} errors")
+
+            raise GraphQLError(
+                f"GraphQL query validation failed with {len(errors)} errors",
+                errors=errors,
+                suggestions=[
+                    "Use generate_query_template() for valid query examples",
+                ],
+                context={
+                    "query": query,
+                    "error_count": len(errors),
+                },
+            )
+
+        logger.info("GraphQL validation successful")
+
+    def clear_graphql_schema_cache(self):
+        """Clear cached GraphQL schema. Useful for testing and cache invalidation."""
+        self._graphql_schema = None
+        logger.debug("GraphQL schema cache cleared")
 
 
 @cache

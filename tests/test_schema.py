@@ -20,9 +20,9 @@ class TestSchemaManager:
         manager = SchemaManager(mock_client)
 
         assert manager.client is mock_client
-        assert isinstance(manager._cache, dict)
+        assert manager._full_schema is None
+        assert manager._schema_extract is None
         assert isinstance(manager.config, Config)
-        assert len(manager._cache) == 0
 
     @pytest.mark.asyncio
     async def test_get_schema_full_success(self, schema_manager, test_schema):
@@ -243,16 +243,6 @@ class TestSchemaProcessing:
 class TestCacheManagement:
     """Test cache management functionality"""
 
-    def test_clear_cache(self, schema_manager):
-        """Test cache clearing"""
-        # Add something to cache manually
-        schema_manager._cache["test"] = "value"
-        assert len(schema_manager._cache) == 1
-
-        # Clear cache
-        schema_manager.clear_cache()
-        assert len(schema_manager._cache) == 0
-
     @pytest.mark.asyncio
     async def test_clear_cache_forces_refetch(self, schema_manager):
         """Test that clearing cache forces refetch"""
@@ -265,21 +255,6 @@ class TestCacheManagement:
         # Second fetch should create new object
         extract2 = await schema_manager.get_schema_extract()
         assert extract1 is not extract2
-
-    @pytest.mark.asyncio
-    async def test_cache_independence(self, schema_manager):
-        """Test that full_schema and extract caches are independent"""
-        # Get full schema
-        await schema_manager.get_schema_full()
-        assert "full_schema" in schema_manager._cache
-        assert "extract" not in schema_manager._cache
-
-        # Get extract (should use cached full_schema)
-        await schema_manager.get_schema_extract()
-        assert "extract" in schema_manager._cache
-
-        # Both should be cached
-        assert len(schema_manager._cache) == 2
 
 
 class TestSchemaManagerBehavior:
@@ -317,8 +292,9 @@ class TestSchemaManagerBehavior:
         assert isinstance(extract, SchemaExtract)
         assert len(extract) > 0
 
-        # All should use caching
-        assert len(manager._cache) == 2  # full_schema and extract
+        # Both should be cached
+        assert manager._full_schema is not None
+        assert manager._schema_extract is not None
 
     @pytest.mark.asyncio
     async def test_concurrent_access(self, schema_manager):
